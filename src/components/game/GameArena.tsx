@@ -1,0 +1,160 @@
+import { useEffect, useRef } from 'react';
+import { Character, ARENA, PLAYER_SIZE } from '@/types/game';
+import { useGameEngine } from '@/hooks/useGameEngine';
+import { useKeyboard } from '@/hooks/useKeyboard';
+import PlayerRenderer from './PlayerRenderer';
+import ProjectileRenderer from './ProjectileRenderer';
+import HazardRenderer from './HazardRenderer';
+import GameUI from './GameUI';
+
+interface GameArenaProps {
+  player1Character: Character;
+  player2Character: Character;
+  settings: {
+    maxRounds: number;
+    roundTimeLimit: number;
+    soundEnabled: boolean;
+  };
+  scores: [number, number];
+  onRoundEnd: (winner: 1 | 2) => void;
+  onReturnToMenu: () => void;
+}
+
+const GameArena = ({
+  player1Character,
+  player2Character,
+  settings,
+  scores,
+  onRoundEnd,
+  onReturnToMenu,
+}: GameArenaProps) => {
+  const { keysRef } = useKeyboard();
+  const { gameState, setKeysRef, resetRound, togglePause } = useGameEngine(
+    player1Character,
+    player2Character,
+    settings.roundTimeLimit,
+    onRoundEnd
+  );
+
+  useEffect(() => {
+    setKeysRef(keysRef);
+  }, [setKeysRef, keysRef]);
+
+  const currentRound = scores[0] + scores[1] + 1;
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-muted p-4">
+      {/* Game UI */}
+      <GameUI
+        players={gameState.players}
+        currentRound={currentRound}
+        maxRounds={settings.maxRounds}
+        scores={scores}
+        timeRemaining={gameState.roundTimeRemaining}
+        isPaused={gameState.isPaused}
+        onPause={togglePause}
+        onReturnToMenu={onReturnToMenu}
+      />
+
+      {/* Arena */}
+      <div
+        className="relative border-4 border-primary/50 rounded-lg overflow-hidden bg-gradient-to-b from-muted/50 to-muted"
+        style={{
+          width: ARENA.width,
+          height: ARENA.height,
+        }}
+      >
+        {/* Arena boundary markers */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div 
+            className="absolute border-2 border-dashed border-primary/20"
+            style={{
+              left: ARENA.padding,
+              top: ARENA.padding,
+              right: ARENA.padding,
+              bottom: ARENA.padding,
+            }}
+          />
+        </div>
+
+        {/* Ground line */}
+        <div 
+          className="absolute left-0 right-0 h-1 bg-primary/30"
+          style={{ bottom: ARENA.padding }}
+        />
+
+        {/* Hazard zones */}
+        {gameState.hazardZones.map(zone => (
+          <HazardRenderer key={zone.id} zone={zone} />
+        ))}
+
+        {/* Projectiles */}
+        {gameState.projectiles.map(projectile => (
+          <ProjectileRenderer key={projectile.id} projectile={projectile} />
+        ))}
+
+        {/* Attack hitboxes (for debugging, can be hidden) */}
+        {gameState.attackHitboxes.map(hitbox => (
+          <div
+            key={hitbox.id}
+            className="absolute bg-primary/20 rounded"
+            style={{
+              left: hitbox.x,
+              top: hitbox.y,
+              width: hitbox.width,
+              height: hitbox.height,
+            }}
+          />
+        ))}
+
+        {/* Players */}
+        <PlayerRenderer
+          player={gameState.players[0]}
+          character={player1Character}
+        />
+        <PlayerRenderer
+          player={gameState.players[1]}
+          character={player2Character}
+        />
+
+        {/* Round winner overlay */}
+        {gameState.roundWinner && (
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+            <div className="text-center animate-scale-in">
+              <h2 className="text-4xl font-bold mb-2">
+                라운드 {currentRound} 종료!
+              </h2>
+              <p className="text-2xl text-primary">
+                플레이어 {gameState.roundWinner} 승리!
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Pause overlay */}
+        {gameState.isPaused && !gameState.roundWinner && (
+          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-4xl font-bold mb-4">일시 정지</h2>
+              <p className="text-muted-foreground">
+                아무 키나 눌러 계속하기
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Controls reminder */}
+      <div className="mt-4 flex gap-8 text-sm text-muted-foreground">
+        <div>
+          <span className="font-semibold text-primary">P1:</span> WASD 이동, Space 공격, Q 스킬, E 궁극기
+        </div>
+        <div>
+          <span className="font-semibold text-destructive">P2:</span> 화살표 이동, Enter 공격, Shift 스킬, / 궁극기
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GameArena;
