@@ -37,11 +37,11 @@ export const useGameState = () => {
     []
   );
 
-  const confirmCharacterSelection = useCallback(() => {
-    if (player1Character && player2Character) {
-      goToScreen('game');
-    }
-  }, [player1Character, player2Character, goToScreen]);
+  const confirmCharacterSelection = useCallback((p1: Character, p2: Character) => {
+    setPlayer1Character(p1);
+    setPlayer2Character(p2);
+    goToScreen('game');
+  }, [goToScreen]);
 
   const endRound = useCallback(
     (winner: 1 | 2) => {
