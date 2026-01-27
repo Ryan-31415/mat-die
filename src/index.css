@@ -103,3 +103,44 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom Animations */
+@keyframes sword-swing {
+  0% {
+    transform: rotate(-45deg);
+  }
+
+  50% {
+    transform: rotate(135deg);
+  }
+
+  100% {
+    transform: rotate(-45deg);
+  }
+}
+
+.animate-sword-swing {
+  animation: sword-swing 0.3s ease-out forwards;
+  transform-origin: bottom left;
+}
+
+@keyframes katana-slash {
+  0% {
+    transform: scale(0.8) translate(-10px, 5px) rotate(-45deg);
+    opacity: 0;
+  }
+
+  30% {
+    opacity: 1;
+    transform: scale(1) translate(0, 0) rotate(0deg);
+  }
+
+  100% {
+    transform: scale(1.2) translate(30px, -15px) rotate(100deg);
+    opacity: 0;
+  }
+}
+
+.animate-katana-slash {
+  animation: katana-slash 0.25s linear forwards;
+}

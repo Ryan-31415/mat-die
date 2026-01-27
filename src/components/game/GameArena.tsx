@@ -41,6 +41,29 @@ const GameArena = ({
     setKeysRef(keysRef);
   }, [setKeysRef, keysRef]);
 
+  // Auto-reset round when scores change (meaning a round just ended)
+  // We need to track previous scores to detect changes
+  const prevScoresRef = useRef(scores);
+
+  useEffect(() => {
+    // Check if scores actually changed (a round just ended)
+    if (scores[0] !== prevScoresRef.current[0] || scores[1] !== prevScoresRef.current[1]) {
+      prevScoresRef.current = scores;
+
+      // Check if match is not over yet
+      const winsNeeded = Math.ceil(settings.maxRounds / 2);
+      const matchOver = scores[0] >= winsNeeded || scores[1] >= winsNeeded;
+
+      if (!matchOver) {
+        // Delay the reset to show the round end overlay
+        const timer = setTimeout(() => {
+          resetRound();
+        }, 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [scores, settings.maxRounds, resetRound]);
+
   const currentRound = scores[0] + scores[1] + 1;
 
   return (
@@ -67,7 +90,7 @@ const GameArena = ({
       >
         {/* Arena boundary markers */}
         <div className="absolute inset-0 pointer-events-none">
-          <div 
+          <div
             className="absolute border-2 border-dashed border-primary/20"
             style={{
               left: ARENA.padding,
@@ -79,7 +102,7 @@ const GameArena = ({
         </div>
 
         {/* Ground line */}
-        <div 
+        <div
           className="absolute left-0 right-0 h-1 bg-primary/30"
           style={{ bottom: ARENA.padding }}
         />
@@ -99,8 +122,8 @@ const GameArena = ({
           <ProjectileRenderer key={projectile.id} projectile={projectile} />
         ))}
 
-        {/* Attack hitboxes (for debugging, can be hidden) */}
-        {gameState.attackHitboxes.map(hitbox => (
+        {/* Attack hitboxes (Hidden) */}
+        {/* {gameState.attackHitboxes.map(hitbox => (
           <div
             key={hitbox.id}
             className="absolute bg-primary/20 rounded"
@@ -111,7 +134,7 @@ const GameArena = ({
               height: hitbox.height,
             }}
           />
-        ))}
+        ))} */}
 
         {/* Players */}
         <PlayerRenderer
@@ -128,7 +151,7 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center animate-scale-in">
               <h2 className="text-4xl font-bold mb-2">
-                라운드 {currentRound} 종료!
+                라운드 {currentRound - 1} 종료!
               </h2>
               <p className="text-2xl text-primary">
                 플레이어 {gameState.roundWinner} 승리!

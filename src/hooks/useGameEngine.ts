@@ -49,6 +49,9 @@ export const useGameEngine = (
     gameStateRef.current = gameState;
   }, [gameState]);
 
+  // Flag to prevent duplicate round end calls
+  const roundEndingRef = useRef(false);
+
   const setKeysRef = useCallback((ref: React.MutableRefObject<KeyboardState>) => {
     keysRefHolder.current = ref;
   }, []);
@@ -117,7 +120,7 @@ export const useGameEngine = (
 
   const applyDamage = (player: Player, damage: number): Player => {
     const actualDamage = damage * (1 - player.damageReduction);
-    
+
     // Check dodge for ninja
     if (player.dodgesRemaining > 0) {
       return {
@@ -188,6 +191,9 @@ export const useGameEngine = (
         updatedPlayer.isInvisible = false;
         updatedPlayer.invisibleDuration = 0;
         updatedPlayer.dodgesRemaining = 0;
+        // Reset ninja ultimate buffs
+        updatedPlayer.damageBoost = 0;
+        updatedPlayer.speedBoost = 0;
       }
     }
     if (updatedPlayer.buffDuration > 0) {
@@ -220,7 +226,7 @@ export const useGameEngine = (
 
     // Apply gravity even when stunned
     const now = Date.now();
-    
+
     // Apply gravity
     if (!updatedPlayer.isGrounded || updatedPlayer.velocityY < 0) {
       updatedPlayer.velocityY += GRAVITY * (deltaTime / 1000);
@@ -232,7 +238,7 @@ export const useGameEngine = (
 
     // Platform collision detection for gravity
     const gravityPlatformResult = checkPlatformCollision(updatedPlayer, gravityNewY, updatedPlayer.velocityY, platforms);
-    
+
     if (gravityPlatformResult.isGrounded) {
       gravityNewY = gravityPlatformResult.y;
       updatedPlayer.velocityY = 0;
@@ -244,7 +250,7 @@ export const useGameEngine = (
 
     // Vertical boundary checking
     gravityNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, gravityNewY));
-    
+
     // If hit bottom boundary, ground the player
     if (gravityNewY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
       gravityNewY = ARENA.height - ARENA.padding - PLAYER_SIZE;
@@ -266,7 +272,7 @@ export const useGameEngine = (
         updatedPlayer.isShielding = true;
         newShieldTick += deltaTime;
         if (newShieldTick >= 500) {
-          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 5);
+          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 20); // Increased mana cost
           newShieldTick = 0;
         }
       } else {
@@ -292,22 +298,22 @@ export const useGameEngine = (
     else if (dx < 0) updatedPlayer.facingRight = false;
 
     // Apply horizontal movement
-    const moveAmount = speed * (deltaTime / 16) * 6; // Increased speed for platformer feel
+    const moveAmount = speed * (deltaTime / 16) * 2.1; // Reduced speed (70% of previous)
     let newX = updatedPlayer.x + dx * moveAmount;
-    
+
     // Horizontal boundary checking
     newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
     updatedPlayer.x = newX;
 
     // Jumping logic (now is already defined above)
     const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
-    
+
     if (jumpKey && canJump && !updatedPlayer.isJumping) {
       updatedPlayer.velocityY = JUMP_FORCE;
       updatedPlayer.isJumping = true;
       updatedPlayer.isGrounded = false;
     }
-    
+
     // Reset jump flag when key released
     if (!jumpKey) {
       updatedPlayer.isJumping = false;
@@ -318,13 +324,13 @@ export const useGameEngine = (
 
     // Platform collision detection for movement
     const platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY, platforms);
-    
+
     if (platformResult.isGrounded) {
       newY = platformResult.y;
       updatedPlayer.velocityY = 0;
       updatedPlayer.isGrounded = true;
       updatedPlayer.lastGroundedTime = now;
-      
+
       // Drop through one-way platform
       if (moveDown && platformResult.platform?.type === 'one-way') {
         updatedPlayer.isGrounded = false;
@@ -336,7 +342,7 @@ export const useGameEngine = (
 
     // Vertical boundary checking
     newY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, newY));
-    
+
     // If hit bottom boundary, ground the player
     if (newY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
       newY = ARENA.height - ARENA.padding - PLAYER_SIZE;
@@ -363,9 +369,9 @@ export const useGameEngine = (
           newHitboxes.push(createAttackHitbox(
             player.id,
             attackX,
-            attackY,
+            updatedPlayer.y, // Centered vertically for slash
             character.attackRange,
-            PLAYER_SIZE / 2,
+            PLAYER_SIZE, // Full height for slash
             baseDamage,
             200,
             false
@@ -377,7 +383,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 400,
+            attackDirection * 600, // Increased speed
             -50,
             baseDamage
           ));
@@ -397,11 +403,11 @@ export const useGameEngine = (
           newHitboxes.push(createAttackHitbox(
             player.id,
             attackX,
-            attackY,
+            updatedPlayer.y - 10, // Slightly higher for katana slash
             character.attackRange,
-            PLAYER_SIZE / 2,
+            PLAYER_SIZE * 1.1, // Larger slash area
             baseDamage,
-            250,
+            120, // Reduced duration for harder deflect
             true // Can deflect projectiles
           ));
           break;
@@ -411,9 +417,9 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 250,
+            attackDirection * 500, // Further increased range for better coverage
             -100,
-            baseDamage
+            baseDamage * 0.5
           ));
           break;
       }
@@ -421,7 +427,7 @@ export const useGameEngine = (
       setTimeout(() => {
         setGameState(prev => ({
           ...prev,
-          players: prev.players.map(p => 
+          players: prev.players.map(p =>
             p.id === player.id ? { ...p, isAttacking: false } : p
           ) as [Player, Player],
         }));
@@ -446,9 +452,9 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 400,
+              attackDirection * 600, // Increased speed
               -50,
-              baseDamage
+              baseDamage * 1.1
             ));
             break;
           case 'mage':
@@ -465,13 +471,13 @@ export const useGameEngine = (
             break;
           case 'ninja':
             updatedPlayer.isDashing = true;
-            const dashDistance = 150;
+            const dashDistance = 300; // Increased range
             const dashX = updatedPlayer.x + (attackDirection * dashDistance);
             updatedPlayer.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, dashX));
             setTimeout(() => {
               setGameState(prev => ({
                 ...prev,
-                players: prev.players.map(p => 
+                players: prev.players.map(p =>
                   p.id === player.id ? { ...p, isDashing: false } : p
                 ) as [Player, Player],
               }));
@@ -493,7 +499,7 @@ export const useGameEngine = (
         setTimeout(() => {
           setGameState(prev => ({
             ...prev,
-            players: prev.players.map(p => 
+            players: prev.players.map(p =>
               p.id === player.id ? { ...p, isUsingSkill: false } : p
             ) as [Player, Player],
           }));
@@ -530,7 +536,7 @@ export const useGameEngine = (
                     player.id,
                     prev.players[player.id - 1].x + PLAYER_SIZE / 2,
                     prev.players[player.id - 1].y + PLAYER_SIZE / 2,
-                    attackDirection * 400 * Math.cos(radians),
+                    attackDirection * 600 * Math.cos(radians), // Increased speed
                     -50 + Math.sin(radians) * 100,
                     baseDamage
                   ));
@@ -578,7 +584,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x,
             updatedPlayer.y,
-            8,
+            2, // Reduced damage (approx 22% of 8)
             30000
           ));
           break;
@@ -587,7 +593,7 @@ export const useGameEngine = (
       setTimeout(() => {
         setGameState(prev => ({
           ...prev,
-          players: prev.players.map(p => 
+          players: prev.players.map(p =>
             p.id === player.id ? { ...p, isUsingUltimate: false } : p
           ) as [Player, Player],
         }));
@@ -616,17 +622,17 @@ export const useGameEngine = (
 
       // Update players
       const p1Result = updatePlayer(
-        prev.players[0], 
-        keys, 
-        deltaTime, 
+        prev.players[0],
+        keys,
+        deltaTime,
         prev.players[1],
         shieldManaTickRef.current[0],
         prev.platforms
       );
       const p2Result = updatePlayer(
-        prev.players[1], 
-        keys, 
-        deltaTime, 
+        prev.players[1],
+        keys,
+        deltaTime,
         prev.players[0],
         shieldManaTickRef.current[1],
         prev.platforms
@@ -636,19 +642,33 @@ export const useGameEngine = (
 
       let players: [Player, Player] = [p1Result.player, p2Result.player];
       let projectiles = [...prev.projectiles, ...p1Result.newProjectiles, ...p2Result.newProjectiles];
-      let hazardZones = [...prev.hazardZones, ...p1Result.newHazards, ...p2Result.newHazards];
       let attackHitboxes = [...prev.attackHitboxes, ...p1Result.newHitboxes, ...p2Result.newHitboxes];
+
+      // Handle Tesla Coil Replacement (Explode old ones)
+      let hazardZones = [...prev.hazardZones];
+      const newCoils = [...p1Result.newHazards, ...p2Result.newHazards].filter(h => h.type === 'tesla-coil');
+      if (newCoils.length > 0) {
+        hazardZones = hazardZones.map(z => {
+          if (z.type === 'tesla-coil' && newCoils.some(nc => nc.ownerId === z.ownerId)) {
+            return { ...z, duration: 0, createdAt: 0 }; // Expire immediately
+          }
+          return z;
+        });
+      }
+      hazardZones = [...hazardZones, ...p1Result.newHazards, ...p2Result.newHazards];
+
+      const coilDamageMap = new Map<string, number>();
 
       // Update projectiles
       projectiles = projectiles.map(proj => {
         let newProj = { ...proj };
         newProj.x += proj.velocityX * (deltaTime / 1000);
         newProj.y += proj.velocityY * (deltaTime / 1000);
-        
+
         if (proj.hasGravity) {
           newProj.velocityY += proj.gravity * (deltaTime / 1000);
         }
-        
+
         return newProj;
       });
 
@@ -667,7 +687,7 @@ export const useGameEngine = (
                 proj.ownerId,
                 proj.x - 30,
                 ARENA.height - ARENA.padding - 30,
-                proj.damage * 0.2,
+                proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.035, // Toxic: 2 DPS, Fire: 0.8 DPS
                 proj.firePoolDuration
               ));
             }
@@ -675,23 +695,51 @@ export const useGameEngine = (
           return false;
         }
 
+        // Check Platform Collision (for Flasks/Explosives)
+        if (proj.createsFirePool && proj.hasGravity) {
+          const hitPlatform = prev.platforms.find(p => checkCollision(proj.x, proj.y, proj.width, proj.height, p.x, p.y, p.width, p.height));
+          if (hitPlatform) {
+            hazardZones.push(createHazardZone(
+              proj.type === 'flask' ? 'toxic-pool' : 'fire-pool',
+              proj.ownerId,
+              proj.x - 30,
+              hitPlatform.y - 30, // On top of platform
+              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.035, // Differentiate pool damage
+              proj.firePoolDuration
+            ));
+            return false;
+          }
+        }
+
+        // Check collision with Tesla Coils
+        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
+        if (hitCoil) {
+          coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
+          return false;
+        }
+
         // Check player collision
         const targetPlayer = proj.ownerId === 1 ? 1 : 0;
         const target = players[targetPlayer];
-
-        // Check if shielding and projectile is from front
-        if (target.isShielding) {
-          const fromFront = (proj.ownerId === 1 && !target.facingRight) || 
-                           (proj.ownerId === 2 && target.facingRight);
-          if (fromFront) {
-            return false; // Block projectile
-          }
-        }
 
         if (checkCollision(
           proj.x, proj.y, proj.width, proj.height,
           target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
         )) {
+          // Check Shield Logic (Only if hits player)
+          if (target.isShielding) {
+            const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
+              (proj.ownerId === 2 && target.facingRight);
+            if (fromFront) {
+              if (proj.canBeDeflected) {
+                proj.velocityX *= -1;
+                proj.ownerId = target.id as 1 | 2;
+                return true; // Reflect
+              }
+              return false; // Block
+            }
+          }
+
           // Apply damage
           players[targetPlayer] = applyDamage(target, proj.damage);
 
@@ -724,7 +772,7 @@ export const useGameEngine = (
               proj.ownerId,
               proj.x - 30,
               proj.y - 30,
-              proj.damage * 0.2,
+              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.035, // Differentiate pool damage
               proj.firePoolDuration
             ));
           }
@@ -752,13 +800,19 @@ export const useGameEngine = (
       attackHitboxes = attackHitboxes.filter(hitbox => {
         if (now - hitbox.createdAt > hitbox.duration) return false;
 
+        // Check collision with Tesla Coils
+        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== hitbox.ownerId && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, z.x, z.y, z.width, z.height));
+        if (hitCoil) {
+          coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + hitbox.damage);
+        }
+
         const targetIndex = hitbox.ownerId === 1 ? 1 : 0;
         const target = players[targetIndex];
 
         // Check shield
         if (target.isShielding) {
-          const fromFront = (hitbox.ownerId === 1 && !target.facingRight) || 
-                           (hitbox.ownerId === 2 && target.facingRight);
+          const fromFront = (hitbox.ownerId === 1 && !target.facingRight) ||
+            (hitbox.ownerId === 2 && target.facingRight);
           if (fromFront) return true; // Block but keep hitbox
         }
 
@@ -781,64 +835,126 @@ export const useGameEngine = (
       });
 
       // Update hazard zones
-      hazardZones = hazardZones.filter(zone => {
-        if (now - zone.createdAt > zone.duration) {
-          // Tesla coil explosion
-          if (zone.type === 'tesla-coil') {
-            const targetIndex = zone.ownerId === 1 ? 1 : 0;
+      const explosions: HazardZone[] = [];
+
+      hazardZones = hazardZones.map(zone => {
+        const zoneCopy = { ...zone };
+
+        // Apply coil damage
+        if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined) {
+          const damage = coilDamageMap.get(zoneCopy.id) || 0;
+          if (damage > 0) {
+            zoneCopy.health -= damage;
+          }
+          if (zoneCopy.health <= 0) {
+            // Trigger explosion (2x range)
+            const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             if (checkCollision(
-              zone.x - 50, zone.y - 50, 100, 100,
+              zoneCopy.x - 100, zoneCopy.y - 100, 200, 200,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
               players[targetIndex] = applyDamage(players[targetIndex], 30);
             }
+
+            // Add visual explosion
+            explosions.push(createHazardZone(
+              'electric-explosion',
+              zoneCopy.ownerId,
+              zoneCopy.x - 30, // Centered
+              zoneCopy.y - 30,
+              0,
+              300
+            ));
+            return null;
           }
-          return false;
+        }
+
+        if (now - zoneCopy.createdAt > zoneCopy.duration) {
+          // Tesla coil explosion (2x range)
+          if (zoneCopy.type === 'tesla-coil') {
+            const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
+            if (checkCollision(
+              zoneCopy.x - 100, zoneCopy.y - 100, 200, 200,
+              players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
+            )) {
+              players[targetIndex] = applyDamage(players[targetIndex], 30);
+            }
+
+            // Add visual explosion
+            explosions.push(createHazardZone(
+              'electric-explosion',
+              zoneCopy.ownerId,
+              zoneCopy.x - 30,
+              zoneCopy.y - 30,
+              0,
+              300
+            ));
+          }
+          return null;
+        }
+
+        // Tesla coil self-damage (0.5s tick, 2% max health)
+        if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined && zoneCopy.maxHealth !== undefined) {
+          const selfDamageTick = zoneCopy.lastSelfDamage || zoneCopy.createdAt;
+          if (now - selfDamageTick >= 500) {
+            zoneCopy.health -= zoneCopy.maxHealth * 0.02;
+            zoneCopy.lastSelfDamage = now;
+          }
         }
 
         // Tesla coil attacks
-        if (zone.type === 'tesla-coil' && zone.lastAttack) {
-          const targetIndex = zone.ownerId === 1 ? 1 : 0;
+        if (zoneCopy.type === 'tesla-coil') {
+          const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
           const target = players[targetIndex];
           const dist = Math.hypot(
-            (zone.x + zone.width / 2) - (target.x + PLAYER_SIZE / 2),
-            (zone.y + zone.height / 2) - (target.y + PLAYER_SIZE / 2)
+            (zoneCopy.x + zoneCopy.width / 2) - (target.x + PLAYER_SIZE / 2),
+            (zoneCopy.y + zoneCopy.height / 2) - (target.y + PLAYER_SIZE / 2)
           );
-          
-          if (dist < (zone.attackRange || 150) && now - zone.lastAttack > (zone.attackCooldown || 200)) {
-            zone.lastAttack = now;
-            players[targetIndex] = applyDamage(target, zone.damage);
+
+          if (dist < (zoneCopy.attackRange || 150)) {
+            if (zoneCopy.lastAttack && now - zoneCopy.lastAttack < (zoneCopy.attackCooldown || 200)) {
+              // Cooldown
+            } else {
+              zoneCopy.lastAttack = now;
+              zoneCopy.lastAttackTarget = { x: target.x, y: target.y };
+              players[targetIndex] = applyDamage(target, zoneCopy.damage);
+            }
           }
         }
 
         // Damage tick for pools
-        if (zone.type !== 'tesla-coil' && now - zone.lastTick >= zone.tickRate) {
-          zone.lastTick = now;
-          
+        if (zoneCopy.type !== 'tesla-coil' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
+          zoneCopy.lastTick = now;
+
           for (let i = 0; i < 2; i++) {
-            if (i !== zone.ownerId - 1) {
+            if (i !== zoneCopy.ownerId - 1) {
               if (checkCollision(
-                zone.x, zone.y, zone.width, zone.height,
+                zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
                 players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE
               )) {
-                players[i] = applyDamage(players[i], zone.damage);
+                players[i] = applyDamage(players[i], zoneCopy.damage);
               }
             }
           }
         }
 
-        return true;
-      });
+        return zoneCopy;
+      }).filter((zone): zone is import('@/types/projectile').HazardZone => zone !== null);
+
+      hazardZones = [...hazardZones, ...explosions];
+
+
 
       // Check win conditions
       let roundWinner: 1 | 2 | null = null;
       if (players[0].health <= 0) roundWinner = 2;
       else if (players[1].health <= 0) roundWinner = 1;
-      else if (newTimeRemaining <= 0) {
+      else if (newTimeRemaining <= 0 && roundTimeLimit > 0) { // Only end on time if limit is set
         roundWinner = players[0].health > players[1].health ? 1 : 2;
       }
 
-      if (roundWinner && prev.isRoundActive) {
+      if (roundWinner && prev.isRoundActive && !roundEndingRef.current) {
+        roundEndingRef.current = true;
         setTimeout(() => onRoundEnd(roundWinner!), 500);
       }
 
@@ -863,6 +979,7 @@ export const useGameEngine = (
   const resetRound = useCallback(() => {
     roundStartTimeRef.current = Date.now();
     shieldManaTickRef.current = [0, 0];
+    roundEndingRef.current = false; // Reset the flag for the new round
     setGameState(prev => ({
       players: [
         createInitialPlayer(1, player1Character),

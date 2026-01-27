@@ -45,17 +45,21 @@ export const useGameState = () => {
 
   const endRound = useCallback(
     (winner: 1 | 2) => {
-      const newScores: [number, number] = [...scores];
-      newScores[winner - 1]++;
-      setScores(newScores);
+      setScores(prevScores => {
+        const newScores: [number, number] = [...prevScores];
+        newScores[winner - 1]++;
 
-      const winsNeeded = Math.ceil(settings.maxRounds / 2);
-      if (newScores[winner - 1] >= winsNeeded) {
-        setMatchWinner(winner);
-        goToScreen('result');
-      }
+        const winsNeeded = Math.ceil(settings.maxRounds / 2);
+        if (newScores[winner - 1] >= winsNeeded) {
+          setMatchWinner(winner);
+          // Use setTimeout to avoid state update during render
+          setTimeout(() => goToScreen('result'), 0);
+        }
+
+        return newScores;
+      });
     },
-    [scores, settings.maxRounds, goToScreen]
+    [settings.maxRounds, goToScreen]
   );
 
   const returnToMenu = useCallback(() => {

@@ -1,11 +1,11 @@
 // Projectile Types
 
-export type ProjectileType = 
-  | 'arrow' 
-  | 'poison-arrow' 
-  | 'fireball' 
-  | 'large-fireball' 
-  | 'flask' 
+export type ProjectileType =
+  | 'arrow'
+  | 'poison-arrow'
+  | 'fireball'
+  | 'large-fireball'
+  | 'flask'
   | 'electric-orb'
   | 'meteor';
 
@@ -40,7 +40,7 @@ export interface Projectile {
 
 export interface HazardZone {
   id: string;
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil';
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion';
   ownerId: 1 | 2;
   x: number;
   y: number;
@@ -57,6 +57,8 @@ export interface HazardZone {
   attackRange?: number;
   attackCooldown?: number;
   lastAttack?: number;
+  lastAttackTarget?: { x: number, y: number }; // For visual lightning effect
+  lastSelfDamage?: number; // For tesla coil self-damage
 }
 
 export interface AttackHitbox {
@@ -118,7 +120,7 @@ export const createProjectile = (
         width: 20,
         height: 6,
         hasGravity: true,
-        gravity: 200,
+        gravity: 170,
       };
     case 'poison-arrow':
       return {
@@ -126,10 +128,10 @@ export const createProjectile = (
         width: 20,
         height: 6,
         hasGravity: true,
-        gravity: 200,
+        gravity: 170,
         isPoisonous: true,
         poisonDuration: 6000,
-        slowAmount: 0.1,
+        slowAmount: 0.3,
         slowDuration: 6000,
       };
     case 'fireball':
@@ -147,7 +149,7 @@ export const createProjectile = (
         width: 30,
         height: 30,
         isExplosive: true,
-        explosionRadius: 50,
+        explosionRadius: 130,
         createsFirePool: true,
         firePoolDuration: 4000,
         canBeDeflected: false,
@@ -169,7 +171,7 @@ export const createProjectile = (
         width: 14,
         height: 14,
         hasGravity: true,
-        gravity: 350,
+        gravity: 320,
         isExplosive: true,
         explosionRadius: 35,
         createsFirePool: true,
@@ -183,9 +185,9 @@ export const createProjectile = (
         isExplosive: true,
         explosionRadius: 60,
         knockback: 150,
-        slowAmount: 0.2,
-        slowDuration: 4000,
-        stunDuration: 1000,
+        slowAmount: 0.5,
+        slowDuration: 4250,
+        stunDuration: 800,
         canBeDeflected: false,
       };
     default:
@@ -194,7 +196,7 @@ export const createProjectile = (
 };
 
 export const createHazardZone = (
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil',
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion',
   ownerId: 1 | 2,
   x: number,
   y: number,
@@ -207,10 +209,10 @@ export const createHazardZone = (
     ownerId,
     x,
     y,
-    width: 60,
-    height: 60,
+    width: type === 'toxic-pool' ? 100 : 120,
+    height: type === 'toxic-pool' ? 100 : 120,
     damage,
-    tickRate: 500,
+    tickRate: 100, // Increased frequency (5x), damage per tick adjusted in useGameEngine
     lastTick: Date.now(),
     duration,
     createdAt: Date.now(),
@@ -221,10 +223,10 @@ export const createHazardZone = (
       ...base,
       width: 40,
       height: 60,
-      health: 50,
-      maxHealth: 50,
-      attackRange: 150,
-      attackCooldown: 200,
+      health: 170, // Increased health
+      maxHealth: 170,
+      attackRange: 210, // Increased range (1.5x)
+      attackCooldown: 175,
       lastAttack: Date.now(),
     };
   }
