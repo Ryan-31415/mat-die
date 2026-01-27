@@ -19,6 +19,7 @@ interface GameArenaProps {
   scores: [number, number];
   onRoundEnd: (winner: 1 | 2) => void;
   onReturnToMenu: () => void;
+  gameMode: 'single' | 'multi';
 }
 
 const GameArena = ({
@@ -28,13 +29,15 @@ const GameArena = ({
   scores,
   onRoundEnd,
   onReturnToMenu,
+  gameMode,
 }: GameArenaProps) => {
   const { keysRef } = useKeyboard();
   const { gameState, setKeysRef, resetRound, togglePause } = useGameEngine(
     player1Character,
     player2Character,
     settings.roundTimeLimit,
-    onRoundEnd
+    onRoundEnd,
+    gameMode
   );
 
   useEffect(() => {
@@ -178,9 +181,16 @@ const GameArena = ({
         <div>
           <span className="font-semibold text-primary">P1:</span> A/D 이동, W 점프, Space 공격, Q 스킬, E 궁극기
         </div>
-        <div>
-          <span className="font-semibold text-destructive">P2:</span> 화살표 이동, ↑ 점프, Enter 공격, Shift 스킬, / 궁극기
-        </div>
+        {gameMode === 'multi' && (
+          <div>
+            <span className="font-semibold text-destructive">P2:</span> 화살표 이동, ↑ 점프, Enter 공격, Shift 스킬, / 궁극기
+          </div>
+        )}
+        {gameMode === 'single' && (
+          <div>
+            <span className="font-semibold text-destructive">P2 (AI):</span> 컴퓨터 자동 조작
+          </div>
+        )}
       </div>
       <div className="mt-1 text-xs text-muted-foreground/70">
         S/↓ 키를 누른 상태에서 플랫폼을 통과할 수 있습니다

@@ -3,11 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Character, CHARACTERS, CharacterType } from '@/types/game';
-import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet } from 'lucide-react';
+import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices } from 'lucide-react';
 
 interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
   onBack: () => void;
+  gameMode: 'single' | 'multi';
 }
 
 const characterIcons: Record<CharacterType, React.ReactNode> = {
@@ -114,12 +115,16 @@ const CharacterCard = ({
   );
 };
 
-const CharacterSelect = ({ onConfirm, onBack }: CharacterSelectProps) => {
+const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) => {
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
   const [player1Character, setPlayer1Character] = useState<Character | null>(null);
   const [player2Character, setPlayer2Character] = useState<Character | null>(null);
 
   const characters = Object.values(CHARACTERS);
+
+  const getRandomCharacter = () => {
+    return characters[Math.floor(Math.random() * characters.length)];
+  };
 
   const handleCharacterSelect = (character: Character) => {
     if (currentPlayer === 1) {
@@ -129,11 +134,22 @@ const CharacterSelect = ({ onConfirm, onBack }: CharacterSelectProps) => {
     }
   };
 
+  const handleRandomSelect = () => {
+    const randomCharacter = getRandomCharacter();
+    handleCharacterSelect(randomCharacter);
+  };
+
   const handleConfirmSelection = () => {
     if (currentPlayer === 1 && player1Character) {
-      setCurrentPlayer(2);
+      if (gameMode === 'single') {
+        // AI가 자동으로 선택됨
+        const aiCharacter = getRandomCharacter();
+        onConfirm(player1Character, aiCharacter);
+      } else {
+        setCurrentPlayer(2);
+      }
     } else if (currentPlayer === 2 && player2Character) {
-      onConfirm(player1Character!, player2Character!);
+      onConfirm(player1Character!, player2Character);
     }
   };
 
@@ -175,14 +191,16 @@ const CharacterSelect = ({ onConfirm, onBack }: CharacterSelectProps) => {
                   : 'bg-muted text-muted-foreground'
               }`}
             >
-              <span className="font-bold">P2</span>
+              <span className="font-bold">P2{gameMode === 'single' ? ' (AI)' : ''}</span>
               {player2Character && (
                 <span className="ml-2 text-sm">{player2Character.nameKo}</span>
               )}
             </div>
           </div>
           <p className="text-muted-foreground mt-4">
-            플레이어 {currentPlayer}의 캐릭터를 선택하세요
+            {gameMode === 'single'
+              ? '플레이어 1의 캐릭터를 선택하세요'
+              : `플레이어 ${currentPlayer}의 캐릭터를 선택하세요`}
           </p>
         </div>
 
@@ -217,10 +235,25 @@ const CharacterSelect = ({ onConfirm, onBack }: CharacterSelectProps) => {
           </Button>
           <Button
             size="lg"
+            variant="secondary"
+            onClick={handleRandomSelect}
+            className="gap-2"
+          >
+            <Dices className="h-5 w-5" />
+            무작위 선택
+          </Button>
+          <Button
+            size="lg"
             onClick={handleConfirmSelection}
             disabled={!currentSelection}
           >
-            {currentPlayer === 1 ? 'P1 선택 완료' : '게임 시작'}
+            {gameMode === 'single'
+              ? currentPlayer === 1
+                ? '게임 시작'
+                : '게임 시작'
+              : currentPlayer === 1
+                ? 'P1 선택 완료'
+                : '게임 시작'}
           </Button>
         </div>
 

@@ -31,7 +31,7 @@ const GameUI = ({
   };
 
   return (
-    <div className="w-full max-w-4xl mb-4 space-y-2">
+    <div className="w-full max-w-4xl mb-4 space-y-2 min-h-fit">
       {/* Top bar: Round info and timer */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" size="icon" onClick={onReturnToMenu}>

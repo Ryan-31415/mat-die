@@ -117,16 +117,16 @@ export const createProjectile = (
     case 'arrow':
       return {
         ...baseProjectile,
-        width: 20,
-        height: 6,
+        width: 40,
+        height: 5,
         hasGravity: true,
         gravity: 170,
       };
     case 'poison-arrow':
       return {
         ...baseProjectile,
-        width: 20,
-        height: 6,
+        width: 40,
+        height: 5,
         hasGravity: true,
         gravity: 170,
         isPoisonous: true,
@@ -137,19 +137,19 @@ export const createProjectile = (
     case 'fireball':
       return {
         ...baseProjectile,
-        width: 16,
-        height: 16,
+        width: 24,
+        height: 24,
         isExplosive: true,
-        explosionRadius: 30,
+        explosionRadius: 40,
         canBeDeflected: false,
       };
     case 'large-fireball':
       return {
         ...baseProjectile,
-        width: 30,
-        height: 30,
+        width: 50,
+        height: 50,
         isExplosive: true,
-        explosionRadius: 130,
+        explosionRadius: 200,
         createsFirePool: true,
         firePoolDuration: 4000,
         canBeDeflected: false,
@@ -157,19 +157,19 @@ export const createProjectile = (
     case 'meteor':
       return {
         ...baseProjectile,
-        width: 20,
-        height: 20,
+        width: 30,
+        height: 30,
         hasGravity: true,
-        gravity: 400,
+        gravity: 600,
         isExplosive: true,
-        explosionRadius: 40,
+        explosionRadius: 55,
         canBeDeflected: false,
       };
     case 'flask':
       return {
         ...baseProjectile,
-        width: 14,
-        height: 14,
+        width: 20,
+        height: 20,
         hasGravity: true,
         gravity: 320,
         isExplosive: true,
@@ -180,14 +180,14 @@ export const createProjectile = (
     case 'electric-orb':
       return {
         ...baseProjectile,
-        width: 24,
-        height: 24,
+        width: 33,
+        height: 33,
         isExplosive: true,
-        explosionRadius: 60,
-        knockback: 150,
+        explosionRadius: 85,
+        knockback: 175,
         slowAmount: 0.5,
-        slowDuration: 4250,
-        stunDuration: 800,
+        slowDuration: 4500,
+        stunDuration: 1000,
         canBeDeflected: false,
       };
     default:

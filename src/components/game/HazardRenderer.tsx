@@ -30,11 +30,12 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
         };
       case 'electric-explosion':
         return {
-          background: 'radial-gradient(circle, rgba(200, 255, 255, 0.9), rgba(0, 200, 255, 0.4), transparent)',
+          background: 'radial-gradient(circle, rgba(255, 255, 255, 1), rgba(0, 200, 255, 0.8), rgba(0, 100, 200, 0.3), transparent)',
           borderRadius: '50%',
-          boxShadow: '0 0 50px rgba(0, 200, 255, 0.9), inset 0 0 20px rgba(255, 255, 255, 0.8)',
-          animation: 'pulse 0.1s infinite',
+          boxShadow: '0 0 80px rgba(0, 255, 255, 1), 0 0 120px rgba(0, 200, 255, 0.8), inset 0 0 40px rgba(255, 255, 255, 1), 0 0 40px rgba(0, 150, 255, 0.9)',
+          animation: 'pulse 0.08s infinite',
           zIndex: 100,
+          border: '3px solid rgba(255, 255, 255, 0.9)',
         };
       default:
         return {};

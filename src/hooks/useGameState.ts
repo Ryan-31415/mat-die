@@ -13,12 +13,14 @@ export const useGameState = () => {
   const [player2Character, setPlayer2Character] = useState<Character | null>(null);
   const [scores, setScores] = useState<[number, number]>([0, 0]);
   const [matchWinner, setMatchWinner] = useState<1 | 2 | null>(null);
+  const [gameMode, setGameMode] = useState<'single' | 'multi'>('multi');
 
   const goToScreen = useCallback((newScreen: GameScreen) => {
     setScreen(newScreen);
   }, []);
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((mode: 'single' | 'multi') => {
+    setGameMode(mode);
     setPlayer1Character(null);
     setPlayer2Character(null);
     setScores([0, 0]);
@@ -84,6 +86,7 @@ export const useGameState = () => {
     player2Character,
     scores,
     matchWinner,
+    gameMode,
     goToScreen,
     startGame,
     selectCharacter,

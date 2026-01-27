@@ -1,9 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Gamepad2, Settings, HelpCircle } from 'lucide-react';
+import { Gamepad2, Settings, HelpCircle, Bot, Users } from 'lucide-react';
 
 interface MainMenuProps {
-  onStartGame: () => void;
+  onStartGame: (mode: 'single' | 'multi') => void;
   onOpenSettings: () => void;
   onOpenControls: () => void;
 }
@@ -15,18 +15,27 @@ const MainMenu = ({ onStartGame, onOpenSettings, onOpenControls }: MainMenuProps
         <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-red-500 via-purple-500 to-blue-500 bg-clip-text text-transparent">
           SQUARE FIGHTERS
         </h1>
-        <p className="text-xl text-muted-foreground">2인용 정사각형 대전 게임</p>
+        <p className="text-xl text-muted-foreground">정사각형 대전 게임</p>
       </div>
 
       <Card className="w-full max-w-md bg-card/80 backdrop-blur-sm border-2">
         <CardContent className="p-8 space-y-4">
           <Button
-            onClick={onStartGame}
+            onClick={() => onStartGame('single')}
+            size="lg"
+            className="w-full h-16 text-xl gap-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+          >
+            <Bot className="h-6 w-6" />
+            1인 전투 (컴퓨터)
+          </Button>
+
+          <Button
+            onClick={() => onStartGame('multi')}
             size="lg"
             className="w-full h-16 text-xl gap-3 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600"
           >
-            <Gamepad2 className="h-6 w-6" />
-            게임 시작
+            <Users className="h-6 w-6" />
+            2인 대전
           </Button>
 
           <Button

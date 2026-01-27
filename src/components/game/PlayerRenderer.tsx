@@ -7,9 +7,9 @@ interface PlayerRendererProps {
 
 const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   const statusEffects = [];
-  if (player.isPoisoned) statusEffects.push('🟢');
+  if (player.isPoisoned) statusEffects.push('☠️');
   if (player.isSlowed) statusEffects.push('🐌');
-  if (player.isStunned) statusEffects.push('⚡');
+  if (player.isStunned) statusEffects.push('💫');
   if (player.isShielding) statusEffects.push('🛡️');
   if (player.isDashing) statusEffects.push('💨');
   if (player.buffDuration > 0) statusEffects.push('⬆️');
@@ -72,7 +72,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
             className="absolute top-0 left-0 w-full h-full rounded-lg opacity-50"
             style={{
               backgroundColor: character.color,
-              transform: `translateX(${player.facingRight ? -20 : 20}px)`
+              transform: `translateX(${player.facingRight ? 20 : -20}px)`
             }}
           />
         )}
@@ -106,17 +106,28 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         <>
           {character.id === 'gladiator' ? (
             <div
-              className="absolute bottom-[20%] left-[60%] w-3 h-20 bg-gradient-to-t from-gray-700 to-gray-200 border border-gray-600 rounded-t-full origin-bottom-left animate-sword-swing"
-              style={{ zIndex: 20 }}
-            />
-          ) : character.id === 'ninja' ? (
-            <div
-              className="absolute top-1/2 left-1/2 w-32 h-1 bg-white shadow-[0_0_8px_white] animate-katana-slash"
+              className="absolute top-1/2 left-1/2 bg-gradient-to-r from-transparent via-gray-700 to-transparent shadow-[0_0_15px_rgba(55,65,81,0.9)] animate-sword-swing"
               style={{
+                width: '70px',
+                height: '6px',
                 zIndex: 20,
-                transformOrigin: 'left center'
+                transformOrigin: 'left center',
+                marginTop: '-3px'
               }}
             />
+          ) : character.id === 'ninja' ? (
+            !player.isDashing ? (
+              <div
+                className="absolute top-1/2 left-1/2 bg-gradient-to-r from-transparent via-slate-800 to-transparent shadow-[0_0_15px_rgba(15,23,42,0.9)] animate-katana-slash"
+                style={{
+                  width: '70px',
+                  height: '3px',
+                  zIndex: 20,
+                  transformOrigin: 'left center',
+                  marginTop: '-1.5px'
+                }}
+              />
+            ) : null
           ) : (
             <div
               className="absolute top-1/2 -translate-y-1/2 w-8 h-2 bg-foreground/50 rounded"

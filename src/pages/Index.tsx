@@ -16,6 +16,7 @@ const Index = () => {
     player2Character,
     scores,
     matchWinner,
+    gameMode,
     startGame,
     confirmCharacterSelection,
     endRound,
@@ -40,6 +41,7 @@ const Index = () => {
         <CharacterSelect
           onConfirm={confirmCharacterSelection}
           onBack={returnToMenu}
+          gameMode={gameMode}
         />
       )}
 
@@ -51,6 +53,7 @@ const Index = () => {
           scores={scores}
           onRoundEnd={endRound}
           onReturnToMenu={returnToMenu}
+          gameMode={gameMode}
         />
       )}
 

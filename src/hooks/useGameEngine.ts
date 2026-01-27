@@ -22,7 +22,8 @@ export const useGameEngine = (
   player1Character: Character,
   player2Character: Character,
   roundTimeLimit: number,
-  onRoundEnd: (winner: 1 | 2) => void
+  onRoundEnd: (winner: 1 | 2) => void,
+  gameMode: 'single' | 'multi' = 'multi'
 ) => {
   const [gameState, setGameState] = useState<GameEngineState>(() => ({
     players: [
@@ -134,6 +135,87 @@ export const useGameEngine = (
       ...player,
       health: newHealth,
     };
+  };
+
+  // AI decision making for single-player mode
+  const getAIKeys = (aiPlayer: Player, opponent: Player): KeyboardState => {
+    const distX = opponent.x - aiPlayer.x;
+    const distY = opponent.y - aiPlayer.y;
+    const distance = Math.sqrt(distX * distX + distY * distY);
+    
+    // AI decision variables
+    const isPlayer2 = aiPlayer.id === 2; // Player 2 uses arrow keys
+    const aggressiveness = 0.65; // How likely to attack (0-1)
+    const skillChance = 0.3; // How likely to use skill
+    const ultimateChance = 0.15; // How likely to use ultimate when available
+    
+    const keys: KeyboardState = {
+      a: false,
+      d: false,
+      w: false,
+      s: false,
+      space: false,
+      q: false,
+      e: false,
+      arrowLeft: false,
+      arrowRight: false,
+      arrowUp: false,
+      arrowDown: false,
+      enter: false,
+      shift: false,
+      slash: false,
+    };
+
+    // Basic movement logic
+    if (distance > 200) {
+      // Move towards opponent
+      if (distX > 20) {
+        if (isPlayer2) keys.arrowRight = true;
+        else keys.d = true;
+      } else if (distX < -20) {
+        if (isPlayer2) keys.arrowLeft = true;
+        else keys.a = true;
+      }
+    } else if (distance < 100) {
+      // Move away from opponent
+      if (distX > 0) {
+        if (isPlayer2) keys.arrowLeft = true;
+        else keys.a = true;
+      } else {
+        if (isPlayer2) keys.arrowRight = true;
+        else keys.d = true;
+      }
+    }
+
+    // Jumping logic
+    if (aiPlayer.isGrounded && Math.random() < 0.15) {
+      if (isPlayer2) keys.arrowUp = true;
+      else keys.w = true;
+    }
+
+    // Attacking logic
+    if (distance < aiPlayer.character!.attackRange + 50 && Math.random() < aggressiveness) {
+      if (isPlayer2) keys.enter = true;
+      else keys.space = true;
+    }
+
+    // Skill usage
+    if (aiPlayer.mana > aiPlayer.character!.skill.manaCost && 
+        aiPlayer.skillCooldownRemaining === 0 && 
+        distance < 300 && 
+        Math.random() < skillChance) {
+      if (isPlayer2) keys.shift = true;
+      else keys.q = true;
+    }
+
+    // Ultimate usage when health is low or mana is high
+    if (aiPlayer.mana >= aiPlayer.character!.ultimate.manaCost && 
+        (aiPlayer.health < aiPlayer.maxHealth * 0.4 || Math.random() < ultimateChance)) {
+      if (isPlayer2) keys.slash = true;
+      else keys.e = true;
+    }
+
+    return keys;
   };
 
   const updatePlayer = (
@@ -298,7 +380,7 @@ export const useGameEngine = (
     else if (dx < 0) updatedPlayer.facingRight = false;
 
     // Apply horizontal movement
-    const moveAmount = speed * (deltaTime / 16) * 2.1; // Reduced speed (70% of previous)
+    const moveAmount = speed * (deltaTime / 16) * 1.2; // Reduced speed (70% of previous)
     let newX = updatedPlayer.x + dx * moveAmount;
 
     // Horizontal boundary checking
@@ -383,8 +465,8 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 600, // Increased speed
-            -50,
+            attackDirection * 950, // Increased speed
+            -60,
             baseDamage
           ));
           break;
@@ -394,7 +476,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 300,
+            attackDirection * 750,
             0,
             baseDamage
           ));
@@ -452,8 +534,8 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 600, // Increased speed
-              -50,
+              attackDirection * 950, // Increased speed
+              -60,
               baseDamage * 1.1
             ));
             break;
@@ -464,8 +546,8 @@ export const useGameEngine = (
               otherPlayer.x + PLAYER_SIZE / 2,
               0,
               0,
-              200,
-              baseDamage * 1.5
+              480,
+              baseDamage * 2
             );
             newProjectiles.push(largeFireball);
             break;
@@ -489,7 +571,7 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 350,
+              attackDirection * 500,
               0,
               baseDamage * 2
             ));
@@ -519,7 +601,7 @@ export const useGameEngine = (
         case 'gladiator':
           updatedPlayer.damageBoost = 0.35;
           updatedPlayer.speedBoost = 0.30;
-          updatedPlayer.damageReduction = 0.20;
+          updatedPlayer.damageReduction = 0.25;
           updatedPlayer.buffDuration = 5000;
           break;
         case 'archer':
@@ -529,14 +611,14 @@ export const useGameEngine = (
               setGameState(prev => {
                 const arrows: Projectile[] = [];
                 for (let i = 0; i < 5; i++) {
-                  const spreadAngle = (i - 2) * 10;
+                  const spreadAngle = (i - 2) * 15;
                   const radians = spreadAngle * (Math.PI / 180);
                   arrows.push(createProjectile(
                     'arrow',
                     player.id,
                     prev.players[player.id - 1].x + PLAYER_SIZE / 2,
                     prev.players[player.id - 1].y + PLAYER_SIZE / 2,
-                    attackDirection * 600 * Math.cos(radians), // Increased speed
+                    attackDirection * 750 * Math.cos(radians), // Increased speed
                     -50 + Math.sin(radians) * 100,
                     baseDamage
                   ));
@@ -550,8 +632,8 @@ export const useGameEngine = (
           }
           break;
         case 'mage':
-          // Meteor shower - 10 random fireballs
-          for (let i = 0; i < 10; i++) {
+          // Meteor shower - 13 random fireballs
+          for (let i = 0; i < 13; i++) {
             setTimeout(() => {
               setGameState(prev => {
                 const randomX = ARENA.padding + Math.random() * (ARENA.width - 2 * ARENA.padding);
@@ -563,7 +645,7 @@ export const useGameEngine = (
                     randomX,
                     0,
                     0,
-                    300,
+                    400,
                     baseDamage
                   )],
                 };
@@ -575,7 +657,7 @@ export const useGameEngine = (
           updatedPlayer.isInvisible = true;
           updatedPlayer.invisibleDuration = 4000;
           updatedPlayer.damageBoost = 0.50;
-          updatedPlayer.speedBoost = 0.45;
+          updatedPlayer.speedBoost = 0.60;
           updatedPlayer.dodgesRemaining = 2;
           break;
         case 'scientist':
@@ -620,10 +702,31 @@ export const useGameEngine = (
       const elapsedSeconds = (now - roundStartTimeRef.current) / 1000;
       const newTimeRemaining = Math.max(0, roundTimeLimit - elapsedSeconds);
 
+      // Get player 1 keys from keyboard input
+      const p1Keys = keysRefHolder.current?.current || {
+        a: false,
+        d: false,
+        w: false,
+        s: false,
+        space: false,
+        q: false,
+        e: false,
+        arrowLeft: false,
+        arrowRight: false,
+        arrowUp: false,
+        arrowDown: false,
+        enter: false,
+        shift: false,
+        slash: false,
+      };
+
+      // Get player 2 keys from AI or keyboard
+      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0]) : p1Keys;
+
       // Update players
       const p1Result = updatePlayer(
         prev.players[0],
-        keys,
+        p1Keys,
         deltaTime,
         prev.players[1],
         shieldManaTickRef.current[0],
@@ -631,7 +734,7 @@ export const useGameEngine = (
       );
       const p2Result = updatePlayer(
         prev.players[1],
-        keys,
+        p2Keys,
         deltaTime,
         prev.players[0],
         shieldManaTickRef.current[1],
@@ -687,7 +790,7 @@ export const useGameEngine = (
                 proj.ownerId,
                 proj.x - 30,
                 ARENA.height - ARENA.padding - 30,
-                proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.035, // Toxic: 2 DPS, Fire: 0.8 DPS
+                proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.03, // Toxic: 2 DPS, Fire: 0.8 DPS
                 proj.firePoolDuration
               ));
             }
@@ -704,7 +807,7 @@ export const useGameEngine = (
               proj.ownerId,
               proj.x - 30,
               hitPlatform.y - 30, // On top of platform
-              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.035, // Differentiate pool damage
+              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.03, // Differentiate pool damage
               proj.firePoolDuration
             ));
             return false;
@@ -772,7 +875,7 @@ export const useGameEngine = (
               proj.ownerId,
               proj.x - 30,
               proj.y - 30,
-              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.035, // Differentiate pool damage
+              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.03, // Differentiate pool damage
               proj.firePoolDuration
             ));
           }

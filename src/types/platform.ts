@@ -67,7 +67,7 @@ export const PLATFORMS: Platform[] = [
 ];
 
 // Physics constants
-export const GRAVITY = 1000; // pixels per second squared (increased for heavier feel)
-export const JUMP_FORCE = -447; // initial jump velocity (adjusted to maintain same jump height)
-export const MAX_FALL_SPEED = 600; // terminal velocity
+export const GRAVITY = 1200; // pixels per second squared (increased for heavier feel)
+export const JUMP_FORCE = -447 * 1.1; // initial jump velocity (adjusted to maintain same jump height)
+export const MAX_FALL_SPEED = 700; // terminal velocity
 export const COYOTE_TIME = 100; // ms of grace period for jumping after leaving platform

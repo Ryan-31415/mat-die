@@ -22,35 +22,35 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
         };
       case 'fireball':
         return {
-          background: 'radial-gradient(circle, #ff6600, #ff0000)',
+          background: 'radial-gradient(circle, #ffff99, #ff9900, #ff3300)',
           borderRadius: '50%',
-          boxShadow: '0 0 15px #ff6600',
+          boxShadow: '0 0 25px #ff6600, 0 0 45px #ff0000, inset 0 0 10px #ffff99',
         };
       case 'large-fireball':
         return {
-          background: 'radial-gradient(circle, #ffcc00, #ff6600, #ff0000)',
+          background: 'radial-gradient(circle, #ffff00, #ffcc00, #ff6600, #ff0000)',
           borderRadius: '50%',
-          boxShadow: '0 0 25px #ff6600',
+          boxShadow: '0 0 40px #ff6600, 0 0 60px #ff0000, inset 0 0 20px #ffff00',
         };
       case 'meteor':
         return {
-          background: 'radial-gradient(circle, #ffcc00, #ff6600)',
+          background: 'radial-gradient(circle, #ffff99, #ffcc00, #ff6600, #ff3300)',
           borderRadius: '50%',
-          boxShadow: '0 0 20px #ff6600, 0 0 40px #ff0000',
+          boxShadow: '0 0 35px #ff6600, 0 0 55px #ff0000, inset 0 0 15px #ffff99',
         };
       case 'flask':
         return {
-          background: 'radial-gradient(circle, #00ff88, #006633)',
+          background: 'radial-gradient(circle, #00ff88, #00dd66, #00aa44, #006633)',
           borderRadius: '50%',
-          boxShadow: '0 0 10px #00ff88',
+          boxShadow: '0 0 15px #00ff88, 0 0 30px #00dd66, inset 0 0 10px #00ff88',
           transform: `rotate(${Date.now() / 10 % 360}deg)`,
         };
       case 'electric-orb':
         return {
-          background: 'radial-gradient(circle, #00ffff, #0088ff, #0044aa)',
+          background: 'radial-gradient(circle, #ffffff, #00ffff, #0088ff, #0044aa)',
           borderRadius: '50%',
-          boxShadow: '0 0 20px #00ffff, 0 0 40px #0088ff',
-          animation: 'pulse 0.1s infinite',
+          boxShadow: '0 0 35px #00ffff, 0 0 60px #0088ff, inset 0 0 20px #ffffff',
+          animation: 'pulse 0.08s infinite',
         };
       default:
         return {
