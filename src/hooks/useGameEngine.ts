@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
 import { Projectile, HazardZone, AttackHitbox, createProjectile, createHazardZone, createAttackHitbox } from '@/types/projectile';
+import { Platform, PLATFORMS, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
 import { KeyboardState } from './useKeyboard';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
@@ -14,6 +15,7 @@ interface GameEngineState {
   isRoundActive: boolean;
   roundWinner: 1 | 2 | null;
   isPaused: boolean;
+  platforms: Platform[];
 }
 
 export const useGameEngine = (
@@ -34,6 +36,7 @@ export const useGameEngine = (
     isRoundActive: true,
     roundWinner: null,
     isPaused: false,
+    platforms: PLATFORMS,
   }));
 
   const gameStateRef = useRef(gameState);
@@ -55,6 +58,61 @@ export const useGameEngine = (
     x2: number, y2: number, w2: number, h2: number
   ): boolean => {
     return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+  };
+
+  // Check platform collision and return the platform player is standing on
+  const checkPlatformCollision = (
+    player: Player,
+    newY: number,
+    velocityY: number,
+    platforms: Platform[]
+  ): { y: number; isGrounded: boolean; platform: Platform | null } => {
+    const playerBottom = newY + PLAYER_SIZE;
+    const playerLeft = player.x;
+    const playerRight = player.x + PLAYER_SIZE;
+    const playerTop = newY;
+
+    for (const platform of platforms) {
+      const platformTop = platform.y;
+      const platformBottom = platform.y + platform.height;
+      const platformLeft = platform.x;
+      const platformRight = platform.x + platform.width;
+
+      // Check horizontal overlap
+      if (playerRight > platformLeft && playerLeft < platformRight) {
+        // For one-way platforms, only check if falling down onto it
+        if (platform.type === 'one-way') {
+          // Player must be falling and was above the platform
+          if (velocityY > 0 && player.y + PLAYER_SIZE <= platformTop + 5 && playerBottom >= platformTop) {
+            return {
+              y: platformTop - PLAYER_SIZE,
+              isGrounded: true,
+              platform,
+            };
+          }
+        } else {
+          // Solid platform - check all sides
+          // Landing on top
+          if (velocityY > 0 && player.y + PLAYER_SIZE <= platformTop && playerBottom >= platformTop) {
+            return {
+              y: platformTop - PLAYER_SIZE,
+              isGrounded: true,
+              platform,
+            };
+          }
+          // Hitting from below
+          if (velocityY < 0 && player.y >= platformBottom && playerTop < platformBottom) {
+            return {
+              y: platformBottom,
+              isGrounded: false,
+              platform: null,
+            };
+          }
+        }
+      }
+    }
+
+    return { y: newY, isGrounded: false, platform: null };
   };
 
   const applyDamage = (player: Player, damage: number): Player => {
@@ -80,7 +138,8 @@ export const useGameEngine = (
     keys: KeyboardState,
     deltaTime: number,
     otherPlayer: Player,
-    shieldManaTick: number
+    shieldManaTick: number,
+    platforms: Platform[]
   ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newShieldTick: number } => {
     const isP1 = player.id === 1;
     const character = player.character!;
@@ -89,9 +148,9 @@ export const useGameEngine = (
     const newHazards: HazardZone[] = [];
     let newShieldTick = shieldManaTick;
 
-    // Movement keys
-    const moveUp = isP1 ? keys.w : keys.arrowUp;
-    const moveDown = isP1 ? keys.s : keys.arrowDown;
+    // Movement keys - W/ArrowUp is now JUMP
+    const jumpKey = isP1 ? keys.w : keys.arrowUp;
+    const moveDown = isP1 ? keys.s : keys.arrowDown; // For dropping through platforms
     const moveLeft = isP1 ? keys.a : keys.arrowLeft;
     const moveRight = isP1 ? keys.d : keys.arrowRight;
     const attackKey = isP1 ? keys.space : keys.enter;
@@ -159,7 +218,44 @@ export const useGameEngine = (
       updatedPlayer.attackCooldownRemaining = Math.max(0, updatedPlayer.attackCooldownRemaining - deltaTime);
     }
 
-    // Skip movement/actions if stunned
+    // Apply gravity even when stunned
+    const now = Date.now();
+    
+    // Apply gravity
+    if (!updatedPlayer.isGrounded || updatedPlayer.velocityY < 0) {
+      updatedPlayer.velocityY += GRAVITY * (deltaTime / 1000);
+      updatedPlayer.velocityY = Math.min(MAX_FALL_SPEED, updatedPlayer.velocityY);
+    }
+
+    // Calculate new Y position for gravity
+    let gravityNewY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
+
+    // Platform collision detection for gravity
+    const gravityPlatformResult = checkPlatformCollision(updatedPlayer, gravityNewY, updatedPlayer.velocityY, platforms);
+    
+    if (gravityPlatformResult.isGrounded) {
+      gravityNewY = gravityPlatformResult.y;
+      updatedPlayer.velocityY = 0;
+      updatedPlayer.isGrounded = true;
+      updatedPlayer.lastGroundedTime = now;
+    } else {
+      updatedPlayer.isGrounded = false;
+    }
+
+    // Vertical boundary checking
+    gravityNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, gravityNewY));
+    
+    // If hit bottom boundary, ground the player
+    if (gravityNewY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
+      gravityNewY = ARENA.height - ARENA.padding - PLAYER_SIZE;
+      updatedPlayer.velocityY = 0;
+      updatedPlayer.isGrounded = true;
+      updatedPlayer.lastGroundedTime = now;
+    }
+
+    updatedPlayer.y = gravityNewY;
+
+    // Skip movement/actions if stunned (but gravity was already applied)
     if (updatedPlayer.isStunned) {
       return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newShieldTick };
     }
@@ -186,35 +282,69 @@ export const useGameEngine = (
     if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
     speed *= (1 + updatedPlayer.speedBoost);
 
-    // Movement
+    // Horizontal Movement
     let dx = 0;
-    let dy = 0;
-    if (moveUp) dy -= 1;
-    if (moveDown) dy += 1;
     if (moveLeft) dx -= 1;
     if (moveRight) dx += 1;
-
-    // Normalize diagonal movement
-    if (dx !== 0 && dy !== 0) {
-      const factor = 0.707;
-      dx *= factor;
-      dy *= factor;
-    }
 
     // Update facing direction
     if (dx > 0) updatedPlayer.facingRight = true;
     else if (dx < 0) updatedPlayer.facingRight = false;
 
-    // Apply movement
-    const moveAmount = speed * (deltaTime / 16);
+    // Apply horizontal movement
+    const moveAmount = speed * (deltaTime / 16) * 6; // Increased speed for platformer feel
     let newX = updatedPlayer.x + dx * moveAmount;
-    let newY = updatedPlayer.y + dy * moveAmount;
-
-    // Boundary checking
+    
+    // Horizontal boundary checking
     newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
-    newY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, newY));
-
     updatedPlayer.x = newX;
+
+    // Jumping logic (now is already defined above)
+    const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
+    
+    if (jumpKey && canJump && !updatedPlayer.isJumping) {
+      updatedPlayer.velocityY = JUMP_FORCE;
+      updatedPlayer.isJumping = true;
+      updatedPlayer.isGrounded = false;
+    }
+    
+    // Reset jump flag when key released
+    if (!jumpKey) {
+      updatedPlayer.isJumping = false;
+    }
+
+    // Calculate new Y position for jump
+    let newY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
+
+    // Platform collision detection for movement
+    const platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY, platforms);
+    
+    if (platformResult.isGrounded) {
+      newY = platformResult.y;
+      updatedPlayer.velocityY = 0;
+      updatedPlayer.isGrounded = true;
+      updatedPlayer.lastGroundedTime = now;
+      
+      // Drop through one-way platform
+      if (moveDown && platformResult.platform?.type === 'one-way') {
+        updatedPlayer.isGrounded = false;
+        newY += 5; // Push through platform
+      }
+    } else {
+      updatedPlayer.isGrounded = false;
+    }
+
+    // Vertical boundary checking
+    newY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, newY));
+    
+    // If hit bottom boundary, ground the player
+    if (newY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
+      newY = ARENA.height - ARENA.padding - PLAYER_SIZE;
+      updatedPlayer.velocityY = 0;
+      updatedPlayer.isGrounded = true;
+      updatedPlayer.lastGroundedTime = now;
+    }
+
     updatedPlayer.y = newY;
 
     // Basic Attack
@@ -488,14 +618,16 @@ export const useGameEngine = (
         keys, 
         deltaTime, 
         prev.players[1],
-        shieldManaTickRef.current[0]
+        shieldManaTickRef.current[0],
+        prev.platforms
       );
       const p2Result = updatePlayer(
         prev.players[1], 
         keys, 
         deltaTime, 
         prev.players[0],
-        shieldManaTickRef.current[1]
+        shieldManaTickRef.current[1],
+        prev.platforms
       );
 
       shieldManaTickRef.current = [p1Result.newShieldTick, p2Result.newShieldTick];
@@ -741,6 +873,7 @@ export const useGameEngine = (
       isRoundActive: true,
       roundWinner: null,
       isPaused: false,
+      platforms: PLATFORMS,
     }));
   }, [player1Character, player2Character, roundTimeLimit]);
 

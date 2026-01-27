@@ -5,6 +5,7 @@ import { useKeyboard } from '@/hooks/useKeyboard';
 import PlayerRenderer from './PlayerRenderer';
 import ProjectileRenderer from './ProjectileRenderer';
 import HazardRenderer from './HazardRenderer';
+import PlatformRenderer from './PlatformRenderer';
 import GameUI from './GameUI';
 
 interface GameArenaProps {
@@ -83,6 +84,11 @@ const GameArena = ({
           style={{ bottom: ARENA.padding }}
         />
 
+        {/* Platforms */}
+        {gameState.platforms.map(platform => (
+          <PlatformRenderer key={platform.id} platform={platform} />
+        ))}
+
         {/* Hazard zones */}
         {gameState.hazardZones.map(zone => (
           <HazardRenderer key={zone.id} zone={zone} />
@@ -147,11 +153,14 @@ const GameArena = ({
       {/* Controls reminder */}
       <div className="mt-4 flex gap-8 text-sm text-muted-foreground">
         <div>
-          <span className="font-semibold text-primary">P1:</span> WASD 이동, Space 공격, Q 스킬, E 궁극기
+          <span className="font-semibold text-primary">P1:</span> A/D 이동, W 점프, Space 공격, Q 스킬, E 궁극기
         </div>
         <div>
-          <span className="font-semibold text-destructive">P2:</span> 화살표 이동, Enter 공격, Shift 스킬, / 궁극기
+          <span className="font-semibold text-destructive">P2:</span> 화살표 이동, ↑ 점프, Enter 공격, Shift 스킬, / 궁극기
         </div>
+      </div>
+      <div className="mt-1 text-xs text-muted-foreground/70">
+        S/↓ 키를 누른 상태에서 플랫폼을 통과할 수 있습니다
       </div>
     </div>
   );
