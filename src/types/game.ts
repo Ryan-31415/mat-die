@@ -46,6 +46,11 @@ export interface Player {
   facingRight: boolean;
   velocityX: number;
   velocityY: number;
+  // Physics
+  isGrounded: boolean;
+  lastGroundedTime: number;
+  isJumping: boolean;
+  canDoubleJump: boolean;
   // Status effects
   isShielding: boolean;
   isPoisoned: boolean;
@@ -242,7 +247,7 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   id,
   character,
   x: id === 1 ? ARENA.padding + 50 : ARENA.width - ARENA.padding - 50 - PLAYER_SIZE,
-  y: ARENA.height / 2 - PLAYER_SIZE / 2,
+  y: ARENA.height - ARENA.padding - PLAYER_SIZE - 20, // Start on ground
   health: character?.maxHealth ?? 100,
   maxHealth: character?.maxHealth ?? 100,
   mana: character?.maxMana ?? 100,
@@ -255,6 +260,12 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   facingRight: id === 1,
   velocityX: 0,
   velocityY: 0,
+  // Physics
+  isGrounded: true,
+  lastGroundedTime: Date.now(),
+  isJumping: false,
+  canDoubleJump: false,
+  // Status effects
   isShielding: false,
   isPoisoned: false,
   poisonDuration: 0,
