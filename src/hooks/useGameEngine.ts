@@ -40,7 +40,7 @@ export const useGameEngine = (
   }));
 
   const gameStateRef = useRef(gameState);
-  const keysRef = useRef<KeyboardState | null>(null);
+  const keysRefHolder = useRef<React.MutableRefObject<KeyboardState> | null>(null);
   const lastTickRef = useRef(Date.now());
   const roundStartTimeRef = useRef(Date.now());
   const shieldManaTickRef = useRef<[number, number]>([0, 0]);
@@ -50,7 +50,7 @@ export const useGameEngine = (
   }, [gameState]);
 
   const setKeysRef = useCallback((ref: React.MutableRefObject<KeyboardState>) => {
-    keysRef.current = ref.current;
+    keysRefHolder.current = ref;
   }, []);
 
   const checkCollision = (
@@ -602,8 +602,10 @@ export const useGameEngine = (
     const deltaTime = now - lastTickRef.current;
     lastTickRef.current = now;
 
-    if (!keysRef.current) return;
-    const keys = keysRef.current;
+    if (!keysRefHolder.current) {
+      return;
+    }
+    const keys = keysRefHolder.current.current;
 
     setGameState(prev => {
       if (!prev.isRoundActive || prev.isPaused) return prev;
