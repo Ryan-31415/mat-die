@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Trophy, RotateCcw, Home } from 'lucide-react';
 
 interface ResultScreenProps {
-  winner: 1 | 2;
+  winner: 1 | 2 | 'draw';
   player1Character: Character;
   player2Character: Character;
   scores: [number, number];
@@ -19,38 +19,37 @@ const ResultScreen = ({
   onRematch,
   onReturnToMenu,
 }: ResultScreenProps) => {
-  const winnerCharacter = winner === 1 ? player1Character : player2Character;
+  const winnerCharacter = winner === 'draw' ? null : (winner === 1 ? player1Character : player2Character);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted p-4">
       <div className="text-center space-y-8 animate-fade-in">
         {/* Trophy icon */}
         <div className="flex justify-center">
-          <div 
+          <div
             className="w-24 h-24 rounded-full flex items-center justify-center"
-            style={{ 
-              backgroundColor: winnerCharacter.color,
-              boxShadow: `0 0 40px ${winnerCharacter.color}`,
+            style={{
+              backgroundColor: winnerCharacter ? winnerCharacter.color : '#64748b',
+              boxShadow: `0 0 40px ${winnerCharacter ? winnerCharacter.color : '#64748b'}`,
             }}
           >
             <Trophy className="w-12 h-12 text-background" />
           </div>
         </div>
 
-        {/* Winner announcement */}
         <div>
           <h1 className="text-5xl font-bold mb-2">
-            플레이어 {winner} 승리!
+            {winner === 'draw' ? '무승부!' : `플레이어 ${winner} 승리!`}
           </h1>
           <p className="text-2xl text-muted-foreground">
-            {winnerCharacter.nameKo}
+            {winnerCharacter ? winnerCharacter.nameKo : '팽팽한 접전이었습니다'}
           </p>
         </div>
 
         {/* Final score */}
         <div className="flex justify-center gap-8">
           <div className={`text-center ${winner === 1 ? 'scale-110' : 'opacity-70'}`}>
-            <div 
+            <div
               className="w-16 h-16 rounded-lg mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
               style={{ backgroundColor: player1Character.color }}
             >
@@ -65,7 +64,7 @@ const ResultScreen = ({
           </div>
 
           <div className={`text-center ${winner === 2 ? 'scale-110' : 'opacity-70'}`}>
-            <div 
+            <div
               className="w-16 h-16 rounded-lg mx-auto mb-2 flex items-center justify-center text-2xl font-bold"
               style={{ backgroundColor: player2Character.color }}
             >
@@ -78,17 +77,17 @@ const ResultScreen = ({
 
         {/* Action buttons */}
         <div className="flex justify-center gap-4">
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             onClick={onRematch}
             className="gap-2"
           >
             <RotateCcw className="w-5 h-5" />
             재대결
           </Button>
-          <Button 
-            size="lg" 
-            variant="outline" 
+          <Button
+            size="lg"
+            variant="outline"
             onClick={onReturnToMenu}
             className="gap-2"
           >

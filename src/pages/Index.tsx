@@ -17,6 +17,8 @@ const Index = () => {
     scores,
     matchWinner,
     gameMode,
+    isOvertime,
+    roundsCompleted,
     startGame,
     confirmCharacterSelection,
     endRound,
@@ -54,6 +56,8 @@ const Index = () => {
           onRoundEnd={endRound}
           onReturnToMenu={returnToMenu}
           gameMode={gameMode}
+          isOvertime={isOvertime}
+          roundsCompleted={roundsCompleted}
         />
       )}
 

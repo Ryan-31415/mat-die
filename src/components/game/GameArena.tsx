@@ -17,9 +17,11 @@ interface GameArenaProps {
     soundEnabled: boolean;
   };
   scores: [number, number];
-  onRoundEnd: (winner: 1 | 2) => void;
+  onRoundEnd: (winner: 1 | 2 | 'draw') => void;
   onReturnToMenu: () => void;
   gameMode: 'single' | 'multi';
+  isOvertime: boolean;
+  roundsCompleted: number;
 }
 
 const GameArena = ({
@@ -30,6 +32,8 @@ const GameArena = ({
   onRoundEnd,
   onReturnToMenu,
   gameMode,
+  isOvertime,
+  roundsCompleted,
 }: GameArenaProps) => {
   const { keysRef } = useKeyboard();
   const { gameState, setKeysRef, resetRound, togglePause } = useGameEngine(
@@ -37,7 +41,9 @@ const GameArena = ({
     player2Character,
     settings.roundTimeLimit,
     onRoundEnd,
-    gameMode
+    gameMode,
+    isOvertime,
+    roundsCompleted + 1
   );
 
   useEffect(() => {
@@ -154,11 +160,16 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center animate-scale-in">
               <h2 className="text-4xl font-bold mb-2">
-                라운드 {currentRound - 1} 종료!
+                라운드 {roundsCompleted + 1} 종료!
               </h2>
-              <p className="text-2xl text-primary">
-                플레이어 {gameState.roundWinner} 승리!
+              <p className="text-2xl text-primary font-bold">
+                {gameState.roundWinner === 'draw' ? '무승부!' : `플레이어 ${gameState.roundWinner} 승리!`}
               </p>
+              {gameState.roundWinner === 'draw' && (
+                <p className="text-xl text-destructive mt-2 animate-pulse">
+                  곧 연장전이 시작됩니다!
+                </p>
+              )}
             </div>
           </div>
         )}

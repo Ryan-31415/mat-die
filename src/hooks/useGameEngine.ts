@@ -13,17 +13,20 @@ interface GameEngineState {
   attackHitboxes: AttackHitbox[];
   roundTimeRemaining: number;
   isRoundActive: boolean;
-  roundWinner: 1 | 2 | null;
+  roundWinner: 1 | 2 | 'draw' | null;
   isPaused: boolean;
   platforms: Platform[];
+  isOvertime: boolean;
 }
 
 export const useGameEngine = (
   player1Character: Character,
   player2Character: Character,
   roundTimeLimit: number,
-  onRoundEnd: (winner: 1 | 2) => void,
-  gameMode: 'single' | 'multi' = 'multi'
+  onRoundEnd: (winner: 1 | 2 | 'draw') => void,
+  gameMode: 'single' | 'multi' = 'multi',
+  isOvertimeProp: boolean = false,
+  roundNumber: number = 1
 ) => {
   const [gameState, setGameState] = useState<GameEngineState>(() => ({
     players: [
@@ -33,11 +36,12 @@ export const useGameEngine = (
     projectiles: [],
     hazardZones: [],
     attackHitboxes: [],
-    roundTimeRemaining: roundTimeLimit,
+    roundTimeRemaining: isOvertimeProp ? 30 : roundTimeLimit,
     isRoundActive: true,
     roundWinner: null,
     isPaused: false,
     platforms: PLATFORMS,
+    isOvertime: isOvertimeProp,
   }));
 
   const gameStateRef = useRef(gameState);
@@ -138,17 +142,20 @@ export const useGameEngine = (
   };
 
   // AI decision making for single-player mode
-  const getAIKeys = (aiPlayer: Player, opponent: Player): KeyboardState => {
+  const getAIKeys = (aiPlayer: Player, opponent: Player, projectiles: Projectile[], hazardZones: HazardZone[], isOvertime: boolean): KeyboardState => {
     const distX = opponent.x - aiPlayer.x;
     const distY = opponent.y - aiPlayer.y;
     const distance = Math.sqrt(distX * distX + distY * distY);
-    
+
+    const isVerticalAligned = Math.abs(distY) < 60;
+    const isHorizontalAligned = Math.abs(distX) < aiPlayer.character!.attackRange;
+
     // AI decision variables
     const isPlayer2 = aiPlayer.id === 2; // Player 2 uses arrow keys
     const aggressiveness = 0.65; // How likely to attack (0-1)
     const skillChance = 0.3; // How likely to use skill
     const ultimateChance = 0.15; // How likely to use ultimate when available
-    
+
     const keys: KeyboardState = {
       a: false,
       d: false,
@@ -166,8 +173,28 @@ export const useGameEngine = (
       slash: false,
     };
 
-    // Basic movement logic
-    if (distance > 200) {
+    // 1. Dodging Logic (High Priority)
+    // Check for threatening projectiles or hazards
+    const isThreatened = projectiles.some(p =>
+      p.ownerId !== aiPlayer.id &&
+      Math.abs(p.x - aiPlayer.x) < 200 && // Close enough
+      Math.abs(p.y - aiPlayer.y) < 100 && // Similar height
+      ((p.velocityX > 0 && p.x < aiPlayer.x) || (p.velocityX < 0 && p.x > aiPlayer.x)) // Moving towards AI
+    ) || hazardZones.some(h =>
+      h.ownerId !== aiPlayer.id &&
+      Math.abs(h.x + h.width / 2 - (aiPlayer.x + PLAYER_SIZE / 2)) < (h.width / 2 + PLAYER_SIZE / 2) && // Overlap X
+      Math.abs(h.y + h.height / 2 - (aiPlayer.y + PLAYER_SIZE / 2)) < (h.height / 2 + PLAYER_SIZE / 2) // Overlap Y (standing in it)
+    );
+
+    if (isThreatened && aiPlayer.isGrounded) {
+      // Jump to dodge
+      if (isPlayer2) keys.arrowUp = true;
+      else keys.w = true;
+    }
+
+    // 2. Movement Logic
+    // basic movement with anti-camping
+    if (distance > 130) {
       // Move towards opponent
       if (distX > 20) {
         if (isPlayer2) keys.arrowRight = true;
@@ -176,8 +203,8 @@ export const useGameEngine = (
         if (isPlayer2) keys.arrowLeft = true;
         else keys.a = true;
       }
-    } else if (distance < 100) {
-      // Move away from opponent
+    } else if (distance < 90) {
+      // Move away from opponent (kiting)
       if (distX > 0) {
         if (isPlayer2) keys.arrowLeft = true;
         else keys.a = true;
@@ -187,30 +214,43 @@ export const useGameEngine = (
       }
     }
 
-    // Jumping logic
-    if (aiPlayer.isGrounded && Math.random() < 0.15) {
-      if (isPlayer2) keys.arrowUp = true;
-      else keys.w = true;
+    // Vertical movement logic (Jump/Drop)
+    if (aiPlayer.isGrounded) {
+      // Jump if opponent is significantly above (unless already dodging)
+      if (!keys.w && !keys.arrowUp && (distY < -80 || Math.random() < 0.005)) {
+        if (isPlayer2) keys.arrowUp = true;
+        else keys.w = true;
+      }
+
+      // Drop down platform if opponent is significantly below
+      if (distY > 80) {
+        if (isPlayer2) keys.arrowDown = true;
+        else keys.s = true;
+      }
     }
 
     // Attacking logic
-    if (distance < aiPlayer.character!.attackRange + 50 && Math.random() < aggressiveness) {
+    // Only attack if somewhat vertically aligned (especially for melee) or at range
+    const canMelee = aiPlayer.character!.id === 'gladiator' || aiPlayer.character!.id === 'ninja';
+    const attackRangeThreshold = aiPlayer.character!.attackRange + 50;
+
+    if (distance < attackRangeThreshold && (isVerticalAligned || !canMelee) && Math.random() < aggressiveness) {
       if (isPlayer2) keys.enter = true;
       else keys.space = true;
     }
 
     // Skill usage
-    if (aiPlayer.mana > aiPlayer.character!.skill.manaCost && 
-        aiPlayer.skillCooldownRemaining === 0 && 
-        distance < 300 && 
-        Math.random() < skillChance) {
+    if (aiPlayer.mana > aiPlayer.character!.skill.manaCost &&
+      aiPlayer.skillCooldownRemaining === 0 &&
+      distance < 300 &&
+      Math.random() < skillChance) {
       if (isPlayer2) keys.shift = true;
       else keys.q = true;
     }
 
     // Ultimate usage when health is low or mana is high
-    if (aiPlayer.mana >= aiPlayer.character!.ultimate.manaCost && 
-        (aiPlayer.health < aiPlayer.maxHealth * 0.4 || Math.random() < ultimateChance)) {
+    if (aiPlayer.mana >= aiPlayer.character!.ultimate.manaCost &&
+      (aiPlayer.health < aiPlayer.maxHealth * 0.4 || Math.random() < ultimateChance)) {
       if (isPlayer2) keys.slash = true;
       else keys.e = true;
     }
@@ -228,6 +268,7 @@ export const useGameEngine = (
   ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newShieldTick: number } => {
     const isP1 = player.id === 1;
     const character = player.character!;
+    const manaMultiplier = gameState.isOvertime ? 2.0 : 1.0;
     const newProjectiles: Projectile[] = [];
     const newHitboxes: AttackHitbox[] = [];
     const newHazards: HazardZone[] = [];
@@ -416,7 +457,8 @@ export const useGameEngine = (
       // Drop through one-way platform
       if (moveDown && platformResult.platform?.type === 'one-way') {
         updatedPlayer.isGrounded = false;
-        newY += 5; // Push through platform
+        newY += 25; // Push through platform (more than 15px height)
+        updatedPlayer.velocityY = 300; // Add downward velocity
       }
     } else {
       updatedPlayer.isGrounded = false;
@@ -441,10 +483,13 @@ export const useGameEngine = (
       updatedPlayer.isAttacking = true;
 
       const attackDirection = updatedPlayer.facingRight ? 1 : -1;
-      const attackX = updatedPlayer.x + (updatedPlayer.facingRight ? PLAYER_SIZE : -character.attackRange);
+      // Start hitbox from the character's body edge (left if facing right, left-range if facing left)
+      // This includes the character's own width in the hitbox to hit overlapping enemies
+      const attackX = updatedPlayer.facingRight ? updatedPlayer.x : updatedPlayer.x - character.attackRange;
       const attackY = updatedPlayer.y + PLAYER_SIZE / 4;
 
-      const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost);
+      const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
+      const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
 
       switch (character.id) {
         case 'gladiator':
@@ -452,7 +497,7 @@ export const useGameEngine = (
             player.id,
             attackX,
             updatedPlayer.y, // Centered vertically for slash
-            character.attackRange,
+            character.attackRange + PLAYER_SIZE, // Extended width to cover self
             PLAYER_SIZE, // Full height for slash
             baseDamage,
             200,
@@ -486,7 +531,7 @@ export const useGameEngine = (
             player.id,
             attackX,
             updatedPlayer.y - 10, // Slightly higher for katana slash
-            character.attackRange,
+            character.attackRange + PLAYER_SIZE, // Extended width to cover self
             PLAYER_SIZE * 1.1, // Larger slash area
             baseDamage,
             120, // Reduced duration for harder deflect
@@ -499,9 +544,9 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 500, // Further increased range for better coverage
-            -100,
-            baseDamage * 0.5
+            attackDirection * 600, // Further increased range for better coverage
+            -80,
+            baseDamage
           ));
           break;
       }
@@ -571,7 +616,7 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 500,
+              attackDirection * 660,
               0,
               baseDamage * 2
             ));
@@ -666,7 +711,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x,
             updatedPlayer.y,
-            2, // Reduced damage (approx 22% of 8)
+            baseDamage * 0.2,
             30000
           ));
           break;
@@ -721,7 +766,7 @@ export const useGameEngine = (
       };
 
       // Get player 2 keys from AI or keyboard
-      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0]) : p1Keys;
+      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.isOvertime) : p1Keys;
 
       // Update players
       const p1Result = updatePlayer(
@@ -785,14 +830,19 @@ export const useGameEngine = (
           if (proj.isExplosive && proj.y > ARENA.height - ARENA.padding) {
             // Explode on ground
             if (proj.createsFirePool) {
-              hazardZones.push(createHazardZone(
-                proj.type === 'flask' ? 'toxic-pool' : 'fire-pool',
+              const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
+              const isToxic = proj.type === 'flask';
+              const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.01;
+              const pool = createHazardZone(
+                poolType,
                 proj.ownerId,
-                proj.x - 30,
-                ARENA.height - ARENA.padding - 30,
-                proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.03, // Toxic: 2 DPS, Fire: 0.8 DPS
+                0, 0,
+                damage,
                 proj.firePoolDuration
-              ));
+              );
+              pool.x = proj.x - pool.width / 2;
+              pool.y = ARENA.height - ARENA.padding - pool.height / 2;
+              hazardZones.push(pool);
             }
           }
           return false;
@@ -802,14 +852,19 @@ export const useGameEngine = (
         if (proj.createsFirePool && proj.hasGravity) {
           const hitPlatform = prev.platforms.find(p => checkCollision(proj.x, proj.y, proj.width, proj.height, p.x, p.y, p.width, p.height));
           if (hitPlatform) {
-            hazardZones.push(createHazardZone(
-              proj.type === 'flask' ? 'toxic-pool' : 'fire-pool',
+            const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
+            const isToxic = proj.type === 'flask';
+            const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.01;
+            const pool = createHazardZone(
+              poolType,
               proj.ownerId,
-              proj.x - 30,
-              hitPlatform.y - 30, // On top of platform
-              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.03, // Differentiate pool damage
+              0, 0,
+              damage,
               proj.firePoolDuration
-            ));
+            );
+            pool.x = proj.x - pool.width / 2;
+            pool.y = hitPlatform.y - pool.height / 2;
+            hazardZones.push(pool);
             return false;
           }
         }
@@ -818,6 +873,23 @@ export const useGameEngine = (
         const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
+
+          // Create fire pool if applicable
+          if (proj.createsFirePool) {
+            const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
+            const isToxic = proj.type === 'flask';
+            const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.01;
+            const pool = createHazardZone(
+              poolType,
+              proj.ownerId,
+              0, 0,
+              damage,
+              proj.firePoolDuration
+            );
+            pool.x = proj.x - pool.width / 2;
+            pool.y = hitCoil.y + hitCoil.height - pool.height / 2;
+            hazardZones.push(pool);
+          }
           return false;
         }
 
@@ -870,14 +942,19 @@ export const useGameEngine = (
 
           // Create fire pool if applicable
           if (proj.createsFirePool) {
-            hazardZones.push(createHazardZone(
-              proj.type === 'flask' ? 'toxic-pool' : 'fire-pool',
+            const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
+            const isToxic = proj.type === 'flask';
+            const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.02;
+            const pool = createHazardZone(
+              poolType,
               proj.ownerId,
-              proj.x - 30,
-              proj.y - 30,
-              proj.type === 'flask' ? proj.damage * 0.2 : proj.damage * 0.03, // Differentiate pool damage
+              0, 0,
+              damage,
               proj.firePoolDuration
-            ));
+            );
+            pool.x = proj.x - pool.width / 2;
+            pool.y = proj.y - pool.height / 2;
+            hazardZones.push(pool);
           }
 
           return false;
@@ -1049,11 +1126,13 @@ export const useGameEngine = (
 
 
       // Check win conditions
-      let roundWinner: 1 | 2 | null = null;
-      if (players[0].health <= 0) roundWinner = 2;
+      let roundWinner: 1 | 2 | 'draw' | null = null;
+      if (players[0].health <= 0 && players[1].health <= 0) roundWinner = 'draw';
+      else if (players[0].health <= 0) roundWinner = 2;
       else if (players[1].health <= 0) roundWinner = 1;
-      else if (newTimeRemaining <= 0 && roundTimeLimit > 0) { // Only end on time if limit is set
-        roundWinner = players[0].health > players[1].health ? 1 : 2;
+      else if (newTimeRemaining <= 0) {
+        if (players[0].health === players[1].health) roundWinner = 'draw';
+        else roundWinner = players[0].health > players[1].health ? 1 : 2;
       }
 
       if (roundWinner && prev.isRoundActive && !roundEndingRef.current) {
@@ -1082,7 +1161,7 @@ export const useGameEngine = (
   const resetRound = useCallback(() => {
     roundStartTimeRef.current = Date.now();
     shieldManaTickRef.current = [0, 0];
-    roundEndingRef.current = false; // Reset the flag for the new round
+    roundEndingRef.current = false;
     setGameState(prev => ({
       players: [
         createInitialPlayer(1, player1Character),
@@ -1091,13 +1170,14 @@ export const useGameEngine = (
       projectiles: [],
       hazardZones: [],
       attackHitboxes: [],
-      roundTimeRemaining: roundTimeLimit,
+      roundTimeRemaining: isOvertimeProp ? 30 : roundTimeLimit,
       isRoundActive: true,
       roundWinner: null,
       isPaused: false,
       platforms: PLATFORMS,
+      isOvertime: isOvertimeProp,
     }));
-  }, [player1Character, player2Character, roundTimeLimit]);
+  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp]);
 
   const togglePause = useCallback(() => {
     setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));

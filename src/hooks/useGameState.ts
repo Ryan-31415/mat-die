@@ -12,8 +12,10 @@ export const useGameState = () => {
   const [player1Character, setPlayer1Character] = useState<Character | null>(null);
   const [player2Character, setPlayer2Character] = useState<Character | null>(null);
   const [scores, setScores] = useState<[number, number]>([0, 0]);
-  const [matchWinner, setMatchWinner] = useState<1 | 2 | null>(null);
+  const [matchWinner, setMatchWinner] = useState<1 | 2 | 'draw' | null>(null);
   const [gameMode, setGameMode] = useState<'single' | 'multi'>('multi');
+  const [isOvertime, setIsOvertime] = useState(false);
+  const [roundsCompleted, setRoundsCompleted] = useState(0);
 
   const goToScreen = useCallback((newScreen: GameScreen) => {
     setScreen(newScreen);
@@ -25,6 +27,8 @@ export const useGameState = () => {
     setPlayer2Character(null);
     setScores([0, 0]);
     setMatchWinner(null);
+    setIsOvertime(false);
+    setRoundsCompleted(0);
     goToScreen('character-select');
   }, [goToScreen]);
 
@@ -42,26 +46,46 @@ export const useGameState = () => {
   const confirmCharacterSelection = useCallback((p1: Character, p2: Character) => {
     setPlayer1Character(p1);
     setPlayer2Character(p2);
+    setIsOvertime(false);
+    setRoundsCompleted(0);
     goToScreen('game');
   }, [goToScreen]);
 
   const endRound = useCallback(
-    (winner: 1 | 2) => {
+    (winner: 1 | 2 | 'draw') => {
+      if (isOvertime) {
+        setMatchWinner(winner === 'draw' ? 'draw' : winner);
+        setTimeout(() => goToScreen('result'), 0);
+        return;
+      }
+
       setScores(prevScores => {
         const newScores: [number, number] = [...prevScores];
-        newScores[winner - 1]++;
+        if (winner !== 'draw') {
+          newScores[winner - 1]++;
+        }
+
+        const newRoundsCompleted = roundsCompleted + 1;
+        setRoundsCompleted(newRoundsCompleted);
 
         const winsNeeded = Math.ceil(settings.maxRounds / 2);
-        if (newScores[winner - 1] >= winsNeeded) {
+
+        if (winner !== 'draw' && newScores[winner - 1] >= winsNeeded) {
           setMatchWinner(winner);
-          // Use setTimeout to avoid state update during render
           setTimeout(() => goToScreen('result'), 0);
+        } else if (newRoundsCompleted >= settings.maxRounds) {
+          if (newScores[0] === newScores[1]) {
+            setIsOvertime(true);
+          } else {
+            setMatchWinner(newScores[0] > newScores[1] ? 1 : 2);
+            setTimeout(() => goToScreen('result'), 0);
+          }
         }
 
         return newScores;
       });
     },
-    [settings.maxRounds, goToScreen]
+    [settings.maxRounds, roundsCompleted, isOvertime, goToScreen]
   );
 
   const returnToMenu = useCallback(() => {
@@ -87,6 +111,8 @@ export const useGameState = () => {
     scores,
     matchWinner,
     gameMode,
+    isOvertime,
+    roundsCompleted,
     goToScreen,
     startGame,
     selectCharacter,

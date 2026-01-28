@@ -106,7 +106,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.7, // Reduced to 60%
     speed: 5.0,
     attackDamage: 16,
-    attackRange: 68,
+    attackRange: 80,
     attackCooldown: 800,
     skill: {
       name: '방어',
@@ -131,7 +131,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.6,
     speed: 5.2,
-    attackDamage: 10,
+    attackDamage: 12,
     attackRange: 600,
     attackCooldown: 600,
     skill: {
@@ -155,15 +155,15 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     colorClass: 'bg-violet-600',
     maxHealth: 80,
     maxMana: 100,
-    manaRegen: 7.0,
+    manaRegen: 6.8,
     speed: 4.9,
-    attackDamage: 20,
+    attackDamage: 18,
     attackRange: 560,
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
       description: '상대 위치에 커다란 파이어볼을 투하합니다. 4초간 화염 영역 생성.',
-      manaCost: 30,
+      manaCost: 35,
       cooldown: 5000,
     },
     ultimate: {
@@ -181,17 +181,17 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     colorClass: 'bg-slate-800',
     maxHealth: 85,
     maxMana: 100,
-    manaRegen: 6.8,
+    manaRegen: 6.7,
     speed: 5.5, // slightly faster base speed
-    attackDamage: 14,
-    attackRange: 65,
+    attackDamage: 15,
+    attackRange: 85,
     attackCooldown: 1000,
     passive: '카타나로 적의 투사체를 반사 가능.',
     skill: {
       name: '질풍 돌진',
       description: '전방으로 돌진.',
       manaCost: 30,
-      cooldown: 3000,
+      cooldown: 1500,
     },
     ultimate: {
       name: '그림자 은신',
@@ -210,7 +210,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.6,
     speed: 4.6,
-    attackDamage: 12,
+    attackDamage: 13,
     attackRange: 530, // Increased range (still shorter than Archer's 600)
     attackCooldown: 900,
     skill: {
@@ -225,7 +225,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       manaCost: 100,
       cooldown: 0,
     },
-  }, 
+  },
 };
 
 // Arena dimensions
