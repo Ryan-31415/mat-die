@@ -29,8 +29,8 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
       {/* Character body */}
       <div
         className={`w-full h-full rounded-lg border-2 border-foreground/50 ${player.isAttacking || player.isUsingSkill || player.isUsingUltimate
-            ? 'animate-pulse'
-            : ''
+          ? 'animate-pulse'
+          : ''
           } ${player.isStunned ? 'opacity-50' : ''
           }`}
         style={{
@@ -72,7 +72,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
             className="absolute top-0 left-0 w-full h-full rounded-lg opacity-50"
             style={{
               backgroundColor: character.color,
-              transform: `translateX(${player.facingRight ? 20 : -20}px)`
+              transform: `translateX(${player.facingRight ? -20 : 20}px)`
             }}
           />
         )}
@@ -81,8 +81,8 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
       {/* Player indicator */}
       <div
         className={`absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-0.5 rounded ${player.id === 1
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-destructive text-destructive-foreground'
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-destructive text-destructive-foreground'
           }`}
         style={{ transform: `scaleX(${player.facingRight ? 1 : -1}) translateX(${player.facingRight ? -50 : 50}%)` }}
       >
@@ -106,28 +106,32 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         <>
           {character.id === 'gladiator' ? (
             <div
-              className="absolute top-1/2 left-1/2 bg-gradient-to-r from-transparent via-gray-700 to-transparent shadow-[0_0_15px_rgba(55,65,81,0.9)] animate-sword-swing"
+              className="absolute bg-gradient-to-r from-transparent via-gray-600 to-transparent shadow-[0_0_15px_rgba(75,85,99,0.9)] animate-sword-swing"
               style={{
-                width: '70px',
-                height: '6px',
+                width: '65px',
+                height: '7px',
+                top: '50%',
+                left: '80%',
                 zIndex: 20,
                 transformOrigin: 'left center',
-                marginTop: '-3px'
+                marginTop: '-3.5px',
+                marginLeft: '0px'
               }}
             />
           ) : character.id === 'ninja' ? (
-            !player.isDashing ? (
-              <div
-                className="absolute top-1/2 left-1/2 bg-gradient-to-r from-transparent via-slate-800 to-transparent shadow-[0_0_15px_rgba(15,23,42,0.9)] animate-katana-slash"
-                style={{
-                  width: '70px',
-                  height: '3px',
-                  zIndex: 20,
-                  transformOrigin: 'left center',
-                  marginTop: '-1.5px'
-                }}
-              />
-            ) : null
+            <div
+              className="absolute bg-gradient-to-r from-transparent via-gray-700 to-transparent shadow-[0_0_15px_rgba(55,65,81,0.95)] animate-katana-slash"
+              style={{
+                width: '65px',
+                height: '3px',
+                top: '50%',
+                left: '80%',
+                zIndex: 20,
+                transformOrigin: 'left center',
+                marginTop: '-1.5px',
+                marginLeft: '0px'
+              }}
+            />
           ) : (
             <div
               className="absolute top-1/2 -translate-y-1/2 w-8 h-2 bg-foreground/50 rounded"
