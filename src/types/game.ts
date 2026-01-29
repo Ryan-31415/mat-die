@@ -79,6 +79,7 @@ export interface Player {
   invulnerableDuration: number;
   isFlying: boolean;
   lastUltTick?: number;
+  trailPositions?: Array<{ x: number; y: number; timestamp: number }>;
 }
 
 export interface GameState {
@@ -245,7 +246,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.5,
     speed: 4.7,
-    attackDamage: 16,
+    attackDamage: 15,
     attackRange: 200,
     attackCooldown: 1050,
     skill: {
@@ -276,8 +277,8 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1050,
     passive: '가한 데미지의 30%를 체력으로 회복합니다.',
     skill: {
-      name: '박쥐 무리',
-      description: '부메랑처럼 돌아오는 박쥐 무리를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 75%를 추가 회복합니다.',
+      name: '박쥐',
+      description: '부메랑처럼 돌아오는 박쥐를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 75%를 추가 회복합니다.',
       manaCost: 45,
       cooldown: 5000,
     },
@@ -355,4 +356,5 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   isInvulnerable: false,
   invulnerableDuration: 0,
   isFlying: false,
+  trailPositions: [],
 });

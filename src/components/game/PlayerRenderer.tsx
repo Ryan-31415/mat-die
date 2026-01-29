@@ -14,12 +14,45 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isDashing) statusEffects.push('💨');
   if (player.buffDuration > 0) statusEffects.push('⬆️');
   if (player.rootDuration > 0) statusEffects.push('🕸️');
-  if (player.regenDuration > 0) statusEffects.push('🍖');
+  if (player.regenDuration > 0) statusEffects.push('♥️');
   if (player.poisonArrowsRemaining > 0) statusEffects.push(`🟢x${player.poisonArrowsRemaining}`);
 
+  const now = Date.now();
+  const trailPositions = player.trailPositions || [];
+
   return (
-    <div
-      className="absolute transition-transform"
+    <>
+      {/* Reaper ultimate trail effects */}
+      {player.isFlying && character.id === 'reaper' && trailPositions.length > 0 && (
+        <>
+          {trailPositions.map((trailPos, index) => {
+            const age = now - trailPos.timestamp;
+            const opacity = Math.max(0, 1 - age / 1000); // Fade out over 1 second
+            const scale = 0.3 + (age / 1000) * 0.7; // Scale from 0.3 to 1.0
+            
+            return (
+              <div
+                key={`trail-${index}-${trailPos.timestamp}`}
+                className="absolute pointer-events-none rounded-full"
+                style={{
+                  left: trailPos.x - PLAYER_SIZE / 2,
+                  top: trailPos.y - PLAYER_SIZE / 2,
+                  width: PLAYER_SIZE,
+                  height: PLAYER_SIZE,
+                  opacity: opacity * 0.4,
+                  transform: `scale(${scale * 2.2})`,
+                  background: 'radial-gradient(circle, #475569 0%, #0f172a 100%)',
+                  border: '2px solid #64748b',
+                  boxShadow: `0 0 ${40 * scale}px #4b5563`,
+                  zIndex: 1,
+                }}
+              />
+            );
+          })}
+        </>
+      )}
+      <div
+        className="absolute transition-transform"
       style={{
         left: player.x,
         top: player.y,
@@ -37,12 +70,12 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
           } ${player.isStunned ? 'opacity-50' : ''} ${player.isFlying ? 'rounded-full' : 'rounded-lg'}`}
         style={{
           backgroundColor: player.isFlying ? '#1e293b' : character.color,
+          background: player.isFlying ? 'radial-gradient(circle, #475569 0%, #0f172a 100%)' : character.color,
           boxShadow: (player.buffDuration > 0 || player.isFlying)
             ? `0 0 ${player.isFlying ? '40px' : '20px'} ${player.isFlying ? '#4b5563' : character.color}`
             : undefined,
-          transform: player.isFlying ? 'scale(2.2)' : undefined,
-          border: player.isFlying ? '2px solid #64748b' : undefined,
-          background: player.isFlying ? 'radial-gradient(circle, #475569 0%, #0f172a 100%)' : undefined,
+          transform: (player.isFlying && character.id === 'reaper') ? 'scale(2.2)' : undefined,
+          borderColor: player.isFlying ? '#64748b' : undefined,
         }}
       >
         {/* Face */}
@@ -191,6 +224,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         </>
       )}
     </div>
+    </>
   );
 };
 

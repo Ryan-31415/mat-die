@@ -6,6 +6,9 @@ interface ProjectileRendererProps {
 
 const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
   if (projectile.type === 'bat') {
+    // Calculate rotation angle based on velocity direction
+    // SVG bat is facing upward by default, so add 90 degrees to face right
+    const angle = Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI) + 90;
     return (
       <div
         className="absolute pointer-events-none"
@@ -14,7 +17,7 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           top: projectile.y - projectile.height / 2,
           width: projectile.width,
           height: projectile.height,
-          transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
+          transform: `rotate(${angle}deg)`,
         }}
       >
         <div className="w-full h-full animate-pulse">

@@ -41,6 +41,8 @@ export interface Projectile {
   canBeDeflected: boolean;
   isReturning: boolean;
   damageAccumulated: number;
+  hasHitForward?: boolean; // Track if projectile has hit on forward path
+  hasHitReturn?: boolean; // Track if projectile has hit on return path
 }
 
 export interface HazardZone {
@@ -118,6 +120,8 @@ export const createProjectile = (
     canBeDeflected: true,
     isReturning: false,
     damageAccumulated: 0,
+    hasHitForward: false,
+    hasHitReturn: false,
   };
 
   switch (type) {
@@ -216,11 +220,13 @@ export const createProjectile = (
     case 'bat':
       return {
         ...baseProjectile,
-        width: 50,
-        height: 50,
-        lifetime: 4000,
+        width: 65,
+        height: 65,
+        lifetime: 3200,
         canBeDeflected: false,
         isReturning: true,
+        hasHitForward: false,
+        hasHitReturn: false,
       };
     default:
       return baseProjectile;

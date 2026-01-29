@@ -357,6 +357,11 @@ export const useGameEngine = (
         updatedPlayer.isInvulnerable = false;
         updatedPlayer.invulnerableDuration = 0;
         updatedPlayer.isFlying = false;
+        // Reset reaper ultimate speed boost
+        if (updatedPlayer.character?.id === 'reaper') {
+          updatedPlayer.speedBoost = 0;
+          updatedPlayer.trailPositions = [];
+        }
       }
     }
 
@@ -629,7 +634,7 @@ export const useGameEngine = (
               updatedPlayer.y + PLAYER_SIZE / 2,
               attackDirection * 1400 * Math.cos(radians),
               850 * Math.sin(radians),
-              baseDamage * 0.45 // Each bullet does 45% of base damage
+              baseDamage * 0.4 // Each bullet does 40% of base damage
             ));
           }
           break;
@@ -724,10 +729,10 @@ export const useGameEngine = (
               'bat',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 500,
+              updatedPlayer.y + PLAYER_SIZE / 2, // Center of player (projectile.y is the center point)
+              attackDirection * 600,
               0,
-              baseDamage * 1.5
+              baseDamage * 1.5,
             ));
             break;
         }
@@ -833,13 +838,15 @@ export const useGameEngine = (
             updatedPlayer.y + PLAYER_SIZE / 2,
             attackDirection * 1000,
             0,
-            baseDamage * 3
+            baseDamage * 2.5
           ));
           break;
         case 'reaper':
           updatedPlayer.isInvulnerable = true;
           updatedPlayer.isFlying = true;
           updatedPlayer.invulnerableDuration = 3500;
+          updatedPlayer.speedBoost = 0.75;
+          updatedPlayer.trailPositions = [];
           break;
       }
 
@@ -946,7 +953,31 @@ export const useGameEngine = (
       projectiles = projectiles.map(proj => {
         let newProj = { ...proj };
 
-        if (newProj.isReturning) {
+        // For bat projectiles: check if hit arena bounds and start returning
+        if (newProj.type === 'bat' && newProj.isReturning) {
+          const timeSinceCreated = now - newProj.createdAt;
+          const owner = players[newProj.ownerId - 1];
+          
+          // Only start returning logic after 35% of lifetime
+          // Don't check bounds too early to allow forward movement
+          const shouldCheckReturn = timeSinceCreated > newProj.lifetime * 0.35;
+          
+          if (shouldCheckReturn) {
+            // After 35% of lifetime, start returning to owner
+            const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
+            const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 10) {
+              const speed = 750;
+              newProj.velocityX = (dx / dist) * speed;
+              newProj.velocityY = (dy / dist) * speed;
+            }
+          }
+          // Before 35% of lifetime, let bat fly forward without boundary checks
+          // This prevents the bat from bouncing or changing direction too early
+        } else if (newProj.isReturning) {
+          // Other returning projectiles: original logic
           const owner = players[newProj.ownerId - 1];
           const timeSinceCreated = now - newProj.createdAt;
           // Start returning after 35% of lifetime
@@ -965,6 +996,34 @@ export const useGameEngine = (
 
         newProj.x += newProj.velocityX * (deltaTime / 1000);
         newProj.y += newProj.velocityY * (deltaTime / 1000);
+
+        // Clamp position to arena bounds (only for non-returning bats or after position update)
+        if (newProj.type === 'bat') {
+          // Only clamp if not actively returning to owner and after initial delay
+          const timeSinceCreated = now - newProj.createdAt;
+          const isActivelyReturning = newProj.isReturning && timeSinceCreated > newProj.lifetime * 0.35;
+          // Don't clamp immediately after creation to allow forward movement
+          if (!isActivelyReturning && timeSinceCreated > 100) {
+            // If bat goes out of bounds before return time, start returning early
+            if (newProj.x < ARENA.padding || newProj.x > ARENA.width - ARENA.padding - newProj.width ||
+                newProj.y < ARENA.padding || newProj.y > ARENA.height - ARENA.padding - newProj.height) {
+              // Start returning to owner
+              const owner = players[newProj.ownerId - 1];
+              const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
+              const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              
+              if (dist > 10) {
+                const speed = 750;
+                newProj.velocityX = (dx / dist) * speed;
+                newProj.velocityY = (dy / dist) * speed;
+              }
+            }
+            // Clamp position to keep within bounds
+            newProj.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - newProj.width, newProj.x));
+            newProj.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - newProj.height, newProj.y));
+          }
+        }
 
         if (newProj.hasGravity) {
           newProj.velocityY += newProj.gravity * (deltaTime / 1000);
@@ -1025,86 +1084,156 @@ export const useGameEngine = (
         }
 
         // Check player collision
+        const timeSinceCreated = now - proj.createdAt;
+        const isReturningToOwner = proj.isReturning && timeSinceCreated > proj.lifetime * 0.35;
         const targetPlayer = proj.ownerId === 1 ? 1 : 0;
         const target = players[targetPlayer];
 
-        if (checkCollision(
-          proj.x, proj.y, proj.width, proj.height,
-          target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
-        )) {
-          if (target.isShielding) {
-            const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
-              (proj.ownerId === 2 && target.facingRight);
-            if (fromFront) {
-              if (proj.canBeDeflected) {
-                proj.velocityX *= -1;
-                proj.ownerId = target.id as 1 | 2;
+        // For bat projectiles: allow damage on both forward and return path, but only once per direction
+        if (proj.type === 'bat') {
+          if (isReturningToOwner) {
+            // Bat on return path - can hit if hasn't hit on return yet
+            if (!proj.hasHitReturn && checkCollision(
+              proj.x, proj.y, proj.width, proj.height,
+              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+            )) {
+              // Apply damage on return path
+              const damageRes = applyDamage(target, proj.damage);
+              players[targetPlayer] = damageRes.player;
+              proj.hasHitReturn = true; // Mark as hit on return path
+
+              // Reaper Passive: Life steal 30%
+              const ownerIndex = proj.ownerId - 1;
+              if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+                players[ownerIndex].health = Math.min(
+                  players[ownerIndex].maxHealth,
+                  players[ownerIndex].health + damageRes.dealt * 0.3
+                );
+                // Accumulate damage for extra healing on return
+                proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
+              }
+              // Continue returning to owner
+              return true;
+            }
+          } else {
+            // Bat on forward path - can hit if hasn't hit on forward yet
+            if (!proj.hasHitForward && checkCollision(
+              proj.x, proj.y, proj.width, proj.height,
+              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+            )) {
+              if (target.isShielding) {
+                const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
+                  (proj.ownerId === 2 && target.facingRight);
+                if (fromFront) {
+                  // Shield blocks bat
+                  return false;
+                }
+              }
+
+              const damageRes = applyDamage(target, proj.damage);
+              players[targetPlayer] = damageRes.player;
+              proj.hasHitForward = true; // Mark as hit on forward path
+
+              // Reaper Passive: Life steal 30%
+              const ownerIndex = proj.ownerId - 1;
+              if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+                players[ownerIndex].health = Math.min(
+                  players[ownerIndex].maxHealth,
+                  players[ownerIndex].health + damageRes.dealt * 0.3
+                );
+                // Accumulate damage for extra healing on return
+                proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
+              }
+
+              // Returning projectiles don't disappear immediately on hit if they haven't returned yet
+              if (proj.isReturning && timeSinceCreated < proj.lifetime * 0.35) {
                 return true;
               }
+
               return false;
             }
           }
+        } else {
+          // Non-bat projectiles: original logic
+          if (!isReturningToOwner) {
+            if (checkCollision(
+              proj.x, proj.y, proj.width, proj.height,
+              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+            )) {
+              if (target.isShielding) {
+                const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
+                  (proj.ownerId === 2 && target.facingRight);
+                if (fromFront) {
+                  if (proj.canBeDeflected) {
+                    proj.velocityX *= -1;
+                    proj.ownerId = target.id as 1 | 2;
+                    return true;
+                  }
+                  return false;
+                }
+              }
 
-          const damageRes = applyDamage(target, proj.damage);
-          players[targetPlayer] = damageRes.player;
+              const damageRes = applyDamage(target, proj.damage);
+              players[targetPlayer] = damageRes.player;
 
-          // Reaper Passive: Life steal 30%
-          const ownerIndex = proj.ownerId - 1;
-          if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-            players[ownerIndex].health = Math.min(
-              players[ownerIndex].maxHealth,
-              players[ownerIndex].health + damageRes.dealt * 0.3
-            );
-            // Accumulate damage for extra healing on return
-            proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
-          }
+              // Reaper Passive: Life steal 30%
+              const ownerIndex = proj.ownerId - 1;
+              if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+                players[ownerIndex].health = Math.min(
+                  players[ownerIndex].maxHealth,
+                  players[ownerIndex].health + damageRes.dealt * 0.3
+                );
+                // Accumulate damage for extra healing on return
+                proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
+              }
 
-          if (proj.isPoisonous) {
-            players[targetPlayer].isPoisoned = true;
-            players[targetPlayer].poisonDuration = proj.poisonDuration;
-          }
-          if (proj.slowAmount > 0) {
-            players[targetPlayer].isSlowed = true;
-            players[targetPlayer].slowAmount = proj.slowAmount;
-            players[targetPlayer].slowDuration = proj.slowDuration;
-          }
-          if (proj.stunDuration > 0 && proj.type === 'electric-orb') {
-            players[targetPlayer].isStunned = true;
-            players[targetPlayer].stunDuration = proj.stunDuration;
-          }
-          if (proj.knockback > 0) {
-            const knockbackDir = proj.velocityX > 0 ? 1 : -1;
-            players[targetPlayer].x = Math.max(
-              ARENA.padding,
-              Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, target.x + knockbackDir * proj.knockback)
-            );
-          }
+              if (proj.isPoisonous) {
+                players[targetPlayer].isPoisoned = true;
+                players[targetPlayer].poisonDuration = proj.poisonDuration;
+              }
+              if (proj.slowAmount > 0) {
+                players[targetPlayer].isSlowed = true;
+                players[targetPlayer].slowAmount = proj.slowAmount;
+                players[targetPlayer].slowDuration = proj.slowDuration;
+              }
+              if (proj.stunDuration > 0 && proj.type === 'electric-orb') {
+                players[targetPlayer].isStunned = true;
+                players[targetPlayer].stunDuration = proj.stunDuration;
+              }
+              if (proj.knockback > 0) {
+                const knockbackDir = proj.velocityX > 0 ? 1 : -1;
+                players[targetPlayer].x = Math.max(
+                  ARENA.padding,
+                  Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, target.x + knockbackDir * proj.knockback)
+                );
+              }
 
-          if (proj.createsFirePool) {
-            const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
-            const isToxic = proj.type === 'flask';
-            const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.02;
-            const pool = createHazardZone(
-              poolType,
-              proj.ownerId,
-              0, 0,
-              damage,
-              proj.firePoolDuration
-            );
-            pool.x = proj.x - pool.width / 2;
-            pool.y = proj.y - pool.height / 2;
-            hazardZones.push(pool);
-          }
+              if (proj.createsFirePool) {
+                const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
+                const isToxic = proj.type === 'flask';
+                const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.02;
+                const pool = createHazardZone(
+                  poolType,
+                  proj.ownerId,
+                  0, 0,
+                  damage,
+                  proj.firePoolDuration
+                );
+                pool.x = proj.x - pool.width / 2;
+                pool.y = proj.y - pool.height / 2;
+                hazardZones.push(pool);
+              }
 
-          // Returning projectiles don't disappear immediately on hit if they haven't returned yet
-          if (proj.isReturning) {
-            const timeSinceCreated = now - proj.createdAt;
-            if (timeSinceCreated < proj.lifetime * 0.35) {
-              return true;
+              // Returning projectiles don't disappear immediately on hit if they haven't returned yet
+              if (proj.isReturning) {
+                if (timeSinceCreated < proj.lifetime * 0.35) {
+                  return true;
+                }
+              }
+
+              return false;
             }
           }
-
-          return false;
         }
 
         // If it's a returning projectile, check if it hits the owner to heal
@@ -1302,6 +1431,33 @@ export const useGameEngine = (
 
       hazardZones = [...hazardZones, ...explosions];
 
+      // Reaper Ultimate trail tracking
+      for (let i = 0; i < 2; i++) {
+        if (players[i].isFlying && players[i].character?.id === 'reaper') {
+          // Initialize trail if not exists
+          if (!players[i].trailPositions) {
+            players[i].trailPositions = [];
+          }
+          // Add current position to trail every 50ms
+          const lastTrailTime = players[i].trailPositions[players[i].trailPositions.length - 1]?.timestamp || 0;
+          if (now - lastTrailTime >= 50) {
+            players[i].trailPositions.push({
+              x: players[i].x + PLAYER_SIZE / 2,
+              y: players[i].y + PLAYER_SIZE / 2,
+              timestamp: now,
+            });
+            // Keep only last 20 trail positions (1 second at 50ms intervals)
+            if (players[i].trailPositions.length > 20) {
+              players[i].trailPositions.shift();
+            }
+          }
+          // Remove old trail positions (older than 1 second)
+          players[i].trailPositions = players[i].trailPositions.filter(
+            pos => now - pos.timestamp < 1000
+          );
+        }
+      }
+
       // Reaper Ultimate contact damage
       for (let i = 0; i < 2; i++) {
         if (players[i].isFlying && players[i].character?.id === 'reaper') {
@@ -1313,7 +1469,9 @@ export const useGameEngine = (
             target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
           )) {
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
-              const damageRes = applyDamage(target, 4); // 40 DPS
+              const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
+              const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
+              const damageRes = applyDamage(target, baseDamage * 0.2); // 20% of base damage per tick (26 DPS)
               players[targetIndex] = damageRes.player;
               // Life steal 30%
               players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.3);
