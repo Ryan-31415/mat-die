@@ -124,17 +124,20 @@ export const createProjectile = (
     hasHitReturn: false,
   };
 
+  let result: Projectile = { ...baseProjectile };
+
   switch (type) {
     case 'arrow':
-      return {
+      result = {
         ...baseProjectile,
         width: 40,
         height: 5,
         hasGravity: true,
         gravity: 170,
       };
+      break;
     case 'poison-arrow':
-      return {
+      result = {
         ...baseProjectile,
         width: 40,
         height: 5,
@@ -145,8 +148,9 @@ export const createProjectile = (
         slowAmount: 0.33,
         slowDuration: 5000,
       };
+      break;
     case 'fireball':
-      return {
+      result = {
         ...baseProjectile,
         width: 24,
         height: 24,
@@ -154,8 +158,9 @@ export const createProjectile = (
         explosionRadius: 50,
         canBeDeflected: false,
       };
+      break;
     case 'large-fireball':
-      return {
+      result = {
         ...baseProjectile,
         width: 50,
         height: 50,
@@ -165,8 +170,9 @@ export const createProjectile = (
         firePoolDuration: 4000,
         canBeDeflected: false,
       };
+      break;
     case 'meteor':
-      return {
+      result = {
         ...baseProjectile,
         width: 30,
         height: 30,
@@ -176,8 +182,9 @@ export const createProjectile = (
         explosionRadius: 55,
         canBeDeflected: false,
       };
+      break;
     case 'flask':
-      return {
+      result = {
         ...baseProjectile,
         width: 20,
         height: 20,
@@ -188,8 +195,9 @@ export const createProjectile = (
         createsFirePool: true,
         firePoolDuration: 3000,
       };
+      break;
     case 'electric-orb':
-      return {
+      result = {
         ...baseProjectile,
         width: 33,
         height: 33,
@@ -201,24 +209,27 @@ export const createProjectile = (
         stunDuration: 1000,
         canBeDeflected: false,
       };
+      break;
     case 'bullet':
-      return {
+      result = {
         ...baseProjectile,
         width: 10,
         height: 8,
         lifetime: 350,
         knockback: 10,
       };
+      break;
     case 'slug':
-      return {
+      result = {
         ...baseProjectile,
         width: 24,
         height: 24,
         lifetime: 600,
         knockback: 90,
       };
+      break;
     case 'bat':
-      return {
+      result = {
         ...baseProjectile,
         width: 65,
         height: 65,
@@ -228,10 +239,19 @@ export const createProjectile = (
         hasHitForward: false,
         hasHitReturn: false,
       };
+      break;
     default:
-      return baseProjectile;
+      result = baseProjectile;
+      break;
   }
+
+  // Treat provided x,y as the projectile center. Store as top-left for engine consistency.
+  result.x = x - result.width / 2;
+  result.y = y - result.height / 2;
+
+  return result;
 };
+
 
 export const createHazardZone = (
   type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap',

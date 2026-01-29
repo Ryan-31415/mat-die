@@ -725,15 +725,26 @@ export const useGameEngine = (
             ));
             break;
           case 'reaper':
-            newProjectiles.push(createProjectile(
-              'bat',
-              player.id,
-              updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2, // Center of player (projectile.y is the center point)
-              attackDirection * 600,
-              0,
-              baseDamage * 1.5,
-            ));
+              // Spawn bat slightly in front of the player to avoid initial overlap
+              const batSpawnX = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * (PLAYER_SIZE / 2 + 20));
+              const bat = createProjectile(
+                'bat',
+                player.id,
+                batSpawnX,
+                updatedPlayer.y + PLAYER_SIZE / 2, // Center vertically
+                attackDirection * 600,
+                0,
+                baseDamage * 1.5,
+              );
+              // Clamp bat top-left inside arena so it doesn't immediately trigger bounds
+              bat.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - bat.width, bat.x));
+              bat.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - bat.height, bat.y));
+              // Dev log: bat spawn (with clamped coords)
+              if (process.env.NODE_ENV !== 'production') {
+                // eslint-disable-next-line no-console
+                console.log('BAT SPAWN', { id: bat.id, owner: bat.ownerId, x: bat.x, y: bat.y, vx: bat.velocityX, vy: bat.velocityY });
+              }
+              newProjectiles.push(bat);
             break;
         }
 
@@ -958,12 +969,24 @@ export const useGameEngine = (
           const timeSinceCreated = now - newProj.createdAt;
           const owner = players[newProj.ownerId - 1];
           
-          // Only start returning logic after 35% of lifetime
-          // Don't check bounds too early to allow forward movement
-          const shouldCheckReturn = timeSinceCreated > newProj.lifetime * 0.35;
+          // Check if should return: after 35% of lifetime OR hit bounds
+          const lifetimeThreshold = newProj.lifetime * 0.35;
+          const shouldReturnByTime = timeSinceCreated > lifetimeThreshold;
           
-          if (shouldCheckReturn) {
-            // After 35% of lifetime, start returning to owner
+          // Calculate next position to check bounds
+          const nextX = newProj.x + newProj.velocityX * (deltaTime / 1000);
+          const nextY = newProj.y + newProj.velocityY * (deltaTime / 1000);
+          
+          // Check if will hit arena bounds (only check after initial delay to prevent false positives)
+          const hitBounds = timeSinceCreated > 50 && (
+            nextX < ARENA.padding ||
+            nextX > ARENA.width - ARENA.padding - newProj.width ||
+            nextY < ARENA.padding ||
+            nextY > ARENA.height - ARENA.padding - newProj.height
+          );
+          
+          if (shouldReturnByTime || hitBounds) {
+            // Start returning to owner
             const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
             const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -972,10 +995,21 @@ export const useGameEngine = (
               const speed = 750;
               newProj.velocityX = (dx / dist) * speed;
               newProj.velocityY = (dy / dist) * speed;
+              if (process.env.NODE_ENV !== 'production') {
+                // eslint-disable-next-line no-console
+                console.log('BAT RETURN', {
+                  id: newProj.id,
+                  owner: owner.id,
+                  projCenter: { x: newProj.x + newProj.width / 2, y: newProj.y + newProj.height / 2 },
+                  ownerCenter: { x: owner.x + PLAYER_SIZE / 2, y: owner.y + PLAYER_SIZE / 2 },
+                  velocity: { x: newProj.velocityX, y: newProj.velocityY },
+                  hitBounds,
+                  timeSinceCreated,
+                });
+              }
             }
           }
-          // Before 35% of lifetime, let bat fly forward without boundary checks
-          // This prevents the bat from bouncing or changing direction too early
+          // Otherwise, let bat continue flying forward with initial velocity
         } else if (newProj.isReturning) {
           // Other returning projectiles: original logic
           const owner = players[newProj.ownerId - 1];
@@ -997,33 +1031,7 @@ export const useGameEngine = (
         newProj.x += newProj.velocityX * (deltaTime / 1000);
         newProj.y += newProj.velocityY * (deltaTime / 1000);
 
-        // Clamp position to arena bounds (only for non-returning bats or after position update)
-        if (newProj.type === 'bat') {
-          // Only clamp if not actively returning to owner and after initial delay
-          const timeSinceCreated = now - newProj.createdAt;
-          const isActivelyReturning = newProj.isReturning && timeSinceCreated > newProj.lifetime * 0.35;
-          // Don't clamp immediately after creation to allow forward movement
-          if (!isActivelyReturning && timeSinceCreated > 100) {
-            // If bat goes out of bounds before return time, start returning early
-            if (newProj.x < ARENA.padding || newProj.x > ARENA.width - ARENA.padding - newProj.width ||
-                newProj.y < ARENA.padding || newProj.y > ARENA.height - ARENA.padding - newProj.height) {
-              // Start returning to owner
-              const owner = players[newProj.ownerId - 1];
-              const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
-              const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              
-              if (dist > 10) {
-                const speed = 750;
-                newProj.velocityX = (dx / dist) * speed;
-                newProj.velocityY = (dy / dist) * speed;
-              }
-            }
-            // Clamp position to keep within bounds
-            newProj.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - newProj.width, newProj.x));
-            newProj.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - newProj.height, newProj.y));
-          }
-        }
+        // Don't clamp bat position - let it move freely and return when hitting bounds
 
         if (newProj.hasGravity) {
           newProj.velocityY += newProj.gravity * (deltaTime / 1000);
@@ -1052,8 +1060,9 @@ export const useGameEngine = (
                 damage,
                 proj.firePoolDuration
               );
-              pool.x = proj.x - pool.width / 2;
               pool.y = ARENA.height - ARENA.padding - pool.height / 2;
+              // proj.x is top-left; center pool on projectile
+              pool.x = proj.x + proj.width / 2 - pool.width / 2;
               hazardZones.push(pool);
             }
           }
@@ -1076,7 +1085,8 @@ export const useGameEngine = (
               damage,
               proj.firePoolDuration
             );
-            pool.x = proj.x - pool.width / 2;
+            // proj.x is top-left; center pool on projectile
+            pool.x = proj.x + proj.width / 2 - pool.width / 2;
             pool.y = hitCoil.y + hitCoil.height - pool.height / 2;
             hazardZones.push(pool);
           }
@@ -1219,8 +1229,9 @@ export const useGameEngine = (
                   damage,
                   proj.firePoolDuration
                 );
-                pool.x = proj.x - pool.width / 2;
-                pool.y = proj.y - pool.height / 2;
+                // proj.x/proj.y are top-left; center pool on projectile
+                pool.x = proj.x + proj.width / 2 - pool.width / 2;
+                pool.y = proj.y + proj.height / 2 - pool.height / 2;
                 hazardZones.push(pool);
               }
 

@@ -13,8 +13,8 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
       <div
         className="absolute pointer-events-none"
         style={{
-          left: projectile.x - projectile.width / 2,
-          top: projectile.y - projectile.height / 2,
+          left: projectile.x,
+          top: projectile.y,
           width: projectile.width,
           height: projectile.height,
           transform: `rotate(${angle}deg)`,
@@ -110,8 +110,8 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
     <div
       className="absolute pointer-events-none"
       style={{
-        left: projectile.x - projectile.width / 2,
-        top: projectile.y - projectile.height / 2,
+        left: projectile.x,
+        top: projectile.y,
         width: projectile.width,
         height: projectile.height,
         ...getProjectileStyle(),
