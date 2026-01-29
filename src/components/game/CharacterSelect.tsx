@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Character, CHARACTERS, CharacterType } from '@/types/game';
-import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices } from 'lucide-react';
+import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull } from 'lucide-react';
 
 interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
@@ -17,6 +17,8 @@ const characterIcons: Record<CharacterType, React.ReactNode> = {
   mage: <Flame className="w-8 h-8" />,
   ninja: <Wind className="w-8 h-8" />,
   scientist: <Zap className="w-8 h-8" />,
+  hunter: <Crosshair className="w-8 h-8" />,
+  reaper: <Skull className="w-8 h-8" />,
 };
 
 const CharacterCard = ({
@@ -32,11 +34,10 @@ const CharacterCard = ({
 }) => {
   return (
     <Card
-      className={`cursor-pointer transition-all duration-200 hover:scale-105 ${
-        isSelected
-          ? 'ring-2 ring-primary shadow-lg scale-105'
-          : 'hover:shadow-md'
-      }`}
+      className={`cursor-pointer transition-all duration-200 hover:scale-105 ${isSelected
+        ? 'ring-2 ring-primary shadow-lg scale-105'
+        : 'hover:shadow-md'
+        }`}
       onClick={onClick}
     >
       <CardHeader className="pb-2">
@@ -172,11 +173,10 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
           <h1 className="text-4xl font-bold mb-2">캐릭터 선택</h1>
           <div className="flex items-center justify-center gap-4">
             <div
-              className={`px-4 py-2 rounded-lg transition-all ${
-                currentPlayer === 1
-                  ? 'bg-blue-500 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}
+              className={`px-4 py-2 rounded-lg transition-all ${currentPlayer === 1
+                ? 'bg-blue-500 text-primary-foreground'
+                : 'bg-muted text-muted-foreground'
+                }`}
             >
               <span className="font-bold">P1</span>
               {player1Character && (
@@ -185,11 +185,10 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
             </div>
             <span className="text-2xl font-bold text-muted-foreground">VS</span>
             <div
-              className={`px-4 py-2 rounded-lg transition-all ${
-                currentPlayer === 2
-                  ? 'bg-red-500 text-primary-foreground'
-                  : 'bg-muted text-muted-foreground'
-              }`}
+              className={`px-4 py-2 rounded-lg transition-all ${currentPlayer === 2
+                ? 'bg-red-500 text-primary-foreground'
+                : 'bg-muted text-muted-foreground'
+                }`}
             >
               <span className="font-bold">P2{gameMode === 'single' ? ' (AI)' : ''}</span>
               {player2Character && (
@@ -205,7 +204,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
         </div>
 
         {/* Character Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="flex overflow-x-auto pb-6 gap-6 px-4 no-scrollbar">
           {characters.map((character) => {
             const isP1Selected = player1Character?.id === character.id;
             const isP2Selected = player2Character?.id === character.id;
@@ -217,13 +216,14 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
             if (isP2Selected && currentPlayer === 1) playerLabel = 'P2';
 
             return (
-              <CharacterCard
-                key={character.id}
-                character={character}
-                isSelected={isCurrentSelected}
-                onClick={() => handleCharacterSelect(character)}
-                playerLabel={playerLabel}
-              />
+              <div key={character.id} className="min-w-[240px]">
+                <CharacterCard
+                  character={character}
+                  isSelected={isCurrentSelected}
+                  onClick={() => handleCharacterSelect(character)}
+                  playerLabel={playerLabel}
+                />
+              </div>
             );
           })}
         </div>

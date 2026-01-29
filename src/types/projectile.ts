@@ -7,7 +7,10 @@ export type ProjectileType =
   | 'large-fireball'
   | 'flask'
   | 'electric-orb'
-  | 'meteor';
+  | 'meteor'
+  | 'bullet'
+  | 'slug'
+  | 'bat';
 
 export interface Projectile {
   id: string;
@@ -36,11 +39,13 @@ export interface Projectile {
   createsFirePool: boolean;
   firePoolDuration: number;
   canBeDeflected: boolean;
+  isReturning: boolean;
+  damageAccumulated: number;
 }
 
 export interface HazardZone {
   id: string;
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion';
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap';
   ownerId: 1 | 2;
   x: number;
   y: number;
@@ -111,6 +116,8 @@ export const createProjectile = (
     createsFirePool: false,
     firePoolDuration: 0,
     canBeDeflected: true,
+    isReturning: false,
+    damageAccumulated: 0,
   };
 
   switch (type) {
@@ -130,9 +137,9 @@ export const createProjectile = (
         hasGravity: true,
         gravity: 170,
         isPoisonous: true,
-        poisonDuration: 6000,
-        slowAmount: 0.3,
-        slowDuration: 6000,
+        poisonDuration: 5000,
+        slowAmount: 0.33,
+        slowDuration: 5000,
       };
     case 'fireball':
       return {
@@ -184,11 +191,36 @@ export const createProjectile = (
         height: 33,
         isExplosive: true,
         explosionRadius: 125,
-        knockback: 175,
-        slowAmount: 0.5,
+        knockback: 160,
+        slowAmount: 0.4,
         slowDuration: 4500,
         stunDuration: 1000,
         canBeDeflected: false,
+      };
+    case 'bullet':
+      return {
+        ...baseProjectile,
+        width: 10,
+        height: 8,
+        lifetime: 350,
+        knockback: 10,
+      };
+    case 'slug':
+      return {
+        ...baseProjectile,
+        width: 24,
+        height: 24,
+        lifetime: 600,
+        knockback: 90,
+      };
+    case 'bat':
+      return {
+        ...baseProjectile,
+        width: 50,
+        height: 50,
+        lifetime: 4000,
+        canBeDeflected: false,
+        isReturning: true,
       };
     default:
       return baseProjectile;
@@ -196,7 +228,7 @@ export const createProjectile = (
 };
 
 export const createHazardZone = (
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion',
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap',
   ownerId: 1 | 2,
   x: number,
   y: number,
@@ -228,6 +260,15 @@ export const createHazardZone = (
       attackRange: 210, // Increased range (1.5x)
       attackCooldown: 175,
       lastAttack: Date.now(),
+    };
+  }
+
+  if (type === 'bear-trap') {
+    return {
+      ...base,
+      width: 45,
+      height: 20,
+      tickRate: 100,
     };
   }
 

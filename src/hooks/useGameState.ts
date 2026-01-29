@@ -54,7 +54,14 @@ export const useGameState = () => {
   const endRound = useCallback(
     (winner: 1 | 2 | 'draw') => {
       if (isOvertime) {
-        setMatchWinner(winner === 'draw' ? 'draw' : winner);
+        if (winner !== 'draw') {
+          setScores(prev => {
+            const newScores: [number, number] = [...prev];
+            newScores[winner - 1]++;
+            return newScores;
+          });
+        }
+        setMatchWinner(winner);
         setTimeout(() => goToScreen('result'), 0);
         return;
       }
@@ -99,6 +106,8 @@ export const useGameState = () => {
   const rematch = useCallback(() => {
     setScores([0, 0]);
     setMatchWinner(null);
+    setIsOvertime(false);
+    setRoundsCompleted(0);
     goToScreen('game');
   }, [goToScreen]);
 

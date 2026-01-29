@@ -13,6 +13,9 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isShielding) statusEffects.push('🛡️');
   if (player.isDashing) statusEffects.push('💨');
   if (player.buffDuration > 0) statusEffects.push('⬆️');
+  if (player.rootDuration > 0) statusEffects.push('🕸️');
+  if (player.regenDuration > 0) statusEffects.push('🍖');
+  if (player.poisonArrowsRemaining > 0) statusEffects.push(`🟢x${player.poisonArrowsRemaining}`);
 
   return (
     <div
@@ -22,38 +25,42 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         top: player.y,
         width: PLAYER_SIZE,
         height: PLAYER_SIZE,
-        opacity: player.isInvisible ? 0.3 : 1,
+        opacity: player.isInvisible ? 0.3 : (player.isFlying ? 0.6 : 1),
         transform: `scaleX(${player.facingRight ? 1 : -1})`,
       }}
     >
       {/* Character body */}
       <div
-        className={`w-full h-full rounded-lg border-2 border-foreground/50 ${player.isAttacking || player.isUsingSkill || player.isUsingUltimate
+        className={`w-full h-full border-2 border-foreground/50 ${player.isAttacking || player.isUsingSkill || player.isUsingUltimate
           ? 'animate-pulse'
           : ''
-          } ${player.isStunned ? 'opacity-50' : ''
-          }`}
+          } ${player.isStunned ? 'opacity-50' : ''} ${player.isFlying ? 'rounded-full' : 'rounded-lg'}`}
         style={{
-          backgroundColor: character.color,
-          boxShadow: player.buffDuration > 0
-            ? `0 0 20px ${character.color}`
-            : undefined
+          backgroundColor: player.isFlying ? '#1e293b' : character.color,
+          boxShadow: (player.buffDuration > 0 || player.isFlying)
+            ? `0 0 ${player.isFlying ? '40px' : '20px'} ${player.isFlying ? '#4b5563' : character.color}`
+            : undefined,
+          transform: player.isFlying ? 'scale(2.2)' : undefined,
+          border: player.isFlying ? '2px solid #64748b' : undefined,
+          background: player.isFlying ? 'radial-gradient(circle, #475569 0%, #0f172a 100%)' : undefined,
         }}
       >
         {/* Face */}
-        <div
-          className="absolute flex gap-1 justify-center"
-          style={{
-            top: PLAYER_SIZE * 0.25,
-            left: 0,
-            right: 0,
-            transform: `scaleX(${player.facingRight ? 1 : -1})`,
-          }}
-        >
-          {/* Eyes */}
-          <div className="w-2 h-2 bg-background rounded-full" />
-          <div className="w-2 h-2 bg-background rounded-full" />
-        </div>
+        {!player.isFlying && (
+          <div
+            className="absolute flex gap-1 justify-center"
+            style={{
+              top: PLAYER_SIZE * 0.25,
+              left: 0,
+              right: 0,
+              transform: `scaleX(${player.facingRight ? 1 : -1})`,
+            }}
+          >
+            {/* Eyes */}
+            <div className="w-2 h-2 bg-background rounded-full" />
+            <div className="w-2 h-2 bg-background rounded-full" />
+          </div>
+        )}
 
         {/* Shield effect for gladiator */}
         {player.isShielding && (
@@ -96,7 +103,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
           style={{ transform: `scaleX(${player.facingRight ? 1 : -1}) translateX(${player.facingRight ? -50 : 50}%)` }}
         >
           {statusEffects.map((effect, i) => (
-            <span key={i}>{effect}</span>
+            <span key={i} className="whitespace-nowrap">{effect}</span>
           ))}
         </div>
       )}
@@ -132,6 +139,46 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
                 marginLeft: '0px'
               }}
             />
+          ) : character.id === 'hunter' ? (
+            <div
+              className="absolute bg-amber-400/80 blur-[2px] rounded-full animate-ping"
+              style={{
+                width: '16px',
+                height: '16px',
+                top: '40%',
+                left: '95%',
+                zIndex: 30
+              }}
+            />
+          ) : character.id === 'reaper' ? (
+            <div
+              className={`absolute ${player.isAttacking ? 'animate-scythe-swing' : ''}`}
+              style={{
+                top: '50%',
+                left: '20%',
+                zIndex: 20,
+                transformOrigin: 'left center',
+                opacity: player.isAttacking ? 1 : 0,
+                marginTop: '-45px',
+              }}
+            >
+              <svg width="120" height="90" viewBox="0 0 120 90">
+                {/* Long handle (long straight line) */}
+                <path d="M10,85 L25,5" stroke="#2d221c" strokeWidth="4" strokeLinecap="round" />
+                {/* Connection point (where blade meets handle) - thicker bit */}
+                <rect x="22" y="2" width="6" height="12" rx="2" fill="#1a1a1a" stroke="#000" strokeWidth="1" transform="rotate(-5 25 2)" />
+                {/* Scythe blade - specifically matching the image curved sharp look */}
+                <path
+                  d="M25,5 C55,-5 90,5 110,35 C95,20 60,10 25,5 Z"
+                  fill="#334155"
+                  stroke="#0f172a"
+                  strokeWidth="1.5"
+                />
+                {/* Notches for a worn/used look matching image */}
+                <path d="M75,12 L70,14 L73,10 Z" fill="#0f172a" />
+                <path d="M90,20 L85,22 L88,18 Z" fill="#0f172a" />
+              </svg>
+            </div>
           ) : (
             <div
               className="absolute top-1/2 -translate-y-1/2 w-8 h-2 bg-foreground/50 rounded"

@@ -12,6 +12,7 @@ interface GameUIProps {
   isPaused: boolean;
   onPause: () => void;
   onReturnToMenu: () => void;
+  isOvertime?: boolean;
 }
 
 const GameUI = ({
@@ -23,6 +24,7 @@ const GameUI = ({
   isPaused,
   onPause,
   onReturnToMenu,
+  isOvertime,
 }: GameUIProps) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -40,7 +42,11 @@ const GameUI = ({
 
         <div className="text-center">
           <div className="text-lg font-bold">
-            라운드 {currentRound} / {maxRounds}
+            {isOvertime ? (
+              <span className="text-destructive animate-pulse">연장전</span>
+            ) : (
+              `라운드 ${currentRound} / ${maxRounds}`
+            )}
           </div>
           <div className="text-2xl font-mono font-bold text-primary">
             {formatTime(timeRemaining)}
@@ -63,7 +69,7 @@ const GameUI = ({
       <div className="flex justify-between gap-4">
         {/* Player 1 */}
         <PlayerStats player={players[0]} isPlayer1 />
-        
+
         {/* Player 2 */}
         <PlayerStats player={players[1]} isPlayer1={false} />
       </div>
@@ -82,20 +88,20 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
 
   const healthPercent = (player.health / player.maxHealth) * 100;
   const manaPercent = (player.mana / player.maxMana) * 100;
-  const skillCooldownPercent = character.skill.cooldown > 0 
-    ? ((character.skill.cooldown - player.skillCooldownRemaining) / character.skill.cooldown) * 100 
+  const skillCooldownPercent = character.skill.cooldown > 0
+    ? ((character.skill.cooldown - player.skillCooldownRemaining) / character.skill.cooldown) * 100
     : 100;
   const attackCooldownPercent = ((character.attackCooldown - player.attackCooldownRemaining) / character.attackCooldown) * 100;
 
   return (
     <div className={`flex-1 p-3 rounded-lg border ${isPlayer1 ? 'border-primary/50' : 'border-destructive/50'}`}>
       <div className="flex items-center justify-between mb-2">
-        <span 
+        <span
           className={`font-bold ${isPlayer1 ? 'text-primary' : 'text-destructive'}`}
         >
           P{player.id} - {character.nameKo}
         </span>
-        <div 
+        <div
           className="w-6 h-6 rounded"
           style={{ backgroundColor: character.color }}
         />
@@ -108,7 +114,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           <span>{Math.ceil(player.health)} / {player.maxHealth}</span>
         </div>
         <div className="h-3 bg-muted rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-red-500 transition-all duration-200"
             style={{ width: `${healthPercent}%` }}
           />
@@ -122,7 +128,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           <span>{Math.ceil(player.mana)} / {player.maxMana}</span>
         </div>
         <div className="h-3 bg-muted rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-blue-500 transition-all duration-200"
             style={{ width: `${manaPercent}%` }}
           />
@@ -134,10 +140,9 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
         <div className="flex-1">
           <div className="text-xs mb-1">스킬 ({character.skill.manaCost}%)</div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-100 ${
-                player.skillCooldownRemaining > 0 ? 'bg-muted-foreground' : 'bg-violet-500'
-              }`}
+            <div
+              className={`h-full transition-all duration-100 ${player.skillCooldownRemaining > 0 ? 'bg-muted-foreground' : 'bg-violet-500'
+                }`}
               style={{ width: `${skillCooldownPercent}%` }}
             />
           </div>
@@ -146,10 +151,9 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
         <div className="flex-1">
           <div className="text-xs mb-1">궁극기 (100%)</div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all duration-100 ${
-                player.mana >= 100 ? 'bg-amber-500' : 'bg-amber-500/50'
-              }`}
+            <div
+              className={`h-full transition-all duration-100 ${player.mana >= 100 ? 'bg-amber-500' : 'bg-amber-500/50'
+                }`}
               style={{ width: `${manaPercent}%` }}
             />
           </div>

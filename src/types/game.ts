@@ -2,7 +2,7 @@
 
 export type GameScreen = 'menu' | 'character-select' | 'game' | 'result';
 
-export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist';
+export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper';
 
 export type GameMode = 'single' | 'multi';
 
@@ -70,6 +70,15 @@ export interface Player {
   speedBoost: number;
   damageReduction: number;
   buffDuration: number;
+  // Hunter specific
+  rootDuration: number;
+  healthRegen: number;
+  regenDuration: number;
+  poisonArrowsRemaining: number;
+  isInvulnerable: boolean;
+  invulnerableDuration: number;
+  isFlying: boolean;
+  lastUltTick?: number;
 }
 
 export interface GameState {
@@ -131,14 +140,14 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.6,
     speed: 5.2,
-    attackDamage: 12,
+    attackDamage: 14,
     attackRange: 600,
     attackCooldown: 600,
     skill: {
-      name: '독 화살',
-      description: '독 화살을 발사합니다. 피격 시 6초간 독 효과를 부여합니다. (지속 피해, 이동속도 감소).',
-      manaCost: 20,
-      cooldown: 4000,
+      name: '독성 강화',
+      description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 33% 감소, 지속 피해)를 부여합니다.',
+      manaCost: 35,
+      cooldown: 5000,
     },
     ultimate: {
       name: '화살 폭풍',
@@ -179,9 +188,9 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '닌자',
     color: '#1e293b',
     colorClass: 'bg-slate-800',
-    maxHealth: 85,
+    maxHealth: 100,
     maxMana: 100,
-    manaRegen: 6.7,
+    manaRegen: 6.6,
     speed: 5.5, // slightly faster base speed
     attackDamage: 15,
     attackRange: 85,
@@ -206,22 +215,75 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '과학자',
     color: '#0891b2',
     colorClass: 'bg-cyan-600',
-    maxHealth: 95,
+    maxHealth: 85,
     maxMana: 100,
-    manaRegen: 6.6,
+    manaRegen: 6.7,
     speed: 4.6,
     attackDamage: 13,
     attackRange: 530, // Increased range (still shorter than Archer's 600)
     attackCooldown: 900,
     skill: {
       name: '전자총',
-      description: '폭발성 전기 구체 발사. 강한 피해와 넉백, 4.5초간 이동속도 50% 감소. 직격 시 1초 기절.',
-      manaCost: 50,
+      description: '폭발성 전기 구체 발사. 강한 피해와 넉백, 4.5초간 이동속도 40% 감소. 직격 시 1초 기절.',
+      manaCost: 40,
       cooldown: 6000,
     },
     ultimate: {
       name: '테슬라 코일',
       description: '제자리에 테슬라 코일 설치. 주변 적을 자동 공격. 파괴 시 강력한 폭발.',
+      manaCost: 100,
+      cooldown: 0,
+    },
+  },
+  hunter: {
+    id: 'hunter',
+    name: 'Hunter',
+    nameKo: '사냥꾼',
+    color: '#92400e',
+    colorClass: 'bg-amber-800',
+    maxHealth: 110,
+    maxMana: 100,
+    manaRegen: 6.5,
+    speed: 4.7,
+    attackDamage: 16,
+    attackRange: 200,
+    attackCooldown: 1050,
+    skill: {
+      name: '함정',
+      description: '바닥에 곰 덫을 설치합니다. 설치 1초 후 투명해지며, 밟은 적에게 피해를 입히고 2초 속박 및 5초간 이동속도 60%를 감소시킵니다. (최대 1개)',
+      manaCost: 40,
+      cooldown: 6000,
+    },
+    ultimate: {
+      name: '슬러그 샷',
+      description: '강력한 슬러그 탄 1발을 발사합니다.',
+      manaCost: 100,
+      cooldown: 0,
+    },
+  },
+  reaper: {
+    id: 'reaper',
+    name: 'Reaper',
+    nameKo: '사신',
+    color: '#475569',
+    colorClass: 'bg-slate-600',
+    maxHealth: 85,
+    maxMana: 100,
+    manaRegen: 6.7,
+    speed: 5.1,
+    attackDamage: 13,
+    attackRange: 110,
+    attackCooldown: 1050,
+    passive: '가한 데미지의 30%를 체력으로 회복합니다.',
+    skill: {
+      name: '박쥐 무리',
+      description: '부메랑처럼 돌아오는 박쥐 무리를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 75%를 추가 회복합니다.',
+      manaCost: 45,
+      cooldown: 5000,
+    },
+    ultimate: {
+      name: '유체화',
+      description: '3.5초간 무적 상태로 자유 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -286,4 +348,11 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   speedBoost: 0,
   damageReduction: 0,
   buffDuration: 0,
+  poisonArrowsRemaining: 0,
+  rootDuration: 0,
+  healthRegen: 0,
+  regenDuration: 0,
+  isInvulnerable: false,
+  invulnerableDuration: 0,
+  isFlying: false,
 });

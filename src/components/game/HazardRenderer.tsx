@@ -37,6 +37,17 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
           zIndex: 100,
           border: '3px solid rgba(255, 255, 255, 0.9)',
         };
+      case 'bear-trap':
+        const age = Date.now() - zone.createdAt;
+        const isTransparent = age > 1000;
+        return {
+          background: 'linear-gradient(45deg, #4b5563, #1f2937)',
+          border: '2px solid #374151',
+          borderRadius: '4px',
+          boxShadow: isTransparent ? 'none' : '0 2px 4px rgba(0,0,0,0.5)',
+          opacity: isTransparent ? 0 : 1,
+          transition: 'opacity 0.5s ease-in-out',
+        };
       default:
         return {};
     }

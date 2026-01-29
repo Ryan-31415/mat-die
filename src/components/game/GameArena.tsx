@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Character, ARENA, PLAYER_SIZE } from '@/types/game';
 import { useGameEngine } from '@/hooks/useGameEngine';
 import { useKeyboard } from '@/hooks/useKeyboard';
@@ -46,22 +46,32 @@ const GameArena = ({
     roundsCompleted + 1
   );
 
+  const [frozenRoundNumber, setFrozenRoundNumber] = useState(roundsCompleted + 1);
+
+  useEffect(() => {
+    if (!gameState.roundWinner) {
+      setFrozenRoundNumber(roundsCompleted + 1);
+    }
+  }, [roundsCompleted, gameState.roundWinner]);
+
   useEffect(() => {
     setKeysRef(keysRef);
   }, [setKeysRef, keysRef]);
 
-  // Auto-reset round when scores change (meaning a round just ended)
-  // We need to track previous scores to detect changes
-  const prevScoresRef = useRef(scores);
+  // Auto-reset round when roundsCompleted changes (meaning a round just ended)
+  const prevRoundsRef = useRef(roundsCompleted);
 
   useEffect(() => {
-    // Check if scores actually changed (a round just ended)
-    if (scores[0] !== prevScoresRef.current[0] || scores[1] !== prevScoresRef.current[1]) {
-      prevScoresRef.current = scores;
+    // Check if roundsCompleted changed or if it's the start of overtime
+    if (roundsCompleted !== prevRoundsRef.current || isOvertime) {
+      prevRoundsRef.current = roundsCompleted;
 
       // Check if match is not over yet
       const winsNeeded = Math.ceil(settings.maxRounds / 2);
       const matchOver = scores[0] >= winsNeeded || scores[1] >= winsNeeded;
+
+      // If it's a draw and we just finished all rounds, it goes to overtime in useGameState, 
+      // which doesn't set matchWinner yet.
 
       if (!matchOver) {
         // Delay the reset to show the round end overlay
@@ -71,7 +81,7 @@ const GameArena = ({
         return () => clearTimeout(timer);
       }
     }
-  }, [scores, settings.maxRounds, resetRound]);
+  }, [roundsCompleted, scores, settings.maxRounds, resetRound, isOvertime]);
 
   const currentRound = scores[0] + scores[1] + 1;
 
@@ -80,13 +90,14 @@ const GameArena = ({
       {/* Game UI */}
       <GameUI
         players={gameState.players}
-        currentRound={currentRound}
+        currentRound={roundsCompleted + 1}
         maxRounds={settings.maxRounds}
         scores={scores}
         timeRemaining={gameState.roundTimeRemaining}
         isPaused={gameState.isPaused}
         onPause={togglePause}
         onReturnToMenu={onReturnToMenu}
+        isOvertime={isOvertime}
       />
 
       {/* Arena */}
@@ -160,10 +171,10 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center animate-scale-in">
               <h2 className="text-4xl font-bold mb-2">
-                라운드 {roundsCompleted + 1} 종료!
+                {isOvertime ? '연장전 종료!' : `라운드 ${frozenRoundNumber} 종료!`}
               </h2>
               <p className="text-2xl text-primary font-bold">
-                {gameState.roundWinner === 'draw' ? '무승부!' : `플레이어 ${gameState.roundWinner} 승리!`}
+                {gameState.roundWinner === 'draw' ? (isOvertime ? '경기 종료 (무승부)' : '무승부!') : `플레이어 ${gameState.roundWinner} 승리!`}
               </p>
               {gameState.roundWinner === 'draw' && (
                 <p className="text-xl text-destructive mt-2 animate-pulse">

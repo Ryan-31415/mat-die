@@ -123,21 +123,29 @@ export const useGameEngine = (
     return { y: newY, isGrounded: false, platform: null };
   };
 
-  const applyDamage = (player: Player, damage: number): Player => {
+  const applyDamage = (player: Player, damage: number): { player: Player; dealt: number } => {
+    if (player.isInvulnerable) return { player, dealt: 0 };
+
     const actualDamage = damage * (1 - player.damageReduction);
 
     // Check dodge for ninja
     if (player.dodgesRemaining > 0) {
       return {
-        ...player,
-        dodgesRemaining: player.dodgesRemaining - 1,
+        player: {
+          ...player,
+          dodgesRemaining: player.dodgesRemaining - 1,
+        },
+        dealt: 0
       };
     }
 
     const newHealth = Math.max(0, player.health - actualDamage);
     return {
-      ...player,
-      health: newHealth,
+      player: {
+        ...player,
+        health: newHealth,
+      },
+      dealt: actualDamage
     };
   };
 
@@ -301,6 +309,21 @@ export const useGameEngine = (
         updatedPlayer.slowAmount = 0;
       }
     }
+    if (updatedPlayer.rootDuration > 0) {
+      updatedPlayer.rootDuration -= deltaTime;
+      if (updatedPlayer.rootDuration <= 0) {
+        updatedPlayer.rootDuration = 0;
+      }
+    }
+    if (updatedPlayer.regenDuration > 0) {
+      updatedPlayer.regenDuration -= deltaTime;
+      const regenAmount = updatedPlayer.healthRegen * (deltaTime / 1000);
+      updatedPlayer.health = Math.min(updatedPlayer.maxHealth, updatedPlayer.health + regenAmount);
+      if (updatedPlayer.regenDuration <= 0) {
+        updatedPlayer.regenDuration = 0;
+        updatedPlayer.healthRegen = 0;
+      }
+    }
     if (updatedPlayer.stunDuration > 0) {
       updatedPlayer.stunDuration -= deltaTime;
       if (updatedPlayer.stunDuration <= 0) {
@@ -328,15 +351,23 @@ export const useGameEngine = (
         updatedPlayer.buffDuration = 0;
       }
     }
+    if (updatedPlayer.invulnerableDuration > 0) {
+      updatedPlayer.invulnerableDuration -= deltaTime;
+      if (updatedPlayer.invulnerableDuration <= 0) {
+        updatedPlayer.isInvulnerable = false;
+        updatedPlayer.invulnerableDuration = 0;
+        updatedPlayer.isFlying = false;
+      }
+    }
 
     // Poison damage
     if (updatedPlayer.isPoisoned) {
-      const poisonDamage = (updatedPlayer.maxHealth * 0.03) * (deltaTime / 1000);
+      const poisonDamage = (updatedPlayer.maxHealth * 0.025) * (deltaTime / 1000);
       updatedPlayer.health = Math.max(0, updatedPlayer.health - poisonDamage);
     }
 
     // Mana regeneration
-    const manaRegen = (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana;
+    const manaRegen = (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier;
     updatedPlayer.mana = Math.min(updatedPlayer.maxMana, updatedPlayer.mana + manaRegen);
 
     // Cooldown reduction
@@ -351,18 +382,23 @@ export const useGameEngine = (
     const now = Date.now();
 
     // Apply gravity
-    if (!updatedPlayer.isGrounded || updatedPlayer.velocityY < 0) {
+    if (!updatedPlayer.isFlying && (!updatedPlayer.isGrounded || updatedPlayer.velocityY < 0)) {
       updatedPlayer.velocityY += GRAVITY * (deltaTime / 1000);
       updatedPlayer.velocityY = Math.min(MAX_FALL_SPEED, updatedPlayer.velocityY);
+    } else if (updatedPlayer.isFlying) {
+      updatedPlayer.velocityY = 0; // No gravity while flying
     }
 
     // Calculate new Y position for gravity
     let gravityNewY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
 
     // Platform collision detection for gravity
-    const gravityPlatformResult = checkPlatformCollision(updatedPlayer, gravityNewY, updatedPlayer.velocityY, platforms);
+    let gravityPlatformResult = { y: gravityNewY, isGrounded: false, platform: null as Platform | null };
+    if (!updatedPlayer.isFlying) {
+      gravityPlatformResult = checkPlatformCollision(updatedPlayer, gravityNewY, updatedPlayer.velocityY, platforms);
+    }
 
-    if (gravityPlatformResult.isGrounded) {
+    if (gravityPlatformResult.isGrounded && !updatedPlayer.isFlying) {
       gravityNewY = gravityPlatformResult.y;
       updatedPlayer.velocityY = 0;
       updatedPlayer.isGrounded = true;
@@ -409,6 +445,7 @@ export const useGameEngine = (
     let speed = character.speed;
     if (updatedPlayer.isShielding) speed *= 0.5;
     if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
+    if (updatedPlayer.rootDuration > 0) speed = 0;
     speed *= (1 + updatedPlayer.speedBoost);
 
     // Horizontal Movement
@@ -416,17 +453,40 @@ export const useGameEngine = (
     if (moveLeft) dx -= 1;
     if (moveRight) dx += 1;
 
+    let dy = 0;
+    if (updatedPlayer.isFlying) {
+      if (jumpKey) dy -= 1;
+      if (moveDown) dy += 1;
+
+      // Force movement if isFlying (Reaper constant movement)
+      if (dx === 0 && dy === 0) {
+        dx = updatedPlayer.facingRight ? 1 : -1;
+      } else {
+        // Normalize for constant speed
+        const length = Math.sqrt(dx * dx + dy * dy);
+        dx /= length;
+        dy /= length;
+      }
+    }
+
     // Update facing direction
     if (dx > 0) updatedPlayer.facingRight = true;
     else if (dx < 0) updatedPlayer.facingRight = false;
 
     // Apply horizontal movement
-    const moveAmount = speed * (deltaTime / 16) * 1.2; // Reduced speed (70% of previous)
+    const moveAmount = speed * (deltaTime / 16) * 1.2;
     let newX = updatedPlayer.x + dx * moveAmount;
+    let newY_pos = updatedPlayer.y + dy * moveAmount;
 
-    // Horizontal boundary checking
+    // Boundary checking
     newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
+    if (updatedPlayer.isFlying) {
+      newY_pos = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, newY_pos));
+    }
     updatedPlayer.x = newX;
+    if (updatedPlayer.isFlying) {
+      updatedPlayer.y = newY_pos;
+    }
 
     // Jumping logic (now is already defined above)
     const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
@@ -446,7 +506,10 @@ export const useGameEngine = (
     let newY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
 
     // Platform collision detection for movement
-    const platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY, platforms);
+    let platformResult = { y: newY, isGrounded: false, platform: null as Platform | null };
+    if (!updatedPlayer.isFlying) {
+      platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY, platforms);
+    }
 
     if (platformResult.isGrounded) {
       newY = platformResult.y;
@@ -504,17 +567,22 @@ export const useGameEngine = (
             false
           ));
           break;
-        case 'archer':
+        case 'archer': {
+          const isPoisoned = updatedPlayer.poisonArrowsRemaining > 0;
           newProjectiles.push(createProjectile(
-            'arrow',
+            isPoisoned ? 'poison-arrow' : 'arrow',
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
             attackDirection * 950, // Increased speed
             -60,
-            baseDamage
+            isPoisoned ? baseDamage * 1.0 : baseDamage
           ));
+          if (isPoisoned) {
+            updatedPlayer.poisonArrowsRemaining--;
+          }
           break;
+        }
         case 'mage':
           newProjectiles.push(createProjectile(
             'fireball',
@@ -545,8 +613,35 @@ export const useGameEngine = (
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
             attackDirection * 600, // Further increased range for better coverage
-            -80,
+            -100,
             baseDamage
+          ));
+          break;
+        case 'hunter':
+          // Shotgun: 5 bullets with spread
+          for (let i = 0; i < 5; i++) {
+            const spreadAngle = (i - 2) * 5;
+            const radians = spreadAngle * (Math.PI / 180);
+            newProjectiles.push(createProjectile(
+              'bullet',
+              player.id,
+              updatedPlayer.x + PLAYER_SIZE / 2,
+              updatedPlayer.y + PLAYER_SIZE / 2,
+              attackDirection * 1400 * Math.cos(radians),
+              850 * Math.sin(radians),
+              baseDamage * 0.45 // Each bullet does 45% of base damage
+            ));
+          }
+          break;
+        case 'reaper':
+          newHitboxes.push(createAttackHitbox(
+            player.id,
+            attackX - 10,
+            updatedPlayer.y - 10,
+            character.attackRange + PLAYER_SIZE + 20,
+            PLAYER_SIZE + 20,
+            baseDamage,
+            250
           ));
           break;
       }
@@ -570,19 +665,12 @@ export const useGameEngine = (
         updatedPlayer.isUsingSkill = true;
 
         const attackDirection = updatedPlayer.facingRight ? 1 : -1;
-        const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost);
+        const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
+        const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
 
         switch (character.id) {
           case 'archer':
-            newProjectiles.push(createProjectile(
-              'poison-arrow',
-              player.id,
-              updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 950, // Increased speed
-              -60,
-              baseDamage * 1.1
-            ));
+            updatedPlayer.poisonArrowsRemaining = 3;
             break;
           case 'mage':
             const largeFireball = createProjectile(
@@ -621,6 +709,27 @@ export const useGameEngine = (
               baseDamage * 2
             ));
             break;
+          case 'hunter':
+            newHazards.push(createHazardZone(
+              'bear-trap',
+              player.id,
+              updatedPlayer.x,
+              updatedPlayer.y + PLAYER_SIZE - 20,
+              baseDamage,
+              60000 // 1 minute lifetime
+            ));
+            break;
+          case 'reaper':
+            newProjectiles.push(createProjectile(
+              'bat',
+              player.id,
+              updatedPlayer.x + PLAYER_SIZE / 2,
+              updatedPlayer.y + PLAYER_SIZE / 2,
+              attackDirection * 500,
+              0,
+              baseDamage * 1.5
+            ));
+            break;
         }
 
         setTimeout(() => {
@@ -640,7 +749,8 @@ export const useGameEngine = (
       updatedPlayer.isUsingUltimate = true;
 
       const attackDirection = updatedPlayer.facingRight ? 1 : -1;
-      const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost);
+      const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
+      const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
 
       switch (character.id) {
         case 'gladiator':
@@ -714,6 +824,22 @@ export const useGameEngine = (
             baseDamage * 0.2,
             30000
           ));
+          break;
+        case 'hunter':
+          newProjectiles.push(createProjectile(
+            'slug',
+            player.id,
+            updatedPlayer.x + PLAYER_SIZE / 2,
+            updatedPlayer.y + PLAYER_SIZE / 2,
+            attackDirection * 1000,
+            0,
+            baseDamage * 3
+          ));
+          break;
+        case 'reaper':
+          updatedPlayer.isInvulnerable = true;
+          updatedPlayer.isFlying = true;
+          updatedPlayer.invulnerableDuration = 3500;
           break;
       }
 
@@ -792,13 +918,22 @@ export const useGameEngine = (
       let projectiles = [...prev.projectiles, ...p1Result.newProjectiles, ...p2Result.newProjectiles];
       let attackHitboxes = [...prev.attackHitboxes, ...p1Result.newHitboxes, ...p2Result.newHitboxes];
 
-      // Handle Tesla Coil Replacement (Explode old ones)
+      // Handle Replacements
       let hazardZones = [...prev.hazardZones];
       const newCoils = [...p1Result.newHazards, ...p2Result.newHazards].filter(h => h.type === 'tesla-coil');
       if (newCoils.length > 0) {
         hazardZones = hazardZones.map(z => {
           if (z.type === 'tesla-coil' && newCoils.some(nc => nc.ownerId === z.ownerId)) {
-            return { ...z, duration: 0, createdAt: 0 }; // Expire immediately
+            return { ...z, duration: 0, createdAt: 0 };
+          }
+          return z;
+        });
+      }
+      const newTraps = [...p1Result.newHazards, ...p2Result.newHazards].filter(h => h.type === 'bear-trap');
+      if (newTraps.length > 0) {
+        hazardZones = hazardZones.map(z => {
+          if (z.type === 'bear-trap' && newTraps.some(nt => nt.ownerId === z.ownerId)) {
+            return { ...z, duration: 0, createdAt: 0 };
           }
           return z;
         });
@@ -810,11 +945,29 @@ export const useGameEngine = (
       // Update projectiles
       projectiles = projectiles.map(proj => {
         let newProj = { ...proj };
-        newProj.x += proj.velocityX * (deltaTime / 1000);
-        newProj.y += proj.velocityY * (deltaTime / 1000);
 
-        if (proj.hasGravity) {
-          newProj.velocityY += proj.gravity * (deltaTime / 1000);
+        if (newProj.isReturning) {
+          const owner = players[newProj.ownerId - 1];
+          const timeSinceCreated = now - newProj.createdAt;
+          // Start returning after 35% of lifetime
+          if (timeSinceCreated > newProj.lifetime * 0.35) {
+            const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
+            const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 10) {
+              const speed = 750;
+              newProj.velocityX = (dx / dist) * speed;
+              newProj.velocityY = (dy / dist) * speed;
+            }
+          }
+        }
+
+        newProj.x += newProj.velocityX * (deltaTime / 1000);
+        newProj.y += newProj.velocityY * (deltaTime / 1000);
+
+        if (newProj.hasGravity) {
+          newProj.velocityY += newProj.gravity * (deltaTime / 1000);
         }
 
         return newProj;
@@ -848,33 +1001,11 @@ export const useGameEngine = (
           return false;
         }
 
-        // Check Platform Collision (for Flasks/Explosives)
-        if (proj.createsFirePool && proj.hasGravity) {
-          const hitPlatform = prev.platforms.find(p => checkCollision(proj.x, proj.y, proj.width, proj.height, p.x, p.y, p.width, p.height));
-          if (hitPlatform) {
-            const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
-            const isToxic = proj.type === 'flask';
-            const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.01;
-            const pool = createHazardZone(
-              poolType,
-              proj.ownerId,
-              0, 0,
-              damage,
-              proj.firePoolDuration
-            );
-            pool.x = proj.x - pool.width / 2;
-            pool.y = hitPlatform.y - pool.height / 2;
-            hazardZones.push(pool);
-            return false;
-          }
-        }
-
         // Check collision with Tesla Coils
         const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
 
-          // Create fire pool if applicable
           if (proj.createsFirePool) {
             const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
             const isToxic = proj.type === 'flask';
@@ -901,7 +1032,6 @@ export const useGameEngine = (
           proj.x, proj.y, proj.width, proj.height,
           target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
         )) {
-          // Check Shield Logic (Only if hits player)
           if (target.isShielding) {
             const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
               (proj.ownerId === 2 && target.facingRight);
@@ -909,16 +1039,26 @@ export const useGameEngine = (
               if (proj.canBeDeflected) {
                 proj.velocityX *= -1;
                 proj.ownerId = target.id as 1 | 2;
-                return true; // Reflect
+                return true;
               }
-              return false; // Block
+              return false;
             }
           }
 
-          // Apply damage
-          players[targetPlayer] = applyDamage(target, proj.damage);
+          const damageRes = applyDamage(target, proj.damage);
+          players[targetPlayer] = damageRes.player;
 
-          // Apply status effects
+          // Reaper Passive: Life steal 30%
+          const ownerIndex = proj.ownerId - 1;
+          if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+            players[ownerIndex].health = Math.min(
+              players[ownerIndex].maxHealth,
+              players[ownerIndex].health + damageRes.dealt * 0.3
+            );
+            // Accumulate damage for extra healing on return
+            proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
+          }
+
           if (proj.isPoisonous) {
             players[targetPlayer].isPoisoned = true;
             players[targetPlayer].poisonDuration = proj.poisonDuration;
@@ -940,7 +1080,6 @@ export const useGameEngine = (
             );
           }
 
-          // Create fire pool if applicable
           if (proj.createsFirePool) {
             const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
             const isToxic = proj.type === 'flask';
@@ -957,10 +1096,39 @@ export const useGameEngine = (
             hazardZones.push(pool);
           }
 
+          // Returning projectiles don't disappear immediately on hit if they haven't returned yet
+          if (proj.isReturning) {
+            const timeSinceCreated = now - proj.createdAt;
+            if (timeSinceCreated < proj.lifetime * 0.35) {
+              return true;
+            }
+          }
+
           return false;
         }
 
-        // Check if ninja can deflect
+        // If it's a returning projectile, check if it hits the owner to heal
+        if (proj.isReturning) {
+          const owner = players[proj.ownerId - 1];
+          const timeSinceCreated = now - proj.createdAt;
+          if (timeSinceCreated > proj.lifetime * 0.35) {
+            if (checkCollision(
+              proj.x, proj.y, proj.width, proj.height,
+              owner.x, owner.y, PLAYER_SIZE, PLAYER_SIZE
+            )) {
+              // Heal owner 75% of damage accumulated
+              const healAmount = (proj.damageAccumulated || 0) * 0.75;
+              if (healAmount > 0) {
+                players[proj.ownerId - 1].health = Math.min(
+                  players[proj.ownerId - 1].maxHealth,
+                  players[proj.ownerId - 1].health + healAmount
+                );
+              }
+              return false; // Remove projectile
+            }
+          }
+        }
+
         attackHitboxes.forEach(hitbox => {
           if (hitbox.ownerId !== proj.ownerId && hitbox.canDeflectProjectiles && proj.canBeDeflected) {
             if (checkCollision(
@@ -980,7 +1148,6 @@ export const useGameEngine = (
       attackHitboxes = attackHitboxes.filter(hitbox => {
         if (now - hitbox.createdAt > hitbox.duration) return false;
 
-        // Check collision with Tesla Coils
         const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== hitbox.ownerId && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + hitbox.damage);
@@ -989,25 +1156,31 @@ export const useGameEngine = (
         const targetIndex = hitbox.ownerId === 1 ? 1 : 0;
         const target = players[targetIndex];
 
-        // Check shield
         if (target.isShielding) {
           const fromFront = (hitbox.ownerId === 1 && !target.facingRight) ||
             (hitbox.ownerId === 2 && target.facingRight);
-          if (fromFront) return true; // Block but keep hitbox
+          if (fromFront) return true;
         }
 
         if (checkCollision(
           hitbox.x, hitbox.y, hitbox.width, hitbox.height,
           target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
         )) {
-          players[targetIndex] = applyDamage(target, hitbox.damage);
-          if (hitbox.knockback > 0) {
-            const knockbackDir = hitbox.x < target.x ? 1 : -1;
-            players[targetIndex].x = Math.max(
-              ARENA.padding,
-              Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, target.x + knockbackDir * hitbox.knockback)
+          const damageRes = applyDamage(target, hitbox.damage);
+          players[targetIndex] = damageRes.player;
+
+          // Reaper Passive: Life steal 30%
+          const ownerIndex = hitbox.ownerId - 1;
+          if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+            players[ownerIndex].health = Math.min(
+              players[ownerIndex].maxHealth,
+              players[ownerIndex].health + damageRes.dealt * 0.3
             );
           }
+          players[targetIndex].x = Math.max(
+            ARENA.padding,
+            Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, target.x + (hitbox.x < target.x ? 1 : -1) * hitbox.knockback)
+          );
           return false;
         }
 
@@ -1020,27 +1193,24 @@ export const useGameEngine = (
       hazardZones = hazardZones.map(zone => {
         const zoneCopy = { ...zone };
 
-        // Apply coil damage
         if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined) {
           const damage = coilDamageMap.get(zoneCopy.id) || 0;
           if (damage > 0) {
             zoneCopy.health -= damage;
           }
           if (zoneCopy.health <= 0) {
-            // Trigger explosion (2x range)
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             if (checkCollision(
               zoneCopy.x - 100, zoneCopy.y - 100, 200, 200,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              players[targetIndex] = applyDamage(players[targetIndex], 30);
+              players[targetIndex] = applyDamage(players[targetIndex], 30).player;
             }
 
-            // Add visual explosion
             explosions.push(createHazardZone(
               'electric-explosion',
               zoneCopy.ownerId,
-              zoneCopy.x - 30, // Centered
+              zoneCopy.x - 30,
               zoneCopy.y - 30,
               0,
               300
@@ -1050,17 +1220,15 @@ export const useGameEngine = (
         }
 
         if (now - zoneCopy.createdAt > zoneCopy.duration) {
-          // Tesla coil explosion (2x range)
           if (zoneCopy.type === 'tesla-coil') {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             if (checkCollision(
               zoneCopy.x - 100, zoneCopy.y - 100, 200, 200,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              players[targetIndex] = applyDamage(players[targetIndex], 30);
+              players[targetIndex] = applyDamage(players[targetIndex], 30).player;
             }
 
-            // Add visual explosion
             explosions.push(createHazardZone(
               'electric-explosion',
               zoneCopy.ownerId,
@@ -1073,7 +1241,6 @@ export const useGameEngine = (
           return null;
         }
 
-        // Tesla coil self-damage (0.5s tick, 2% max health)
         if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined && zoneCopy.maxHealth !== undefined) {
           const selfDamageTick = zoneCopy.lastSelfDamage || zoneCopy.createdAt;
           if (now - selfDamageTick >= 500) {
@@ -1082,7 +1249,6 @@ export const useGameEngine = (
           }
         }
 
-        // Tesla coil attacks
         if (zoneCopy.type === 'tesla-coil') {
           const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
           const target = players[targetIndex];
@@ -1092,38 +1258,74 @@ export const useGameEngine = (
           );
 
           if (dist < (zoneCopy.attackRange || 150)) {
-            if (zoneCopy.lastAttack && now - zoneCopy.lastAttack < (zoneCopy.attackCooldown || 200)) {
-              // Cooldown
-            } else {
+            if (!(zoneCopy.lastAttack && now - zoneCopy.lastAttack < (zoneCopy.attackCooldown || 200))) {
               zoneCopy.lastAttack = now;
               zoneCopy.lastAttackTarget = { x: target.x, y: target.y };
-              players[targetIndex] = applyDamage(target, zoneCopy.damage);
+              players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
             }
           }
         }
 
-        // Damage tick for pools
-        if (zoneCopy.type !== 'tesla-coil' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
-          zoneCopy.lastTick = now;
+        // Bear Trap Trigger
+        if (zoneCopy.type === 'bear-trap') {
+          const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
+          const target = players[targetIndex];
+          if (checkCollision(
+            zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
+            target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+          )) {
+            players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
+            players[targetIndex].rootDuration = 2000;
+            players[targetIndex].isSlowed = true;
+            players[targetIndex].slowAmount = 0.6;
+            players[targetIndex].slowDuration = 5000;
+            return null; // Remove trap
+          }
+        }
 
+        if (zoneCopy.type !== 'tesla-coil' && zoneCopy.type !== 'bear-trap' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
+          zoneCopy.lastTick = now;
           for (let i = 0; i < 2; i++) {
             if (i !== zoneCopy.ownerId - 1) {
               if (checkCollision(
                 zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
                 players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE
               )) {
-                players[i] = applyDamage(players[i], zoneCopy.damage);
+                players[i] = applyDamage(players[i], zoneCopy.damage).player;
               }
             }
           }
         }
 
         return zoneCopy;
-      }).filter((zone): zone is import('@/types/projectile').HazardZone => zone !== null);
+      }).filter((zone): zone is HazardZone => zone !== null);
 
       hazardZones = [...hazardZones, ...explosions];
 
-
+      // Reaper Ultimate contact damage
+      for (let i = 0; i < 2; i++) {
+        if (players[i].isFlying && players[i].character?.id === 'reaper') {
+          const targetIndex = i === 0 ? 1 : 0;
+          const target = players[targetIndex];
+          // Ultimate damage hitbox is significantly larger (for visual sphere)
+          if (checkCollision(
+            players[i].x - 30, players[i].y - 30, PLAYER_SIZE + 60, PLAYER_SIZE + 60,
+            target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+          )) {
+            if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
+              const damageRes = applyDamage(target, 4); // 40 DPS
+              players[targetIndex] = damageRes.player;
+              // Life steal 30%
+              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.3);
+              players[i].lastUltTick = now;
+              // Slow effect
+              players[targetIndex].isSlowed = true;
+              players[targetIndex].slowAmount = 0.5;
+              players[targetIndex].slowDuration = 600;
+            }
+          }
+        }
+      }
 
       // Check win conditions
       let roundWinner: 1 | 2 | 'draw' | null = null;
@@ -1133,11 +1335,6 @@ export const useGameEngine = (
       else if (newTimeRemaining <= 0) {
         if (players[0].health === players[1].health) roundWinner = 'draw';
         else roundWinner = players[0].health > players[1].health ? 1 : 2;
-      }
-
-      if (roundWinner && prev.isRoundActive && !roundEndingRef.current) {
-        roundEndingRef.current = true;
-        setTimeout(() => onRoundEnd(roundWinner!), 500);
       }
 
       return {
@@ -1151,7 +1348,17 @@ export const useGameEngine = (
         roundWinner,
       };
     });
-  }, [roundTimeLimit, onRoundEnd]);
+  }, [roundTimeLimit, gameMode, updatePlayer]);
+
+  useEffect(() => {
+    if (gameState.roundWinner && !roundEndingRef.current) {
+      roundEndingRef.current = true;
+      const timeoutId = setTimeout(() => {
+        onRoundEnd(gameState.roundWinner!);
+      }, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [gameState.roundWinner, onRoundEnd]);
 
   useEffect(() => {
     const interval = setInterval(gameLoop, TICK_RATE);
