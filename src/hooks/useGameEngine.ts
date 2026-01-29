@@ -964,7 +964,7 @@ export const useGameEngine = (
       projectiles = projectiles.map(proj => {
         let newProj = { ...proj };
 
-        // For bat projectiles: check if hit arena bounds and start returning
+        // For bat projectiles: check if hit arena bounds and start returning (only once)
         if (newProj.type === 'bat' && newProj.isReturning) {
           const timeSinceCreated = now - newProj.createdAt;
           const owner = players[newProj.ownerId - 1];
@@ -985,8 +985,9 @@ export const useGameEngine = (
             nextY > ARENA.height - ARENA.padding - newProj.height
           );
           
-          if (shouldReturnByTime || hitBounds) {
-            // Start returning to owner
+          // Only set return velocity once; don't recalculate every frame near bounds
+          if ((shouldReturnByTime || hitBounds) && Math.abs(newProj.velocityX) < 600) {
+            // Start returning to owner (velocity < 600 ensures we set it only once from forward flight)
             const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
             const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1009,7 +1010,7 @@ export const useGameEngine = (
               }
             }
           }
-          // Otherwise, let bat continue flying forward with initial velocity
+          // Once returning, maintain velocity toward owner until collision
         } else if (newProj.isReturning) {
           // Other returning projectiles: original logic
           const owner = players[newProj.ownerId - 1];
@@ -1031,7 +1032,31 @@ export const useGameEngine = (
         newProj.x += newProj.velocityX * (deltaTime / 1000);
         newProj.y += newProj.velocityY * (deltaTime / 1000);
 
-        // Don't clamp bat position - let it move freely and return when hitting bounds
+        // Clamp bat position inside arena bounds and adjust velocity if clamped
+        if (newProj.type === 'bat') {
+          const clampedX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - newProj.width, newProj.x));
+          const clampedY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - newProj.height, newProj.y));
+          
+          // If position was clamped (hit boundary), reset velocity toward owner
+          const isClamped = clampedX !== newProj.x || clampedY !== newProj.y;
+          if (isClamped && newProj.isReturning) {
+            newProj.x = clampedX;
+            newProj.y = clampedY;
+            // Recalculate velocity to escape boundary
+            const owner = players[newProj.ownerId - 1];
+            const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
+            const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 10) {
+              const speed = 750;
+              newProj.velocityX = (dx / dist) * speed;
+              newProj.velocityY = (dy / dist) * speed;
+            }
+          } else {
+            newProj.x = clampedX;
+            newProj.y = clampedY;
+          }
+        }
 
         if (newProj.hasGravity) {
           newProj.velocityY += newProj.gravity * (deltaTime / 1000);
