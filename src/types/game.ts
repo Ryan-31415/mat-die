@@ -2,7 +2,7 @@
 
 export type GameScreen = 'menu' | 'character-select' | 'game' | 'result';
 
-export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper';
+export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage';
 
 export type GameMode = 'single' | 'multi';
 
@@ -80,6 +80,12 @@ export interface Player {
   isFlying: boolean;
   lastUltTick?: number;
   trailPositions?: Array<{ x: number; y: number; timestamp: number }>;
+  // Ice Mage specific
+  freezeGauge: number;
+  isFrozen: boolean;
+  frozenDuration: number;
+  lastHitByIceMage: number;
+  lastFreezeGaugeDecay: number;
 }
 
 export interface GameState {
@@ -289,6 +295,33 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       cooldown: 0,
     },
   },
+  'ice-mage': {
+    id: 'ice-mage',
+    name: 'Ice Mage',
+    nameKo: '얼음 마법사',
+    color: '#38bdf8',
+    colorClass: 'bg-sky-400',
+    maxHealth: 85,
+    maxMana: 100,
+    manaRegen: 6.8,
+    speed: 4.8,
+    attackDamage: 17,
+    attackRange: 550,
+    attackCooldown: 900,
+    passive: '공격을 맞출 때마다 상대방의 빙결 게이지를 누적, 빙결 게이지가 10개 이상 쌓이면 초기화되고 상대방에게 1.5초간 빙결 부여(행동 불가, 받는 피해량 2배 상승, 공격 받으면 빙결 해제). 공격을 받지 않고 2초가 지나면 1초마다 빙결 게이지 1 차감.',
+    skill: {
+      name: '눈사태',
+      description: '대형 눈덩어리를 여러 개 발사하여 적을 여러 번 타격하고 대미지를 입히며 빙결 게이지를 누적합니다.',
+      manaCost: 30,
+      cooldown: 3500,
+    },
+    ultimate: {
+      name: '눈보라',
+      description: '3초간 지속되는 눈보라를 아레나 전역에 일으켜 0.5초마다 피해를 입히고, 빙결 게이지를 1 쌓고, 이동속도를 감소시킵니다.',
+      manaCost: 100,
+      cooldown: 0,
+    },
+  },
 };
 
 // Arena dimensions
@@ -357,4 +390,10 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   invulnerableDuration: 0,
   isFlying: false,
   trailPositions: [],
+  // Ice Mage specific
+  freezeGauge: 0,
+  isFrozen: false,
+  frozenDuration: 0,
+  lastHitByIceMage: 0,
+  lastFreezeGaugeDecay: 0,
 });

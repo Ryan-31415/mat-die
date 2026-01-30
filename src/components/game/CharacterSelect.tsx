@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Character, CHARACTERS, CharacterType } from '@/types/game';
-import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull } from 'lucide-react';
+import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake } from 'lucide-react';
 
 interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
@@ -19,6 +19,7 @@ const characterIcons: Record<CharacterType, React.ReactNode> = {
   scientist: <Zap className="w-8 h-8" />,
   hunter: <Crosshair className="w-8 h-8" />,
   reaper: <Skull className="w-8 h-8" />,
+  'ice-mage': <Snowflake className="w-8 h-8" />,
 };
 
 const CharacterCard = ({
@@ -66,7 +67,7 @@ const CharacterCard = ({
           </div>
           <div className="flex items-center gap-1">
             <Droplet className="w-3 h-3 text-blue-500" />
-            <span>마나: {character.maxMana}</span>
+            <span>마나 재생력: {character.manaRegen}/s</span>
           </div>
           <div className="flex items-center gap-1">
             <Sword className="w-3 h-3 text-orange-500" />
@@ -277,8 +278,8 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
                     <p className="font-bold text-red-500">{currentSelection.maxHealth}</p>
                   </div>
                   <div className="text-center p-2 bg-muted rounded-lg">
-                    <p className="text-xs text-muted-foreground">마나</p>
-                    <p className="font-bold text-blue-500">{currentSelection.maxMana}</p>
+                    <p className="text-xs text-muted-foreground">마나 재생력</p>
+                    <p className="font-bold text-blue-500">{currentSelection.manaRegen}/s</p>
                   </div>
                   <div className="text-center p-2 bg-muted rounded-lg">
                     <p className="text-xs text-muted-foreground">공격력</p>

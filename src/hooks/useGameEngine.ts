@@ -126,7 +126,15 @@ export const useGameEngine = (
   const applyDamage = (player: Player, damage: number): { player: Player; dealt: number } => {
     if (player.isInvulnerable) return { player, dealt: 0 };
 
-    const actualDamage = damage * (1 - player.damageReduction);
+    let damageMultiplier = 1.0;
+    let isBreakingFreeze = false;
+
+    if (player.isFrozen) {
+      damageMultiplier = 2.0;
+      isBreakingFreeze = true;
+    }
+
+    const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
 
     // Check dodge for ninja
     if (player.dodgesRemaining > 0) {
@@ -140,11 +148,17 @@ export const useGameEngine = (
     }
 
     const newHealth = Math.max(0, player.health - actualDamage);
+    
+    let updatedPlayer = { ...player, health: newHealth };
+
+    if (isBreakingFreeze) {
+      updatedPlayer.isFrozen = false;
+      updatedPlayer.frozenDuration = 0;
+      updatedPlayer.freezeGauge = 0;
+    }
+
     return {
-      player: {
-        ...player,
-        health: newHealth,
-      },
+      player: updatedPlayer,
       dealt: actualDamage
     };
   };
@@ -274,6 +288,7 @@ export const useGameEngine = (
     shieldManaTick: number,
     platforms: Platform[]
   ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newShieldTick: number } => {
+    const now = Date.now();
     const isP1 = player.id === 1;
     const character = player.character!;
     const manaMultiplier = gameState.isOvertime ? 2.0 : 1.0;
@@ -331,6 +346,28 @@ export const useGameEngine = (
         updatedPlayer.stunDuration = 0;
       }
     }
+    if (updatedPlayer.frozenDuration > 0) {
+      updatedPlayer.frozenDuration -= deltaTime;
+      if (updatedPlayer.frozenDuration <= 0) {
+        updatedPlayer.isFrozen = false;
+        updatedPlayer.frozenDuration = 0;
+      }
+    }
+
+    // Ice Mage Passive - check for freeze and decay
+    // This logic applies to the player being updated, if their opponent is an Ice Mage
+    if (otherPlayer.character?.id === 'ice-mage') {
+      if (updatedPlayer.freezeGauge >= 10) {
+        updatedPlayer.isFrozen = true;
+        updatedPlayer.frozenDuration = 1500; // 1.5 seconds
+        updatedPlayer.freezeGauge = 0;
+      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 2000) {
+        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1000) {
+          updatedPlayer.freezeGauge = Math.max(0, updatedPlayer.freezeGauge - 1);
+          updatedPlayer.lastFreezeGaugeDecay = now;
+        }
+      }
+    }
     if (updatedPlayer.invisibleDuration > 0) {
       updatedPlayer.invisibleDuration -= deltaTime;
       if (updatedPlayer.invisibleDuration <= 0) {
@@ -384,7 +421,6 @@ export const useGameEngine = (
     }
 
     // Apply gravity even when stunned
-    const now = Date.now();
 
     // Apply gravity
     if (!updatedPlayer.isFlying && (!updatedPlayer.isGrounded || updatedPlayer.velocityY < 0)) {
@@ -425,8 +461,8 @@ export const useGameEngine = (
 
     updatedPlayer.y = gravityNewY;
 
-    // Skip movement/actions if stunned (but gravity was already applied)
-    if (updatedPlayer.isStunned) {
+    // Skip movement/actions if stunned or frozen (but gravity was already applied)
+    if (updatedPlayer.isStunned || updatedPlayer.isFrozen) {
       return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newShieldTick };
     }
 
@@ -617,7 +653,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 490, // Further increased range for better coverage
+            attackDirection * 490,
             -170,
             baseDamage
           ));
@@ -647,6 +683,17 @@ export const useGameEngine = (
             PLAYER_SIZE + 20,
             baseDamage,
             250
+          ));
+          break;
+        case 'ice-mage':
+          newProjectiles.push(createProjectile(
+            'snowball',
+            player.id,
+            updatedPlayer.x + PLAYER_SIZE / 2,
+            updatedPlayer.y + PLAYER_SIZE / 2,
+            attackDirection * 800, // Direct fire
+            0,
+            baseDamage
           ));
           break;
       }
@@ -745,6 +792,30 @@ export const useGameEngine = (
                 console.log('BAT SPAWN', { id: bat.id, owner: bat.ownerId, x: bat.x, y: bat.y, vx: bat.velocityX, vy: bat.velocityY });
               }
               newProjectiles.push(bat);
+            break;
+          case 'ice-mage':
+            // Avalanche: 3 large snowballs in a row
+            for (let i = 0; i < 3; i++) {
+              setTimeout(() => {
+                setGameState(prev => {
+                  const currentPlayer = prev.players[player.id - 1];
+                  if (!currentPlayer) return prev;
+                  const newProj = createProjectile(
+                    'large-snowball',
+                    player.id,
+                    currentPlayer.x + PLAYER_SIZE / 2,
+                    currentPlayer.y + PLAYER_SIZE / 2,
+                    (currentPlayer.facingRight ? 1 : -1) * 600,
+                    0,
+                    baseDamage * 0.7 // Each snowball does 70% of base damage
+                  );
+                  return {
+                    ...prev,
+                    projectiles: [...prev.projectiles, newProj],
+                  };
+                });
+              }, i * 200); // 200ms delay between shots
+            }
             break;
         }
 
@@ -863,6 +934,16 @@ export const useGameEngine = (
           updatedPlayer.invulnerableDuration = 2500;
           updatedPlayer.speedBoost = 0.7;
           updatedPlayer.trailPositions = [];
+          break;
+        case 'ice-mage':
+          newHazards.push(createHazardZone(
+            'blizzard',
+            player.id,
+            0, // top-left corner
+            0, // top-left corner
+            baseDamage * 0.33,
+            3000 // 3 seconds
+          ));
           break;
       }
 
@@ -1075,6 +1156,33 @@ export const useGameEngine = (
         // Check lifetime
         if (now - proj.createdAt > proj.lifetime) return false;
 
+        // Check projectile-platform collision
+        for (const platform of prev.platforms) {
+          if (checkCollision(proj.x, proj.y, proj.width, proj.height, platform.x, platform.y, platform.width, platform.height)) {
+            if (proj.type === 'flask') {
+              const pool = createHazardZone(
+                'toxic-pool',
+                proj.ownerId,
+                0, 0,
+                proj.damage * 0.15,
+                proj.firePoolDuration
+              );
+              
+              pool.y = platform.y - pool.height / 2;
+              pool.x = proj.x + proj.width / 2 - pool.width / 2;
+              pool.x = Math.max(platform.x, Math.min(pool.x, platform.x + platform.width - pool.width));
+
+              hazardZones.push(pool);
+              return false; // Remove the flask
+            }
+
+            // For now, only projectiles with gravity are blocked by platforms
+            if (proj.hasGravity) {
+              return false;
+            }
+          }
+        }
+
         // Check bounds
         if (proj.x < 0 || proj.x > ARENA.width || proj.y > ARENA.height) {
           if (proj.isExplosive && proj.y > ARENA.height - ARENA.padding) {
@@ -1216,6 +1324,17 @@ export const useGameEngine = (
               const damageRes = applyDamage(target, proj.damage);
               players[targetPlayer] = damageRes.player;
 
+              // Ice Mage Passive
+              if (players[proj.ownerId - 1].character?.id === 'ice-mage' && !players[targetPlayer].isFrozen) {
+                if (proj.type === 'snowball') {
+                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + 1;
+                  players[targetPlayer].lastHitByIceMage = now;
+                } else if (proj.type === 'large-snowball') {
+                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + 1;
+                  players[targetPlayer].lastHitByIceMage = now;
+                }
+              }
+
               // Reaper Passive: Life steal 30%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
@@ -1251,7 +1370,7 @@ export const useGameEngine = (
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
                 const isToxic = proj.type === 'flask';
-                const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.02;
+                const damage = isToxic ? proj.damage * 0.12 : proj.damage * 0.02;
                 const pool = createHazardZone(
                   poolType,
                   proj.ownerId,
@@ -1466,7 +1585,34 @@ export const useGameEngine = (
           }
         }
 
-        if (zoneCopy.type !== 'tesla-coil' && zoneCopy.type !== 'bear-trap' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
+        if (zoneCopy.type === 'blizzard') {
+          if (now - zoneCopy.lastTick >= zoneCopy.tickRate) {
+            zoneCopy.lastTick = now;
+            // Blizzard affects the opponent
+            const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
+            const target = players[targetIndex];
+
+            if (checkCollision(
+              zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
+              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+            )) {
+              // Apply damage
+              const damageRes = applyDamage(target, zoneCopy.damage);
+              players[targetIndex] = damageRes.player;
+
+              // Apply slow
+              players[targetIndex].isSlowed = true;
+              players[targetIndex].slowAmount = 0.4;
+              players[targetIndex].slowDuration = 4000;
+
+              // Apply freeze stack
+              if (!players[targetIndex].isFrozen) {
+                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
+                  players[targetIndex].lastHitByIceMage = now;
+              }
+            }
+          }
+        } else if (zoneCopy.type !== 'tesla-coil' && zoneCopy.type !== 'bear-trap' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
           zoneCopy.lastTick = now;
           for (let i = 0; i < 2; i++) {
             if (i !== zoneCopy.ownerId - 1) {

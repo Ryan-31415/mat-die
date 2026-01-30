@@ -10,7 +10,9 @@ export type ProjectileType =
   | 'meteor'
   | 'bullet'
   | 'super-bullet'
-  | 'bat';
+  | 'bat'
+  | 'snowball'
+  | 'large-snowball';
 
 export interface Projectile {
   id: string;
@@ -47,7 +49,7 @@ export interface Projectile {
 
 export interface HazardZone {
   id: string;
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap';
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard';
   ownerId: 1 | 2;
   x: number;
   y: number;
@@ -240,6 +242,25 @@ export const createProjectile = (
         hasHitReturn: false,
       };
       break;
+    case 'snowball':
+      result = {
+        ...baseProjectile,
+        width: 16,
+        height: 16,
+        slowAmount: 0.15,
+        slowDuration: 1000,
+        canBeDeflected: true,
+      };
+      break;
+    case 'large-snowball':
+      result = {
+        ...baseProjectile,
+        width: 40,
+        height: 40,
+        knockback: 100,
+        canBeDeflected: false,
+      };
+      break;
     default:
       result = baseProjectile;
       break;
@@ -254,12 +275,12 @@ export const createProjectile = (
 
 
 export const createHazardZone = (
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap',
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard',
   ownerId: 1 | 2,
   x: number,
   y: number,
   damage: number,
-  duration: number
+  duration: number,
 ): HazardZone => {
   const base: HazardZone = {
     id: `${type}-${Date.now()}-${Math.random()}`,
@@ -295,6 +316,15 @@ export const createHazardZone = (
       width: 45,
       height: 20,
       tickRate: 100,
+    };
+  }
+
+  if (type === 'blizzard') {
+    return {
+      ...base,
+      width: 800, // full arena width
+      height: 500, // full arena height
+      tickRate: 500,
     };
   }
 
