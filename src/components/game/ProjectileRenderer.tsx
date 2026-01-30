@@ -91,10 +91,10 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           boxShadow: '0 0 4px rgba(0,0,0,0.5)',
           transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
         };
-      case 'slug':
+      case 'super-bullet':
         return {
-          background: 'radial-gradient(circle, #374151, #1f2937)', // Dark gray
-          borderRadius: '50%',
+          backgroundColor: '#df9d46', // Goldish
+          borderRadius: '4px',
           boxShadow: '0 0 4px rgba(0,0,0,0.5)',
           transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
         };

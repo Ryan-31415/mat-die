@@ -13,9 +13,9 @@ const MainMenu = ({ onStartGame, onOpenSettings, onOpenControls }: MainMenuProps
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-muted p-4">
       <div className="text-center mb-12">
         <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-red-500 via-purple-500 to-blue-500 bg-clip-text text-transparent">
-          SQUARE FIGHTERS
+          MAT-DIE
         </h1>
-        <p className="text-xl text-muted-foreground">정사각형 대전 게임</p>
+        <p className="text-xl text-muted-foreground">맞다이: 2인용 대전 게임</p>
       </div>
 
       <Card className="w-full max-w-md bg-card/80 backdrop-blur-sm border-2">
@@ -26,7 +26,7 @@ const MainMenu = ({ onStartGame, onOpenSettings, onOpenControls }: MainMenuProps
             className="w-full h-16 text-xl gap-3 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
           >
             <Bot className="h-6 w-6" />
-            1인 전투 (컴퓨터)
+            1인 전투 (vs AI)
           </Button>
 
           <Button

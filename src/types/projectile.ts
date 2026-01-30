@@ -9,7 +9,7 @@ export type ProjectileType =
   | 'electric-orb'
   | 'meteor'
   | 'bullet'
-  | 'slug'
+  | 'super-bullet'
   | 'bat';
 
 export interface Projectile {
@@ -186,10 +186,10 @@ export const createProjectile = (
     case 'flask':
       result = {
         ...baseProjectile,
-        width: 20,
-        height: 20,
+        width: 18,
+        height: 18,
         hasGravity: true,
-        gravity: 180,
+        gravity: 200,
         isExplosive: true,
         explosionRadius: 35,
         createsFirePool: true,
@@ -215,25 +215,25 @@ export const createProjectile = (
         ...baseProjectile,
         width: 10,
         height: 8,
-        lifetime: 350,
+        lifetime: 320,
         knockback: 10,
       };
       break;
-    case 'slug':
+    case 'super-bullet':
       result = {
         ...baseProjectile,
-        width: 24,
-        height: 24,
-        lifetime: 600,
-        knockback: 90,
+        width: 15,
+        height: 12,
+        lifetime: 300,
+        knockback: 35,
       };
       break;
     case 'bat':
       result = {
         ...baseProjectile,
-        width: 65,
-        height: 65,
-        lifetime: 3200,
+        width: 75,
+        height: 75,
+        lifetime: 3000,
         canBeDeflected: false,
         isReturning: true,
         hasHitForward: false,
@@ -267,8 +267,8 @@ export const createHazardZone = (
     ownerId,
     x,
     y,
-    width: type === 'toxic-pool' ? 100 : 180,
-    height: type === 'toxic-pool' ? 100 : 180,
+    width: type === 'toxic-pool' ? 125 : 190,
+    height: type === 'toxic-pool' ? 125 : 190,
     damage,
     tickRate: 100, // Increased frequency (5x), damage per tick adjusted in useGameEngine
     lastTick: Date.now(),

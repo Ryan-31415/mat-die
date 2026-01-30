@@ -617,22 +617,22 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 600, // Further increased range for better coverage
-            -100,
+            attackDirection * 490, // Further increased range for better coverage
+            -170,
             baseDamage
           ));
           break;
         case 'hunter':
           // Shotgun: 5 bullets with spread
           for (let i = 0; i < 5; i++) {
-            const spreadAngle = (i - 2) * 5;
+            const spreadAngle = (i - 2) * 8;
             const radians = spreadAngle * (Math.PI / 180);
             newProjectiles.push(createProjectile(
               'bullet',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 1400 * Math.cos(radians),
+              attackDirection * 1250 * Math.cos(radians),
               850 * Math.sin(radians),
               baseDamage * 0.4 // Each bullet does 40% of base damage
             ));
@@ -709,9 +709,9 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 660,
+              attackDirection * 750,
               0,
-              baseDamage * 2
+              baseDamage * 3
             ));
             break;
           case 'hunter':
@@ -732,9 +732,9 @@ export const useGameEngine = (
                 player.id,
                 batSpawnX,
                 updatedPlayer.y + PLAYER_SIZE / 2, // Center vertically
-                attackDirection * 600,
+                attackDirection * 550,
                 0,
-                baseDamage * 1.5,
+                baseDamage * 0.8,
               );
               // Clamp bat top-left inside arena so it doesn't immediately trigger bounds
               bat.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - bat.width, bat.x));
@@ -803,8 +803,8 @@ export const useGameEngine = (
           }
           break;
         case 'mage':
-          // Meteor shower - 13 random fireballs
-          for (let i = 0; i < 13; i++) {
+          // Meteor shower - 12 random fireballs
+          for (let i = 0; i < 12; i++) {
             setTimeout(() => {
               setGameState(prev => {
                 const randomX = ARENA.padding + Math.random() * (ARENA.width - 2 * ARENA.padding);
@@ -816,7 +816,7 @@ export const useGameEngine = (
                     randomX,
                     0,
                     0,
-                    400,
+                    500,
                     baseDamage
                   )],
                 };
@@ -842,21 +842,26 @@ export const useGameEngine = (
           ));
           break;
         case 'hunter':
-          newProjectiles.push(createProjectile(
-            'slug',
-            player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 1000,
-            0,
-            baseDamage * 2.5
-          ));
+          // Super Shotgun: 9 bullets with wider spread
+          for (let i = 0; i < 9; i++) {
+            const spreadAngle = (i - 4) * 7;
+            const radians = spreadAngle * (Math.PI / 180);
+            newProjectiles.push(createProjectile(
+              'super-bullet',
+              player.id,
+              updatedPlayer.x + PLAYER_SIZE / 2,
+              updatedPlayer.y + PLAYER_SIZE / 2,
+              attackDirection * 1500 * Math.cos(radians),
+              850 * Math.sin(radians),
+              baseDamage * 0.65 // Each bullet does 65% of base damage
+            ));
+          }
           break;
         case 'reaper':
           updatedPlayer.isInvulnerable = true;
           updatedPlayer.isFlying = true;
-          updatedPlayer.invulnerableDuration = 3500;
-          updatedPlayer.speedBoost = 0.75;
+          updatedPlayer.invulnerableDuration = 2500;
+          updatedPlayer.speedBoost = 0.7;
           updatedPlayer.trailPositions = [];
           break;
       }
@@ -993,7 +998,7 @@ export const useGameEngine = (
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist > 10) {
-              const speed = 750;
+              const speed = 700;
               newProj.velocityX = (dx / dist) * speed;
               newProj.velocityY = (dy / dist) * speed;
               if (process.env.NODE_ENV !== 'production') {
@@ -1137,12 +1142,12 @@ export const useGameEngine = (
               players[targetPlayer] = damageRes.player;
               proj.hasHitReturn = true; // Mark as hit on return path
 
-              // Reaper Passive: Life steal 30%
+              // Reaper Passive: Life steal 20%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * 0.3
+                  players[ownerIndex].health + damageRes.dealt * 0.2
                 );
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
@@ -1169,12 +1174,12 @@ export const useGameEngine = (
               players[targetPlayer] = damageRes.player;
               proj.hasHitForward = true; // Mark as hit on forward path
 
-              // Reaper Passive: Life steal 30%
+              // Reaper Passive: Life steal 20%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * 0.3
+                  players[ownerIndex].health + damageRes.dealt * 0.2
                 );
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
@@ -1281,15 +1286,28 @@ export const useGameEngine = (
               proj.x, proj.y, proj.width, proj.height,
               owner.x, owner.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              // Heal owner 75% of damage accumulated
-              const healAmount = (proj.damageAccumulated || 0) * 0.75;
-              if (healAmount > 0) {
-                players[proj.ownerId - 1].health = Math.min(
-                  players[proj.ownerId - 1].maxHealth,
-                  players[proj.ownerId - 1].health + healAmount
-                );
+              // For bat: heal base 75% of damage + bonus from hits
+              if (proj.type === 'bat') {
+                const baseHeal = 0;
+                const bonusHeal = (proj.damageAccumulated || 0) * 0.5;
+                const totalHeal = baseHeal + bonusHeal;
+                if (totalHeal > 0) {
+                  players[proj.ownerId - 1].health = Math.min(
+                    players[proj.ownerId - 1].maxHealth,
+                    players[proj.ownerId - 1].health + totalHeal
+                  );
+                }
+              } else {
+                // Other returning projectiles: heal only from accumulated damage
+                const healAmount = (proj.damageAccumulated || 0) * 0.75;
+                if (healAmount > 0) {
+                  players[proj.ownerId - 1].health = Math.min(
+                    players[proj.ownerId - 1].maxHealth,
+                    players[proj.ownerId - 1].health + healAmount
+                  );
+                }
               }
-              return false; // Remove projectile
+              return false; // Remove projectile immediately
             }
           }
         }
@@ -1442,8 +1460,8 @@ export const useGameEngine = (
             players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
             players[targetIndex].rootDuration = 2000;
             players[targetIndex].isSlowed = true;
-            players[targetIndex].slowAmount = 0.6;
-            players[targetIndex].slowDuration = 5000;
+            players[targetIndex].slowAmount = 0.5;
+            players[targetIndex].slowDuration = 4000;
             return null; // Remove trap
           }
         }
@@ -1507,15 +1525,15 @@ export const useGameEngine = (
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
               const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
               const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
-              const damageRes = applyDamage(target, baseDamage * 0.2); // 20% of base damage per tick (26 DPS)
+              const damageRes = applyDamage(target, baseDamage * 0.25); // 20% of base damage per tick (26 DPS)
               players[targetIndex] = damageRes.player;
-              // Life steal 30%
-              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.3);
+              // Life steal 20%
+              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.2);
               players[i].lastUltTick = now;
               // Slow effect
               players[targetIndex].isSlowed = true;
-              players[targetIndex].slowAmount = 0.5;
-              players[targetIndex].slowDuration = 600;
+              players[targetIndex].slowAmount = 0.2;
+              players[targetIndex].slowDuration = 300;
             }
           }
         }

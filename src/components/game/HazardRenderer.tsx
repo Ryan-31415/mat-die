@@ -39,7 +39,7 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
         };
       case 'bear-trap':
         const age = Date.now() - zone.createdAt;
-        const isTransparent = age > 1000;
+        const isTransparent = age > 1500;
         return {
           background: 'linear-gradient(45deg, #4b5563, #1f2937)',
           border: '2px solid #374151',
