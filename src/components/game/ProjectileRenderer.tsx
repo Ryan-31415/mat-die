@@ -98,6 +98,18 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           boxShadow: '0 0 4px rgba(0,0,0,0.5)',
           transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
         };
+      case 'snowball':
+        return {
+          background: 'radial-gradient(circle, #ffffff, #3393c0)',
+          borderRadius: '25%',
+          boxShadow: '0 0 12px #4bafdd, inset 0 0 6px #ffffff',
+        };
+      case 'large-snowball':
+        return {
+          background: 'radial-gradient(circle, #ffffff, #3393c0)',
+          borderRadius: '25%',
+          boxShadow: '0 0 12px #4bafdd, inset 0 0 6px #ffffff',
+        };
       default:
         return {
           backgroundColor: '#fff',

@@ -245,8 +245,8 @@ export const createProjectile = (
     case 'snowball':
       result = {
         ...baseProjectile,
-        width: 16,
-        height: 16,
+        width: 25,
+        height: 25,
         slowAmount: 0.15,
         slowDuration: 1000,
         canBeDeflected: true,
@@ -255,9 +255,11 @@ export const createProjectile = (
     case 'large-snowball':
       result = {
         ...baseProjectile,
-        width: 40,
-        height: 40,
-        knockback: 100,
+        width: 33,
+        height: 33,
+        knockback: 80,
+        slowAmount: 0.25,
+        slowDuration: 2500,
         canBeDeflected: false,
       };
       break;

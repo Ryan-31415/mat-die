@@ -48,6 +48,10 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
           opacity: isTransparent ? 0 : 1,
           transition: 'opacity 0.5s ease-in-out',
         };
+      case 'blizzard':
+        return {
+          background: '#46688833',
+        };
       default:
         return {};
     }

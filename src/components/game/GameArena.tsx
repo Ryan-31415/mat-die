@@ -24,6 +24,50 @@ interface GameArenaProps {
   roundsCompleted: number;
 }
 
+const BlizzardEffect = () => {
+  const snowflakes = Array.from({ length: 50 }).map((_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    animationDuration: `${Math.random() * 5 + 3}s`,
+    animationDelay: `${Math.random() * 5}s`,
+    size: Math.random() * 4 + 2,
+  }));
+
+  return (
+    <div className="absolute inset-0 bg-sky-400/20 pointer-events-none overflow-hidden">
+      <style>
+        {`
+          @keyframes fall {
+            0% { transform: translateY(-10vh) translateX(0); }
+            100% { transform: translateY(110vh) translateX(${Math.random() > 0.5 ? '' : '-'}20px); }
+          }
+          .snowflake {
+            position: absolute;
+            top: -10vh;
+            background: white;
+            border-radius: 50%;
+            animation: fall linear infinite;
+          }
+        `}
+      </style>
+      {snowflakes.map(flake => (
+        <div
+          key={flake.id}
+          className="snowflake"
+          style={{
+            left: flake.left,
+            width: `${flake.size}px`,
+            height: `${flake.size}px`,
+            animationDuration: flake.animationDuration,
+            animationDelay: flake.animationDelay,
+            opacity: Math.random() * 0.5 + 0.3,
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 const GameArena = ({
   player1Character,
   player2Character,
@@ -83,7 +127,7 @@ const GameArena = ({
     }
   }, [roundsCompleted, scores, settings.maxRounds, resetRound, isOvertime]);
 
-  const currentRound = scores[0] + scores[1] + 1;
+  const isBlizzardActive = gameState.hazardZones.some(zone => zone.type === 'blizzard');
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-muted p-4">
@@ -132,6 +176,9 @@ const GameArena = ({
           <PlatformRenderer key={platform.id} platform={platform} />
         ))}
 
+        {/* Blizzard Visual Effect */}
+        {isBlizzardActive && <BlizzardEffect />}
+
         {/* Hazard zones */}
         {gameState.hazardZones.map(zone => (
           <HazardRenderer key={zone.id} zone={zone} />
@@ -171,7 +218,7 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center animate-scale-in">
               <h2 className="text-4xl font-bold mb-2">
-                {isOvertime ? '연장전 종료!' : `라운드 ${frozenRoundNumber} 종료!`}
+                {isOvertime ? '연장전 종료!' : `라운드 ${roundsCompleted + 1} 종료!`}
               </h2>
               <p className="text-2xl text-primary font-bold">
                 {gameState.roundWinner === 'draw' ? (isOvertime ? '경기 종료 (무승부)' : '무승부!') : `플레이어 ${gameState.roundWinner} 승리!`}

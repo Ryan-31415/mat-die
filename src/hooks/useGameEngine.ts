@@ -130,7 +130,7 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 2.0;
+      damageMultiplier = 1.4;
       isBreakingFreeze = true;
     }
 
@@ -357,7 +357,7 @@ export const useGameEngine = (
     // Ice Mage Passive - check for freeze and decay
     // This logic applies to the player being updated, if their opponent is an Ice Mage
     if (otherPlayer.character?.id === 'ice-mage') {
-      if (updatedPlayer.freezeGauge >= 10) {
+      if (updatedPlayer.freezeGauge >= 5) {
         updatedPlayer.isFrozen = true;
         updatedPlayer.frozenDuration = 1500; // 1.5 seconds
         updatedPlayer.freezeGauge = 0;
@@ -654,7 +654,7 @@ export const useGameEngine = (
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
             attackDirection * 490,
-            -170,
+            -120,
             baseDamage
           ));
           break;
@@ -691,7 +691,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 800, // Direct fire
+            attackDirection * 700, // Direct fire
             0,
             baseDamage
           ));
@@ -795,26 +795,27 @@ export const useGameEngine = (
             break;
           case 'ice-mage':
             // Avalanche: 3 large snowballs in a row
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 5; i++) {
               setTimeout(() => {
                 setGameState(prev => {
+                  const projGap = 30;
                   const currentPlayer = prev.players[player.id - 1];
                   if (!currentPlayer) return prev;
                   const newProj = createProjectile(
                     'large-snowball',
                     player.id,
                     currentPlayer.x + PLAYER_SIZE / 2,
-                    currentPlayer.y + PLAYER_SIZE / 2,
-                    (currentPlayer.facingRight ? 1 : -1) * 600,
+                    currentPlayer.y + PLAYER_SIZE / 2 + (i-2) * projGap, // Offset each snowball vertically
+                    (currentPlayer.facingRight ? 1 : -1) * 950,
                     0,
-                    baseDamage * 0.7 // Each snowball does 70% of base damage
+                    baseDamage * 0.65
                   );
                   return {
                     ...prev,
                     projectiles: [...prev.projectiles, newProj],
                   };
                 });
-              }, i * 200); // 200ms delay between shots
+              }, 0);
             }
             break;
         }
@@ -841,6 +842,7 @@ export const useGameEngine = (
 
       switch (character.id) {
         case 'gladiator':
+          // enrage - boosts damage, speed, and damage reduction
           updatedPlayer.damageBoost = 0.35;
           updatedPlayer.speedBoost = 0.30;
           updatedPlayer.damageReduction = 0.25;
@@ -941,7 +943,7 @@ export const useGameEngine = (
             player.id,
             0, // top-left corner
             0, // top-left corner
-            baseDamage * 0.33,
+            baseDamage * 0.1,
             3000 // 3 seconds
           ));
           break;
@@ -1330,7 +1332,7 @@ export const useGameEngine = (
                   players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + 1;
                   players[targetPlayer].lastHitByIceMage = now;
                 } else if (proj.type === 'large-snowball') {
-                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + 1;
+                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + Math.round(Math.random() * 0.5 + 0.5);
                   players[targetPlayer].lastHitByIceMage = now;
                 }
               }
@@ -1602,12 +1604,12 @@ export const useGameEngine = (
 
               // Apply slow
               players[targetIndex].isSlowed = true;
-              players[targetIndex].slowAmount = 0.4;
-              players[targetIndex].slowDuration = 4000;
+              players[targetIndex].slowAmount = 0.33;
+              players[targetIndex].slowDuration = 3000;
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {
-                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
+                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 2;
                   players[targetIndex].lastHitByIceMage = now;
               }
             }

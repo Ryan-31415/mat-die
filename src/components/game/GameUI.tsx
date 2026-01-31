@@ -161,8 +161,18 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
       </div>
 
       {/* Status effects display */}
-      {(player.buffDuration > 0 || player.isPoisoned || player.isSlowed || player.isStunned || player.isInvisible) && (
+      {(player.buffDuration > 0 || player.isPoisoned || player.isSlowed || player.isStunned || player.isInvisible || player.isFrozen || player.freezeGauge > 0) && (
         <div className="mt-2 flex flex-wrap gap-1">
+          {player.isFrozen && (
+            <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-500 rounded animate-pulse">
+              빙결 {(player.frozenDuration / 1000).toFixed(1)}s
+            </span>
+          )}
+          {player.freezeGauge > 0 && !player.isFrozen && (
+            <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-400 rounded">
+              빙결 게이지: {player.freezeGauge} / 5
+            </span>
+          )}
           {player.buffDuration > 0 && (
             <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
               버프 {(player.buffDuration / 1000).toFixed(1)}s
