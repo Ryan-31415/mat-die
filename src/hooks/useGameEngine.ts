@@ -470,10 +470,22 @@ export const useGameEngine = (
       updatedPlayer.velocityY = 0; // No gravity while flying
     }
 
+    // Apply knockback decay
+    if (Math.abs(updatedPlayer.knockbackVelocityX) > 10) {
+      updatedPlayer.knockbackVelocityX *= Math.pow(0.9, deltaTime / 16); // Decay ~10% per frame (60fps)
+    } else {
+      updatedPlayer.knockbackVelocityX = 0;
+    }
+
     // Skip movement/actions if stunned or frozen (but gravity was already applied)
     if (updatedPlayer.isStunned || updatedPlayer.isFrozen) {
       // Calculate new Y position for gravity even when stunned
       let stunnedNewY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
+      // Apply knockback even when stunned
+      let stunnedNewX = updatedPlayer.x + updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
+      stunnedNewX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, stunnedNewX));
+      updatedPlayer.x = stunnedNewX;
+
       let stunnedPlatformResult = { y: stunnedNewY, isGrounded: false, platform: null as Platform | null };
       if (!updatedPlayer.isFlying) {
         stunnedPlatformResult = checkPlatformCollision(updatedPlayer, stunnedNewY, updatedPlayer.velocityY, platforms);
@@ -510,7 +522,7 @@ export const useGameEngine = (
     let speed = character.speed;
     if (updatedPlayer.isShielding) speed *= 0.5;
     if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
-    // Apply freeze gauge slow (10% per stack)
+    // Apply freeze gauge slow (12.5% per stack)
     if (updatedPlayer.freezeGauge > 0) speed *= (1 - (updatedPlayer.freezeGauge * 0.1));
     if (updatedPlayer.rootDuration > 0) speed = 0;
     speed *= (1 + updatedPlayer.speedBoost);
@@ -543,17 +555,12 @@ export const useGameEngine = (
     // Apply horizontal movement
     const moveAmount = speed * (deltaTime / 16) * 1.2;
     let newX = updatedPlayer.x + dx * moveAmount;
-    let newY_pos = updatedPlayer.y + dy * moveAmount;
+    
+    // Apply knockback to movement
+    newX += updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
 
     // Boundary checking
     newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
-    if (updatedPlayer.isFlying) {
-      newY_pos = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, newY_pos));
-    }
-    updatedPlayer.x = newX;
-    if (updatedPlayer.isFlying) {
-      updatedPlayer.y = newY_pos;
-    }
 
     // Jumping logic
     const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
@@ -717,7 +724,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 700, // Direct fire
+            attackDirection * 680, // Direct fire
             0,
             baseDamage
           ));
@@ -757,7 +764,7 @@ export const useGameEngine = (
               otherPlayer.x + PLAYER_SIZE / 2,
               0,
               0,
-              480,
+              520,
               baseDamage * 2
             );
             newProjectiles.push(largeFireball);
@@ -820,19 +827,19 @@ export const useGameEngine = (
               newProjectiles.push(bat);
             break;
           case 'ice-mage':
-            // Avalanche: 3 large snowballs in a row
-            for (let i = 0; i < 5; i++) {
+            // Avalanche: 4 large snowballs
+            for (let i = 0; i < 4; i++) {
               setTimeout(() => {
                 setGameState(prev => {
-                  const projGap = 30;
+                  const projGap = 33;
                   const currentPlayer = prev.players[player.id - 1];
                   if (!currentPlayer) return prev;
                   const newProj = createProjectile(
                     'large-snowball',
                     player.id,
                     currentPlayer.x + PLAYER_SIZE / 2,
-                    currentPlayer.y + PLAYER_SIZE / 2 + (i-2) * projGap, // Offset each snowball vertically
-                    (currentPlayer.facingRight ? 1 : -1) * 930,
+                    currentPlayer.y + PLAYER_SIZE / 2 + (i-1) * projGap - projGap * 0.5, // Offset each snowball vertically
+                    (currentPlayer.facingRight ? 1 : -1) * 900,
                     0,
                     baseDamage * 0.5
                   );
@@ -1349,8 +1356,16 @@ export const useGameEngine = (
                 }
               }
 
+              // Check if this projectile has already hit this target (for penetrating projectiles)
+              if (proj.hitTargets.includes(target.id)) {
+                return true;
+              }
+
               const damageRes = applyDamage(target, proj.damage);
               players[targetPlayer] = damageRes.player;
+              
+              // Add target to hit list
+              proj.hitTargets.push(target.id);
 
               // Ice Mage Passive
               if (players[proj.ownerId - 1].character?.id === 'ice-mage' && !players[targetPlayer].isFrozen) {
@@ -1389,10 +1404,8 @@ export const useGameEngine = (
               }
               if (proj.knockback > 0) {
                 const knockbackDir = proj.velocityX > 0 ? 1 : -1;
-                players[targetPlayer].x = Math.max(
-                  ARENA.padding,
-                  Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, target.x + knockbackDir * proj.knockback)
-                );
+                // Apply smooth knockback force instead of instant teleport
+                players[targetPlayer].knockbackVelocityX = knockbackDir * proj.knockback * 10;
               }
 
               if (proj.createsFirePool) {
@@ -1417,6 +1430,11 @@ export const useGameEngine = (
                 if (timeSinceCreated < proj.lifetime * 0.35) {
                   return true;
                 }
+              }
+              
+              // Ice Mage skill projectiles (large-snowball) penetrate
+              if (proj.type === 'large-snowball') {
+                return true;
               }
 
               return false;
@@ -1507,10 +1525,10 @@ export const useGameEngine = (
               players[ownerIndex].health + damageRes.dealt * 0.3
             );
           }
-          players[targetIndex].x = Math.max(
-            ARENA.padding,
-            Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, target.x + (hitbox.x < target.x ? 1 : -1) * hitbox.knockback)
-          );
+          
+          // Apply smooth knockback
+          players[targetIndex].knockbackVelocityX = (hitbox.x < target.x ? 1 : -1) * hitbox.knockback * 10;
+          
           return false;
         }
 
@@ -1627,11 +1645,6 @@ export const useGameEngine = (
               // Apply damage
               const damageRes = applyDamage(target, zoneCopy.damage);
               players[targetIndex] = damageRes.player;
-
-              // Apply slow
-              players[targetIndex].isSlowed = true;
-              players[targetIndex].slowAmount = 0.3;
-              players[targetIndex].slowDuration = 3000;
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {

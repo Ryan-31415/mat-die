@@ -45,6 +45,7 @@ export interface Projectile {
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
   hasHitReturn?: boolean; // Track if projectile has hit on return path
+  hitTargets: number[]; // Track IDs of players hit by penetrating projectiles
 }
 
 export interface HazardZone {
@@ -124,6 +125,7 @@ export const createProjectile = (
     damageAccumulated: 0,
     hasHitForward: false,
     hasHitReturn: false,
+    hitTargets: [],
   };
 
   let result: Projectile = { ...baseProjectile };
@@ -254,7 +256,8 @@ export const createProjectile = (
         ...baseProjectile,
         width: 33,
         height: 33,
-        knockback: 35,
+        knockback: 100,
+        lifetime: 2000,
         canBeDeflected: false,
       };
       break;

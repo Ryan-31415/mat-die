@@ -48,6 +48,8 @@ export interface Player {
   facingRight: boolean;
   velocityX: number;
   velocityY: number;
+  knockbackVelocityX: number;
+  knockbackVelocityY: number;
   // Physics
   isGrounded: boolean;
   lastGroundedTime: number;
@@ -117,7 +119,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '검투사',
     color: '#dc2626',
     colorClass: 'bg-red-600',
-    maxHealth: 120,
+    maxHealth: 150,
     maxMana: 100,
     manaRegen: 6.7, // Reduced to 60%
     speed: 5.0,
@@ -143,7 +145,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '궁수',
     color: '#16a34a',
     colorClass: 'bg-green-600',
-    maxHealth: 90,
+    maxHealth: 110,
     maxMana: 100,
     manaRegen: 6.6,
     speed: 5.2,
@@ -154,7 +156,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '독성 강화',
       description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 33% 감소, 지속 피해)를 부여합니다.',
       manaCost: 35,
-      cooldown: 5000,
+      cooldown: 4000,
     },
     ultimate: {
       name: '화살 폭풍',
@@ -169,7 +171,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '마법사',
     color: '#7c3aed',
     colorClass: 'bg-violet-600',
-    maxHealth: 80,
+    maxHealth: 95,
     maxMana: 100,
     manaRegen: 6.8,
     speed: 4.9,
@@ -178,9 +180,9 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 4초간 화염 영역 생성.',
-      manaCost: 35,
-      cooldown: 5000,
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 화염구는 플레이어 또는 바닥에 닿으면 4초간 화염 영역을 생성합니다.',
+      manaCost: 40,
+      cooldown: 4500,
     },
     ultimate: {
       name: '유성우',
@@ -195,7 +197,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '닌자',
     color: '#1e293b',
     colorClass: 'bg-slate-800',
-    maxHealth: 100,
+    maxHealth: 115,
     maxMana: 100,
     manaRegen: 6.6,
     speed: 5.5, // slightly faster base speed
@@ -222,7 +224,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '과학자',
     color: '#0891b2',
     colorClass: 'bg-cyan-600',
-    maxHealth: 85,
+    maxHealth: 100,
     maxMana: 100,
     manaRegen: 6.6,
     speed: 4.6,
@@ -231,8 +233,8 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 900,
     skill: {
       name: '전자총',
-      description: '폭발성 전기 구체를 발사해 강한 피해와 넉백을 입힙니다. 피격된 적은 1초간 기절하고 4.5초간 이동속도가 40% 감소합니다.',
-      manaCost: 40,
+      description: '전기 구체를 발사해 강한 피해와 넉백을 입힙니다. 피격된 적은 1초간 기절하고 4.5초간 이동속도가 40% 감소합니다.',
+      manaCost: 45,
       cooldown: 5500,
     },
     ultimate: {
@@ -248,7 +250,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '사냥꾼',
     color: '#92400e',
     colorClass: 'bg-amber-800',
-    maxHealth: 110,
+    maxHealth: 135,
     maxMana: 100,
     manaRegen: 6.5,
     speed: 4.7,
@@ -259,7 +261,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '함정',
       description: '바닥에 함정을 설치합니다. 설치 1.5초 후 투명해지며, 밟은 적에게 피해를 입히고, 2초간 속박하며 4초간 이동속도를 50% 감소시킵니다. (최대 1개)',
       manaCost: 50,
-      cooldown: 7000,
+      cooldown: 6000,
     },
     ultimate: {
       name: '슈퍼 샷건',
@@ -274,7 +276,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '사신',
     color: '#475569',
     colorClass: 'bg-slate-600',
-    maxHealth: 85,
+    maxHealth: 110,
     maxMana: 100,
     manaRegen: 6.7,
     speed: 5.1,
@@ -286,7 +288,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '박쥐',
       description: '부메랑처럼 돌아오는 박쥐를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 50%를 추가 회복합니다.',
       manaCost: 45,
-      cooldown: 6000,
+      cooldown: 5000,
     },
     ultimate: {
       name: '유체화',
@@ -301,23 +303,23 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '얼음 마법사',
     color: '#38bdf8',
     colorClass: 'bg-sky-400',
-    maxHealth: 85,
+    maxHealth: 100,
     maxMana: 100,
     manaRegen: 6.8,
     speed: 4.8,
     attackDamage: 15,
     attackRange: 600,
     attackCooldown: 900,
-    passive: '공격을 맞출 때마다 상대방의 빙결 게이지를 누적시킵니다. 빙결 게이지 1당 이동속도가 10% 감소됩니다. 빙결 게이지가 5개 쌓이면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 25% 증가합니다. 데미지를 받으면 빙결이 해제됩니다.',
+    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 25% 증가합니다. 데미지를 받으면 빙결이 해제됩니다.',
     skill: {
       name: '눈사태',
       description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐냅니다.',
       manaCost: 40,
-      cooldown: 3500,
+      cooldown: 4500,
     },
     ultimate: {
-      name: '눈보라',
-      description: '2.5초간 지속되는 눈보라를 아레나 전역에 일으켜 지속 피해를 입힙니다.',
+      name: '블리자드',
+      description: '2.5초간 지속되는 눈보라를 아레나 전역에 일으켜 지속적인 피해 및 결빙 효과를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -360,6 +362,8 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   facingRight: id === 1,
   velocityX: 0,
   velocityY: 0,
+  knockbackVelocityX: 0,
+  knockbackVelocityY: 0,
   // Physics
   isGrounded: true,
   lastGroundedTime: Date.now(),

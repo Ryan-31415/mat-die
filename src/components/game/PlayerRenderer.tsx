@@ -16,6 +16,8 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.rootDuration > 0) statusEffects.push('🕸️');
   if (player.regenDuration > 0) statusEffects.push('♥️');
   if (player.poisonArrowsRemaining > 0) statusEffects.push(`🟢x${player.poisonArrowsRemaining}`);
+  if (player.invisibleDuration > 0) statusEffects.push('👻');
+  if (player.freezeGauge > 0 && !player.isFrozen) statusEffects.push(`❄️x${player.freezeGauge}`);
   if (player.isFrozen) statusEffects.push('🧊');
 
   const now = Date.now();

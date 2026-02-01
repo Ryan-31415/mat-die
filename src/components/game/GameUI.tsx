@@ -170,7 +170,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           )}
           {player.freezeGauge > 0 && !player.isFrozen && (
             <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-400 rounded">
-              빙결 게이지: {player.freezeGauge} / 5
+              결빙: {player.freezeGauge} / 5
             </span>
           )}
           {player.buffDuration > 0 && (
