@@ -178,8 +178,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 30,
         height: 30,
-        hasGravity: true,
-        gravity: 600,
+        hasGravity: false,
         isExplosive: true,
         explosionRadius: 55,
         canBeDeflected: false,
@@ -247,8 +246,6 @@ export const createProjectile = (
         ...baseProjectile,
         width: 25,
         height: 25,
-        slowAmount: 0.15,
-        slowDuration: 1000,
         canBeDeflected: true,
       };
       break;
@@ -257,9 +254,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 33,
         height: 33,
-        knockback: 80,
-        slowAmount: 0.25,
-        slowDuration: 2500,
+        knockback: 35,
         canBeDeflected: false,
       };
       break;

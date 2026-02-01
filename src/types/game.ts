@@ -174,7 +174,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.8,
     speed: 4.9,
     attackDamage: 18,
-    attackRange: 560,
+    attackRange: 600,
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
@@ -227,11 +227,11 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.6,
     speed: 4.6,
     attackDamage: 13,
-    attackRange: 530, // Increased range (still shorter than Archer's 600)
+    attackRange: 500, // Increased range (still shorter than Archer's 600)
     attackCooldown: 900,
     skill: {
       name: '전자총',
-      description: '폭발성 전기 구체 발사. 강한 피해와 넉백, 4.5초간 이동속도 40% 감소. 직격 시 1초 기절.',
+      description: '폭발성 전기 구체를 발사해 강한 피해와 넉백을 입힙니다. 피격된 적은 1초간 기절하고 4.5초간 이동속도가 40% 감소합니다.',
       manaCost: 40,
       cooldown: 5500,
     },
@@ -306,18 +306,18 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.8,
     speed: 4.8,
     attackDamage: 15,
-    attackRange: 550,
+    attackRange: 600,
     attackCooldown: 900,
-    passive: '공격을 맞출 때마다 상대방의 빙결 게이지를 누적시킵니다. 빙결 게이지가 5개 쌓이면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 25% 증가합니다. 데미지를 받으면 빙결이 해제됩니다.',
+    passive: '공격을 맞출 때마다 상대방의 빙결 게이지를 누적시킵니다. 빙결 게이지 1당 이동속도가 10% 감소됩니다. 빙결 게이지가 5개 쌓이면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 25% 증가합니다. 데미지를 받으면 빙결이 해제됩니다.',
     skill: {
       name: '눈사태',
-      description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐내며, 이동속도를 2.5초간 25% 감소시킵니다.',
+      description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐냅니다.',
       manaCost: 40,
       cooldown: 3500,
     },
     ultimate: {
       name: '눈보라',
-      description: '3초간 지속되는 눈보라를 아레나 전역에 일으켜 지속 피해를 입히고, 이동속도를 33% 감소시킵니다.',
+      description: '2.5초간 지속되는 눈보라를 아레나 전역에 일으켜 지속 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },

@@ -90,8 +90,8 @@ export const useGameEngine = (
       if (playerRight > platformLeft && playerLeft < platformRight) {
         // For one-way platforms, only check if falling down onto it
         if (platform.type === 'one-way') {
-          // Player must be falling and was above the platform
-          if (velocityY > 0 && player.y + PLAYER_SIZE <= platformTop + 5 && playerBottom >= platformTop) {
+          // Player must be falling (or standing) and was above the platform
+          if (velocityY >= 0 && player.y + PLAYER_SIZE <= platformTop + 10 && playerBottom >= platformTop) {
             return {
               y: platformTop - PLAYER_SIZE,
               isGrounded: true,
@@ -130,8 +130,8 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 1.4;
-      isBreakingFreeze = true;
+      damageMultiplier = 1.25;
+      isBreakingFreeze = false;
     }
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
@@ -164,7 +164,7 @@ export const useGameEngine = (
   };
 
   // AI decision making for single-player mode
-  const getAIKeys = (aiPlayer: Player, opponent: Player, projectiles: Projectile[], hazardZones: HazardZone[], isOvertime: boolean): KeyboardState => {
+  const getAIKeys = (aiPlayer: Player, opponent: Player, projectiles: Projectile[], hazardZones: HazardZone[], isOvertime: boolean, now: number): KeyboardState => {
     const distX = opponent.x - aiPlayer.x;
     const distY = opponent.y - aiPlayer.y;
     const distance = Math.sqrt(distX * distX + distY * distY);
@@ -174,105 +174,145 @@ export const useGameEngine = (
 
     // AI decision variables
     const isPlayer2 = aiPlayer.id === 2; // Player 2 uses arrow keys
-    const aggressiveness = 0.65; // How likely to attack (0-1)
-    const skillChance = 0.3; // How likely to use skill
-    const ultimateChance = 0.15; // How likely to use ultimate when available
+    const aggressiveness = aiPlayer.health > aiPlayer.maxHealth * 0.5 ? 0.75 : 0.4;
+    const skillChance = aiPlayer.mana > 50 ? 0.6 : 0.2;
+    const ultimateChance = 0.25;
 
     const keys: KeyboardState = {
-      a: false,
-      d: false,
-      w: false,
-      s: false,
-      space: false,
-      q: false,
-      e: false,
-      arrowLeft: false,
-      arrowRight: false,
-      arrowUp: false,
-      arrowDown: false,
-      enter: false,
-      shift: false,
-      slash: false,
+      a: false, d: false, w: false, s: false, space: false, q: false, e: false,
+      arrowLeft: false, arrowRight: false, arrowUp: false, arrowDown: false,
+      enter: false, shift: false, slash: false,
     };
 
     // 1. Dodging Logic (High Priority)
-    // Check for threatening projectiles or hazards
-    const isThreatened = projectiles.some(p =>
+    const threateningProjectiles = projectiles.filter(p =>
       p.ownerId !== aiPlayer.id &&
-      Math.abs(p.x - aiPlayer.x) < 200 && // Close enough
-      Math.abs(p.y - aiPlayer.y) < 100 && // Similar height
-      ((p.velocityX > 0 && p.x < aiPlayer.x) || (p.velocityX < 0 && p.x > aiPlayer.x)) // Moving towards AI
-    ) || hazardZones.some(h =>
-      h.ownerId !== aiPlayer.id &&
-      Math.abs(h.x + h.width / 2 - (aiPlayer.x + PLAYER_SIZE / 2)) < (h.width / 2 + PLAYER_SIZE / 2) && // Overlap X
-      Math.abs(h.y + h.height / 2 - (aiPlayer.y + PLAYER_SIZE / 2)) < (h.height / 2 + PLAYER_SIZE / 2) // Overlap Y (standing in it)
+      Math.abs(p.x - aiPlayer.x) < 300 &&
+      Math.abs(p.y - aiPlayer.y) < 150 &&
+      ((p.velocityX > 0 && p.x < aiPlayer.x) || (p.velocityX < 0 && p.x > aiPlayer.x))
     );
 
-    if (isThreatened && aiPlayer.isGrounded) {
-      // Jump to dodge
-      if (isPlayer2) keys.arrowUp = true;
-      else keys.w = true;
+    const isHazardThreat = hazardZones.some(h =>
+      h.ownerId !== aiPlayer.id &&
+      Math.abs(h.x + h.width / 2 - (aiPlayer.x + PLAYER_SIZE / 2)) < (h.width / 2 + PLAYER_SIZE / 2 + 20) &&
+      Math.abs(h.y + h.height / 2 - (aiPlayer.y + PLAYER_SIZE / 2)) < (h.height / 2 + PLAYER_SIZE / 2 + 20)
+    );
+
+    const isThreatened = threateningProjectiles.length > 0 || isHazardThreat;
+
+    if (isThreatened) {
+      if (aiPlayer.isGrounded) {
+        if (Math.random() < 0.7) {
+          if (isPlayer2) keys.arrowUp = true;
+          else keys.w = true;
+        }
+        // Also try to move sideways to dodge
+        if (distX > 0) {
+          if (isPlayer2) keys.arrowLeft = true;
+          else keys.a = true;
+        } else {
+          if (isPlayer2) keys.arrowRight = true;
+          else keys.d = true;
+        }
+      }
     }
 
     // 2. Movement Logic
-    // basic movement with anti-camping
-    if (distance > 130) {
-      // Move towards opponent
-      if (distX > 20) {
-        if (isPlayer2) keys.arrowRight = true;
-        else keys.d = true;
-      } else if (distX < -20) {
-        if (isPlayer2) keys.arrowLeft = true;
-        else keys.a = true;
-      }
-    } else if (distance < 90) {
-      // Move away from opponent (kiting)
-      if (distX > 0) {
-        if (isPlayer2) keys.arrowLeft = true;
-        else keys.a = true;
-      } else {
-        if (isPlayer2) keys.arrowRight = true;
-        else keys.d = true;
+    const preferredDistance = aiPlayer.character!.attackRange * 0.8;
+    const atLeftEdge = aiPlayer.x < ARENA.padding + 60;
+    const atRightEdge = aiPlayer.x > ARENA.width - ARENA.padding - PLAYER_SIZE - 60;
+    
+    // Stable decision making based on time (every 150ms)
+    // This prevents the AI from toggling keys every single frame
+    const decisionSeed = Math.floor(now / 150);
+    const getStableRandom = (offset: number) => {
+      const val = Math.sin(decisionSeed + offset + aiPlayer.id) * 10000;
+      return val - Math.floor(val);
+    };
+
+    const shouldFaceRight = distX > 0;
+    let moveLeft = false;
+    let moveRight = false;
+
+    // Movement logic with larger deadzones
+    if (atLeftEdge) {
+      moveRight = true;
+    } else if (atRightEdge) {
+      moveLeft = true;
+    } else {
+      if (distance > preferredDistance + 100) {
+        if (distX > 40) moveRight = true;
+        else if (distX < -40) moveLeft = true;
+      } else if (distance < preferredDistance - 100) {
+        // Kite away ONLY if not currently attacking or preparing to attack
+        if (aiPlayer.attackCooldownRemaining > 300) {
+          if (distX > 0) moveLeft = true;
+          else moveRight = true;
+        }
       }
     }
 
-    // Vertical movement logic (Jump/Drop)
-    if (aiPlayer.isGrounded) {
-      // Jump if opponent is significantly above (unless already dodging)
-      if (!keys.w && !keys.arrowUp && (distY < -80 || Math.random() < 0.005)) {
-        if (isPlayer2) keys.arrowUp = true;
-        else keys.w = true;
-      }
-
-      // Drop down platform if opponent is significantly below
-      if (distY > 80) {
-        if (isPlayer2) keys.arrowDown = true;
-        else keys.s = true;
-      }
+    // Apply movement keys
+    if (isPlayer2) {
+      keys.arrowLeft = moveLeft;
+      keys.arrowRight = moveRight;
+    } else {
+      keys.a = moveLeft;
+      keys.d = moveRight;
     }
 
-    // Attacking logic
-    // Only attack if somewhat vertically aligned (especially for melee) or at range
+    // 3. Attacking logic & Direction Correction
     const canMelee = aiPlayer.character!.id === 'gladiator' || aiPlayer.character!.id === 'ninja';
-    const attackRangeThreshold = aiPlayer.character!.attackRange + 50;
+    const attackRangeThreshold = aiPlayer.character!.attackRange + (canMelee ? 40 : 180);
+    
+    // Use stable random for attack decision to prevent flickering
+    const isReadyToAttack = aiPlayer.attackCooldownRemaining === 0 && 
+                          distance < attackRangeThreshold && 
+                          (isVerticalAligned || !canMelee);
 
-    if (distance < attackRangeThreshold && (isVerticalAligned || !canMelee) && Math.random() < aggressiveness) {
-      if (isPlayer2) keys.enter = true;
-      else keys.space = true;
+    if (isReadyToAttack) {
+      const attackChance = canMelee ? 0.6 : 0.3;
+      if (getStableRandom(1) < attackChance) {
+        // When attacking, OVERRIDE movement to face the player
+        // This is the key to stopping the vibration
+        if (isPlayer2) {
+          keys.arrowLeft = !shouldFaceRight;
+          keys.arrowRight = shouldFaceRight;
+          keys.enter = true;
+        } else {
+          keys.a = !shouldFaceRight;
+          keys.d = shouldFaceRight;
+          keys.space = true;
+        }
+      }
     }
 
-    // Skill usage
-    if (aiPlayer.mana > aiPlayer.character!.skill.manaCost &&
-      aiPlayer.skillCooldownRemaining === 0 &&
-      distance < 300 &&
-      Math.random() < skillChance) {
-      if (isPlayer2) keys.shift = true;
-      else keys.q = true;
+    // 4. Skill usage with stable decision
+    if (aiPlayer.mana >= aiPlayer.character!.skill.manaCost &&
+        aiPlayer.skillCooldownRemaining === 0 &&
+        distance < 450 &&
+        getStableRandom(2) < 0.4) {
+      
+      // Character specific skill logic
+      if (aiPlayer.character!.id === 'ninja' && distance > 200) {
+        // Use dash to close gap
+        if (isPlayer2) keys.shift = true;
+        else keys.q = true;
+      } else if (aiPlayer.character!.id === 'gladiator') {
+        // Gladiator uses shield if threatened
+        if (isThreatened || distance < 100) {
+          if (isPlayer2) keys.shift = true;
+          else keys.q = true;
+        }
+      } else {
+        if (isPlayer2) keys.shift = true;
+        else keys.q = true;
+      }
     }
 
-    // Ultimate usage when health is low or mana is high
-    if (aiPlayer.mana >= aiPlayer.character!.ultimate.manaCost &&
-      (aiPlayer.health < aiPlayer.maxHealth * 0.4 || Math.random() < ultimateChance)) {
+    // 5. Ultimate usage
+    if (aiPlayer.mana >= 100 &&
+      (aiPlayer.health < aiPlayer.maxHealth * 0.4 || distance < 300 || Math.random() < ultimateChance)) {
       if (isPlayer2) keys.slash = true;
       else keys.e = true;
     }
@@ -361,8 +401,8 @@ export const useGameEngine = (
         updatedPlayer.isFrozen = true;
         updatedPlayer.frozenDuration = 1500; // 1.5 seconds
         updatedPlayer.freezeGauge = 0;
-      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 2000) {
-        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1000) {
+      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 3000) {
+        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1500) {
           updatedPlayer.freezeGauge = Math.max(0, updatedPlayer.freezeGauge - 1);
           updatedPlayer.lastFreezeGaugeDecay = now;
         }
@@ -430,39 +470,23 @@ export const useGameEngine = (
       updatedPlayer.velocityY = 0; // No gravity while flying
     }
 
-    // Calculate new Y position for gravity
-    let gravityNewY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
-
-    // Platform collision detection for gravity
-    let gravityPlatformResult = { y: gravityNewY, isGrounded: false, platform: null as Platform | null };
-    if (!updatedPlayer.isFlying) {
-      gravityPlatformResult = checkPlatformCollision(updatedPlayer, gravityNewY, updatedPlayer.velocityY, platforms);
-    }
-
-    if (gravityPlatformResult.isGrounded && !updatedPlayer.isFlying) {
-      gravityNewY = gravityPlatformResult.y;
-      updatedPlayer.velocityY = 0;
-      updatedPlayer.isGrounded = true;
-      updatedPlayer.lastGroundedTime = now;
-    } else {
-      updatedPlayer.isGrounded = false;
-    }
-
-    // Vertical boundary checking
-    gravityNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, gravityNewY));
-
-    // If hit bottom boundary, ground the player
-    if (gravityNewY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
-      gravityNewY = ARENA.height - ARENA.padding - PLAYER_SIZE;
-      updatedPlayer.velocityY = 0;
-      updatedPlayer.isGrounded = true;
-      updatedPlayer.lastGroundedTime = now;
-    }
-
-    updatedPlayer.y = gravityNewY;
-
     // Skip movement/actions if stunned or frozen (but gravity was already applied)
     if (updatedPlayer.isStunned || updatedPlayer.isFrozen) {
+      // Calculate new Y position for gravity even when stunned
+      let stunnedNewY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
+      let stunnedPlatformResult = { y: stunnedNewY, isGrounded: false, platform: null as Platform | null };
+      if (!updatedPlayer.isFlying) {
+        stunnedPlatformResult = checkPlatformCollision(updatedPlayer, stunnedNewY, updatedPlayer.velocityY, platforms);
+      }
+      if (stunnedPlatformResult.isGrounded && !updatedPlayer.isFlying) {
+        stunnedNewY = stunnedPlatformResult.y;
+        updatedPlayer.velocityY = 0;
+        updatedPlayer.isGrounded = true;
+      } else {
+        updatedPlayer.isGrounded = false;
+      }
+      stunnedNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, stunnedNewY));
+      updatedPlayer.y = stunnedNewY;
       return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newShieldTick };
     }
 
@@ -486,6 +510,8 @@ export const useGameEngine = (
     let speed = character.speed;
     if (updatedPlayer.isShielding) speed *= 0.5;
     if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
+    // Apply freeze gauge slow (10% per stack)
+    if (updatedPlayer.freezeGauge > 0) speed *= (1 - (updatedPlayer.freezeGauge * 0.1));
     if (updatedPlayer.rootDuration > 0) speed = 0;
     speed *= (1 + updatedPlayer.speedBoost);
 
@@ -529,7 +555,7 @@ export const useGameEngine = (
       updatedPlayer.y = newY_pos;
     }
 
-    // Jumping logic (now is already defined above)
+    // Jumping logic
     const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
 
     if (jumpKey && canJump && !updatedPlayer.isJumping) {
@@ -543,10 +569,10 @@ export const useGameEngine = (
       updatedPlayer.isJumping = false;
     }
 
-    // Calculate new Y position for jump
+    // Calculate new Y position
     let newY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
 
-    // Platform collision detection for movement
+    // Platform collision detection
     let platformResult = { y: newY, isGrounded: false, platform: null as Platform | null };
     if (!updatedPlayer.isFlying) {
       platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY, platforms);
@@ -558,10 +584,10 @@ export const useGameEngine = (
       updatedPlayer.isGrounded = true;
       updatedPlayer.lastGroundedTime = now;
 
-      // Drop through one-way platform
-      if (moveDown && platformResult.platform?.type === 'one-way') {
+      // Drop through one-way platform - only if NOT currently jumping
+      if (moveDown && platformResult.platform?.type === 'one-way' && !updatedPlayer.isJumping) {
         updatedPlayer.isGrounded = false;
-        newY += 25; // Push through platform (more than 15px height)
+        newY += 25; // Push through platform
         updatedPlayer.velocityY = 300; // Add downward velocity
       }
     } else {
@@ -655,7 +681,7 @@ export const useGameEngine = (
             updatedPlayer.y + PLAYER_SIZE / 2,
             attackDirection * 490,
             -120,
-            baseDamage
+            baseDamage * 0.4
           ));
           break;
         case 'hunter':
@@ -756,7 +782,7 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 750,
+              attackDirection * 880,
               0,
               baseDamage * 3
             ));
@@ -806,9 +832,9 @@ export const useGameEngine = (
                     player.id,
                     currentPlayer.x + PLAYER_SIZE / 2,
                     currentPlayer.y + PLAYER_SIZE / 2 + (i-2) * projGap, // Offset each snowball vertically
-                    (currentPlayer.facingRight ? 1 : -1) * 950,
+                    (currentPlayer.facingRight ? 1 : -1) * 930,
                     0,
-                    baseDamage * 0.65
+                    baseDamage * 0.5
                   );
                   return {
                     ...prev,
@@ -944,7 +970,7 @@ export const useGameEngine = (
             0, // top-left corner
             0, // top-left corner
             baseDamage * 0.1,
-            3000 // 3 seconds
+            2500 // 2.5 seconds
           ));
           break;
       }
@@ -998,7 +1024,7 @@ export const useGameEngine = (
       };
 
       // Get player 2 keys from AI or keyboard
-      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.isOvertime) : p1Keys;
+      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.isOvertime, now) : p1Keys;
 
       // Update players
       const p1Result = updatePlayer(
@@ -1081,7 +1107,7 @@ export const useGameEngine = (
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             if (dist > 10) {
-              const speed = 700;
+              const speed = 650;
               newProj.velocityX = (dx / dist) * speed;
               newProj.velocityY = (dy / dist) * speed;
               if (process.env.NODE_ENV !== 'production') {
@@ -1166,7 +1192,7 @@ export const useGameEngine = (
                 'toxic-pool',
                 proj.ownerId,
                 0, 0,
-                proj.damage * 0.15,
+                proj.damage * 0.2,
                 proj.firePoolDuration
               );
               
@@ -1178,8 +1204,8 @@ export const useGameEngine = (
               return false; // Remove the flask
             }
 
-            // For now, only projectiles with gravity are blocked by platforms
-            if (proj.hasGravity) {
+            // For now, only projectiles with gravity are blocked by platforms (except meteors)
+            if (proj.hasGravity && proj.type !== 'meteor') {
               return false;
             }
           }
@@ -1192,7 +1218,7 @@ export const useGameEngine = (
             if (proj.createsFirePool) {
               const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
               const isToxic = proj.type === 'flask';
-              const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.01;
+              const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.01;
               const pool = createHazardZone(
                 poolType,
                 proj.ownerId,
@@ -1217,7 +1243,7 @@ export const useGameEngine = (
           if (proj.createsFirePool) {
             const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
             const isToxic = proj.type === 'flask';
-            const damage = isToxic ? proj.damage * 0.15 : proj.damage * 0.01;
+            const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.01;
             const pool = createHazardZone(
               poolType,
               proj.ownerId,
@@ -1332,7 +1358,7 @@ export const useGameEngine = (
                   players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + 1;
                   players[targetPlayer].lastHitByIceMage = now;
                 } else if (proj.type === 'large-snowball') {
-                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + Math.round(Math.random() * 0.5 + 0.5);
+                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + Math.round(Math.random());
                   players[targetPlayer].lastHitByIceMage = now;
                 }
               }
@@ -1372,7 +1398,7 @@ export const useGameEngine = (
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
                 const isToxic = proj.type === 'flask';
-                const damage = isToxic ? proj.damage * 0.12 : proj.damage * 0.02;
+                const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.02;
                 const pool = createHazardZone(
                   poolType,
                   proj.ownerId,
@@ -1407,7 +1433,7 @@ export const useGameEngine = (
               proj.x, proj.y, proj.width, proj.height,
               owner.x, owner.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              // For bat: heal base 75% of damage + bonus from hits
+              // For bat: heal base 50% of damage + bonus from hits
               if (proj.type === 'bat') {
                 const baseHeal = 0;
                 const bonusHeal = (proj.damageAccumulated || 0) * 0.5;
@@ -1420,7 +1446,7 @@ export const useGameEngine = (
                 }
               } else {
                 // Other returning projectiles: heal only from accumulated damage
-                const healAmount = (proj.damageAccumulated || 0) * 0.75;
+                const healAmount = (proj.damageAccumulated || 0) * 0.5;
                 if (healAmount > 0) {
                   players[proj.ownerId - 1].health = Math.min(
                     players[proj.ownerId - 1].maxHealth,
@@ -1604,12 +1630,12 @@ export const useGameEngine = (
 
               // Apply slow
               players[targetIndex].isSlowed = true;
-              players[targetIndex].slowAmount = 0.33;
+              players[targetIndex].slowAmount = 0.3;
               players[targetIndex].slowDuration = 3000;
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {
-                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 2;
+                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
                   players[targetIndex].lastHitByIceMage = now;
               }
             }
