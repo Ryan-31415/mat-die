@@ -8,6 +8,7 @@ const TICK_RATE = 1000 / 60; // 60 FPS
 
 interface GameEngineState {
   players: [Player, Player];
+  clones: Player[];
   projectiles: Projectile[];
   hazardZones: HazardZone[];
   attackHitboxes: AttackHitbox[];
@@ -33,6 +34,7 @@ export const useGameEngine = (
       createInitialPlayer(1, player1Character),
       createInitialPlayer(2, player2Character),
     ],
+    clones: [],
     projectiles: [],
     hazardZones: [],
     attackHitboxes: [],
@@ -131,7 +133,7 @@ export const useGameEngine = (
 
     if (player.isFrozen) {
       damageMultiplier = 1.25;
-      isBreakingFreeze = false;
+      isBreakingFreeze = true;
     }
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
@@ -327,7 +329,7 @@ export const useGameEngine = (
     otherPlayer: Player,
     shieldManaTick: number,
     platforms: Platform[]
-  ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newShieldTick: number } => {
+  ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newClones: Player[]; newShieldTick: number } => {
     const now = Date.now();
     const isP1 = player.id === 1;
     const character = player.character!;
@@ -335,6 +337,7 @@ export const useGameEngine = (
     const newProjectiles: Projectile[] = [];
     const newHitboxes: AttackHitbox[] = [];
     const newHazards: HazardZone[] = [];
+    const newClones: Player[] = [];
     let newShieldTick = shieldManaTick;
 
     // Movement keys - W/ArrowUp is now JUMP
@@ -476,30 +479,37 @@ export const useGameEngine = (
     } else {
       updatedPlayer.knockbackVelocityX = 0;
     }
+    if (Math.abs(updatedPlayer.knockbackVelocityY) > 10) {
+      updatedPlayer.knockbackVelocityY *= Math.pow(0.9, deltaTime / 16); 
+    } else {
+      updatedPlayer.knockbackVelocityY = 0;
+    }
 
     // Skip movement/actions if stunned or frozen (but gravity was already applied)
     if (updatedPlayer.isStunned || updatedPlayer.isFrozen) {
-      // Calculate new Y position for gravity even when stunned
-      let stunnedNewY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
       // Apply knockback even when stunned
       let stunnedNewX = updatedPlayer.x + updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
       stunnedNewX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, stunnedNewX));
       updatedPlayer.x = stunnedNewX;
 
+      // Calculate new Y position for gravity even when stunned, including vertical knockback
+      let stunnedNewY = updatedPlayer.y + (updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY) * (deltaTime / 1000);
+      
       let stunnedPlatformResult = { y: stunnedNewY, isGrounded: false, platform: null as Platform | null };
       if (!updatedPlayer.isFlying) {
-        stunnedPlatformResult = checkPlatformCollision(updatedPlayer, stunnedNewY, updatedPlayer.velocityY, platforms);
+        stunnedPlatformResult = checkPlatformCollision(updatedPlayer, stunnedNewY, updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY, platforms);
       }
       if (stunnedPlatformResult.isGrounded && !updatedPlayer.isFlying) {
         stunnedNewY = stunnedPlatformResult.y;
         updatedPlayer.velocityY = 0;
+        updatedPlayer.knockbackVelocityY = 0;
         updatedPlayer.isGrounded = true;
       } else {
         updatedPlayer.isGrounded = false;
       }
       stunnedNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, stunnedNewY));
       updatedPlayer.y = stunnedNewY;
-      return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newShieldTick };
+      return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newClones, newShieldTick };
     }
 
     // Shield handling for gladiator
@@ -522,7 +532,7 @@ export const useGameEngine = (
     let speed = character.speed;
     if (updatedPlayer.isShielding) speed *= 0.5;
     if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
-    // Apply freeze gauge slow (12.5% per stack)
+    // Apply freeze gauge slow (10% per stack)
     if (updatedPlayer.freezeGauge > 0) speed *= (1 - (updatedPlayer.freezeGauge * 0.1));
     if (updatedPlayer.rootDuration > 0) speed = 0;
     speed *= (1 + updatedPlayer.speedBoost);
@@ -537,12 +547,15 @@ export const useGameEngine = (
       if (jumpKey) dy -= 1;
       if (moveDown) dy += 1;
 
-      // Force movement if isFlying (Reaper constant movement)
-      if (dx === 0 && dy === 0) {
+      // Force horizontal movement if isFlying (Reaper constant movement)
+      // Even if moving vertically, add horizontal component to ensure no stopping
+      if (dx === 0) {
         dx = updatedPlayer.facingRight ? 1 : -1;
-      } else {
-        // Normalize for constant speed
-        const length = Math.sqrt(dx * dx + dy * dy);
+      }
+      
+      // Normalize for constant speed
+      const length = Math.sqrt(dx * dx + dy * dy);
+      if (length > 0) {
         dx /= length;
         dy /= length;
       }
@@ -561,6 +574,7 @@ export const useGameEngine = (
 
     // Boundary checking
     newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
+    updatedPlayer.x = newX;
 
     // Jumping logic
     const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
@@ -577,17 +591,26 @@ export const useGameEngine = (
     }
 
     // Calculate new Y position
-    let newY = updatedPlayer.y + updatedPlayer.velocityY * (deltaTime / 1000);
+    let newY = updatedPlayer.y;
+    if (updatedPlayer.isFlying) {
+      newY += dy * moveAmount;
+    } else {
+      newY += updatedPlayer.velocityY * (deltaTime / 1000);
+    }
+    
+    // Apply vertical knockback to all modes
+    newY += updatedPlayer.knockbackVelocityY * (deltaTime / 1000);
 
     // Platform collision detection
     let platformResult = { y: newY, isGrounded: false, platform: null as Platform | null };
     if (!updatedPlayer.isFlying) {
-      platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY, platforms);
+      platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY, platforms);
     }
 
     if (platformResult.isGrounded) {
       newY = platformResult.y;
       updatedPlayer.velocityY = 0;
+      updatedPlayer.knockbackVelocityY = 0;
       updatedPlayer.isGrounded = true;
       updatedPlayer.lastGroundedTime = now;
 
@@ -608,6 +631,7 @@ export const useGameEngine = (
     if (newY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
       newY = ARENA.height - ARENA.padding - PLAYER_SIZE;
       updatedPlayer.velocityY = 0;
+      updatedPlayer.knockbackVelocityY = 0;
       updatedPlayer.isGrounded = true;
       updatedPlayer.lastGroundedTime = now;
     }
@@ -841,7 +865,7 @@ export const useGameEngine = (
                     currentPlayer.y + PLAYER_SIZE / 2 + (i-1) * projGap - projGap * 0.5, // Offset each snowball vertically
                     (currentPlayer.facingRight ? 1 : -1) * 900,
                     0,
-                    baseDamage * 0.5
+                    baseDamage * 0.2
                   );
                   return {
                     ...prev,
@@ -936,6 +960,18 @@ export const useGameEngine = (
           updatedPlayer.damageBoost = 0.50;
           updatedPlayer.speedBoost = 0.60;
           updatedPlayer.dodgesRemaining = 2;
+          
+          // Spawn Clone
+          const clone: Player = {
+            ...createInitialPlayer(player.id, character),
+            x: updatedPlayer.x,
+            y: updatedPlayer.y,
+            maxHealth: character.maxHealth / 4,
+            health: character.maxHealth / 4,
+            isClone: true,
+            speedBoost: 0.2, // 20% faster
+          };
+          newClones.push(clone);
           break;
         case 'scientist':
           newHazards.push(createHazardZone(
@@ -992,7 +1028,7 @@ export const useGameEngine = (
       }, 500);
     }
 
-    return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newShieldTick };
+    return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newClones, newShieldTick };
   };
 
   const gameLoop = useCallback(() => {
@@ -1054,12 +1090,47 @@ export const useGameEngine = (
       shieldManaTickRef.current = [p1Result.newShieldTick, p2Result.newShieldTick];
 
       let players: [Player, Player] = [p1Result.player, p2Result.player];
-      let projectiles = [...prev.projectiles, ...p1Result.newProjectiles, ...p2Result.newProjectiles];
-      let attackHitboxes = [...prev.attackHitboxes, ...p1Result.newHitboxes, ...p2Result.newHitboxes];
+      
+      // Update clones
+      let nextClones: Player[] = [];
+      let cloneProjectiles: Projectile[] = [];
+      let cloneHitboxes: AttackHitbox[] = [];
+      let cloneHazards: HazardZone[] = [];
+
+      prev.clones.forEach(clone => {
+        if (clone.health <= 0) return;
+
+        const target = prev.players[clone.id === 1 ? 1 : 0];
+        
+        // Clone AI
+        let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.isOvertime, now);
+        // Disable skills/ultimate for clones
+        aiKeys = { ...aiKeys, q: false, e: false, shift: false, slash: false };
+        
+        const cloneRes = updatePlayer(
+          clone,
+          aiKeys,
+          deltaTime,
+          target,
+          0,
+          prev.platforms
+        );
+
+        nextClones.push(cloneRes.player);
+        cloneProjectiles.push(...cloneRes.newProjectiles);
+        cloneHitboxes.push(...cloneRes.newHitboxes);
+        cloneHazards.push(...cloneRes.newHazards);
+      });
+
+      // Add new clones spawned by players
+      nextClones.push(...p1Result.newClones, ...p2Result.newClones);
+
+      let projectiles = [...prev.projectiles, ...p1Result.newProjectiles, ...p2Result.newProjectiles, ...cloneProjectiles];
+      let attackHitboxes = [...prev.attackHitboxes, ...p1Result.newHitboxes, ...p2Result.newHitboxes, ...cloneHitboxes];
 
       // Handle Replacements
       let hazardZones = [...prev.hazardZones];
-      const newCoils = [...p1Result.newHazards, ...p2Result.newHazards].filter(h => h.type === 'tesla-coil');
+      const newCoils = [...p1Result.newHazards, ...p2Result.newHazards, ...cloneHazards].filter(h => h.type === 'tesla-coil');
       if (newCoils.length > 0) {
         hazardZones = hazardZones.map(z => {
           if (z.type === 'tesla-coil' && newCoils.some(nc => nc.ownerId === z.ownerId)) {
@@ -1068,7 +1139,7 @@ export const useGameEngine = (
           return z;
         });
       }
-      const newTraps = [...p1Result.newHazards, ...p2Result.newHazards].filter(h => h.type === 'bear-trap');
+      const newTraps = [...p1Result.newHazards, ...p2Result.newHazards, ...cloneHazards].filter(h => h.type === 'bear-trap');
       if (newTraps.length > 0) {
         hazardZones = hazardZones.map(z => {
           if (z.type === 'bear-trap' && newTraps.some(nt => nt.ownerId === z.ownerId)) {
@@ -1077,7 +1148,7 @@ export const useGameEngine = (
           return z;
         });
       }
-      hazardZones = [...hazardZones, ...p1Result.newHazards, ...p2Result.newHazards];
+      hazardZones = [...hazardZones, ...p1Result.newHazards, ...p2Result.newHazards, ...cloneHazards];
 
       const coilDamageMap = new Map<string, number>();
 
@@ -1269,8 +1340,10 @@ export const useGameEngine = (
         // Check player collision
         const timeSinceCreated = now - proj.createdAt;
         const isReturningToOwner = proj.isReturning && timeSinceCreated > proj.lifetime * 0.35;
-        const targetPlayer = proj.ownerId === 1 ? 1 : 0;
-        const target = players[targetPlayer];
+        
+        const opponentId = proj.ownerId === 1 ? 2 : 1;
+        const targetPlayerIndex = opponentId - 1;
+        const playerTarget = players[targetPlayerIndex];
 
         // For bat projectiles: allow damage on both forward and return path, but only once per direction
         if (proj.type === 'bat') {
@@ -1278,19 +1351,20 @@ export const useGameEngine = (
             // Bat on return path - can hit if hasn't hit on return yet
             if (!proj.hasHitReturn && checkCollision(
               proj.x, proj.y, proj.width, proj.height,
-              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+              playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
               // Apply damage on return path
-              const damageRes = applyDamage(target, proj.damage);
-              players[targetPlayer] = damageRes.player;
+              const damageRes = applyDamage(playerTarget, proj.damage);
+              players[targetPlayerIndex] = damageRes.player;
               proj.hasHitReturn = true; // Mark as hit on return path
 
               // Reaper Passive: Life steal 20%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * 0.2
+                  players[ownerIndex].health + damageRes.dealt * regenMultiplier
                 );
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
@@ -1299,30 +1373,31 @@ export const useGameEngine = (
               return true;
             }
           } else {
-            // Bat on forward path - can hit if hasn't hit on forward yet
+            // Bat on forward path - can hit player
             if (!proj.hasHitForward && checkCollision(
               proj.x, proj.y, proj.width, proj.height,
-              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
+              playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              if (target.isShielding) {
-                const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
-                  (proj.ownerId === 2 && target.facingRight);
+              if (playerTarget.isShielding) {
+                const fromFront = (proj.ownerId === 1 && !playerTarget.facingRight) ||
+                  (proj.ownerId === 2 && playerTarget.facingRight);
                 if (fromFront) {
                   // Shield blocks bat
                   return false;
                 }
               }
 
-              const damageRes = applyDamage(target, proj.damage);
-              players[targetPlayer] = damageRes.player;
+              const damageRes = applyDamage(playerTarget, proj.damage);
+              players[targetPlayerIndex] = damageRes.player;
               proj.hasHitForward = true; // Mark as hit on forward path
 
               // Reaper Passive: Life steal 20%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * 0.2
+                  players[ownerIndex].health + damageRes.dealt * regenMultiplier
                 );
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
@@ -1335,14 +1410,42 @@ export const useGameEngine = (
 
               return false;
             }
+            
+            // Check collision with clones on forward path
+            for (let i = 0; i < nextClones.length; i++) {
+              const clone = nextClones[i];
+              if (clone.id !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) {
+                const damageRes = applyDamage(clone, proj.damage);
+                nextClones[i] = damageRes.player;
+                if (proj.isReturning && timeSinceCreated < proj.lifetime * 0.35) {
+                  return true;
+                }
+                return false;
+              }
+            }
           }
         } else {
           // Non-bat projectiles: original logic
           if (!isReturningToOwner) {
-            if (checkCollision(
+            // Check player collision first
+            const hitPlayer = checkCollision(
               proj.x, proj.y, proj.width, proj.height,
-              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
-            )) {
+              playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
+            );
+            
+            // Find clone collision if player not hit
+            let hitCloneIndex = -1;
+            if (!hitPlayer) {
+              hitCloneIndex = nextClones.findIndex(c => c.id !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
+            }
+
+            if (hitPlayer || hitCloneIndex !== -1) {
+              const target = hitPlayer ? playerTarget : nextClones[hitCloneIndex];
+              const setTarget = (p: Player) => {
+                if (hitPlayer) players[targetPlayerIndex] = p;
+                else nextClones[hitCloneIndex] = p;
+              };
+
               if (target.isShielding) {
                 const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
                   (proj.ownerId === 2 && target.facingRight);
@@ -1356,56 +1459,64 @@ export const useGameEngine = (
                 }
               }
 
-              // Check if this projectile has already hit this target (for penetrating projectiles)
-              if (proj.hitTargets.includes(target.id)) {
+              // Check if this projectile has recently hit this target (for penetrating projectiles)
+              // Allow re-hit after 100ms
+              const lastHit = proj.lastHitTime[target.id] || 0;
+              if (now - lastHit < 100) {
                 return true;
               }
 
               const damageRes = applyDamage(target, proj.damage);
-              players[targetPlayer] = damageRes.player;
+              setTarget(damageRes.player);
               
-              // Add target to hit list
-              proj.hitTargets.push(target.id);
+              // Record hit time
+              proj.lastHitTime[target.id] = now;
 
               // Ice Mage Passive
-              if (players[proj.ownerId - 1].character?.id === 'ice-mage' && !players[targetPlayer].isFrozen) {
+              if (players[proj.ownerId - 1].character?.id === 'ice-mage' && !target.isFrozen) {
                 if (proj.type === 'snowball') {
-                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + 1;
-                  players[targetPlayer].lastHitByIceMage = now;
+                  const updated = { ...target, freezeGauge: (target.freezeGauge || 0) + 1, lastHitByIceMage: now };
+                  setTarget(updated);
                 } else if (proj.type === 'large-snowball') {
-                  players[targetPlayer].freezeGauge = (players[targetPlayer].freezeGauge || 0) + Math.round(Math.random());
-                  players[targetPlayer].lastHitByIceMage = now;
+                  if (Math.random() < 0.33) {
+                    const updated = { ...target, freezeGauge: (target.freezeGauge || 0) + 1, lastHitByIceMage: now };
+                    setTarget(updated);
+                  } else {
+                    const updated = { ...target, lastHitByIceMage: now };
+                    setTarget(updated);
+                  }
                 }
               }
 
-              // Reaper Passive: Life steal 30%
+              // Reaper Passive: Life steal 20%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * 0.3
+                  players[ownerIndex].health + damageRes.dealt * regenMultiplier
                 );
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
               }
 
               if (proj.isPoisonous) {
-                players[targetPlayer].isPoisoned = true;
-                players[targetPlayer].poisonDuration = proj.poisonDuration;
+                const updated = { ...target, isPoisoned: true, poisonDuration: proj.poisonDuration };
+                setTarget(updated);
               }
               if (proj.slowAmount > 0) {
-                players[targetPlayer].isSlowed = true;
-                players[targetPlayer].slowAmount = proj.slowAmount;
-                players[targetPlayer].slowDuration = proj.slowDuration;
+                const updated = { ...target, isSlowed: true, slowAmount: proj.slowAmount, slowDuration: proj.slowDuration };
+                setTarget(updated);
               }
               if (proj.stunDuration > 0 && proj.type === 'electric-orb') {
-                players[targetPlayer].isStunned = true;
-                players[targetPlayer].stunDuration = proj.stunDuration;
+                const updated = { ...target, isStunned: true, stunDuration: proj.stunDuration };
+                setTarget(updated);
               }
               if (proj.knockback > 0) {
                 const knockbackDir = proj.velocityX > 0 ? 1 : -1;
                 // Apply smooth knockback force instead of instant teleport
-                players[targetPlayer].knockbackVelocityX = knockbackDir * proj.knockback * 10;
+                const updated = { ...target, knockbackVelocityX: knockbackDir * proj.knockback * 10 };
+                setTarget(updated);
               }
 
               if (proj.createsFirePool) {
@@ -1502,32 +1613,49 @@ export const useGameEngine = (
         }
 
         const targetIndex = hitbox.ownerId === 1 ? 1 : 0;
-        const target = players[targetIndex];
+        const playerTarget = players[targetIndex];
 
-        if (target.isShielding) {
-          const fromFront = (hitbox.ownerId === 1 && !target.facingRight) ||
-            (hitbox.ownerId === 2 && target.facingRight);
-          if (fromFront) return true;
+        // Check collision with player
+        const hitPlayer = checkCollision(
+          hitbox.x, hitbox.y, hitbox.width, hitbox.height,
+          playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
+        );
+
+        // Check collision with clones
+        let hitCloneIndex = -1;
+        if (!hitPlayer) {
+          hitCloneIndex = nextClones.findIndex(c => c.id !== hitbox.ownerId && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
         }
 
-        if (checkCollision(
-          hitbox.x, hitbox.y, hitbox.width, hitbox.height,
-          target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
-        )) {
-          const damageRes = applyDamage(target, hitbox.damage);
-          players[targetIndex] = damageRes.player;
+        if (hitPlayer || hitCloneIndex !== -1) {
+          const target = hitPlayer ? playerTarget : nextClones[hitCloneIndex];
+          const setTarget = (p: Player) => {
+            if (hitPlayer) players[targetIndex] = p;
+            else nextClones[hitCloneIndex] = p;
+          };
 
-          // Reaper Passive: Life steal 30%
+          if (target.isShielding) {
+            const fromFront = (hitbox.ownerId === 1 && !target.facingRight) ||
+              (hitbox.ownerId === 2 && target.facingRight);
+            if (fromFront) return true;
+          }
+
+          const damageRes = applyDamage(target, hitbox.damage);
+          setTarget(damageRes.player);
+
+          // Reaper Passive: Life steal 20%
           const ownerIndex = hitbox.ownerId - 1;
           if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+            const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
             players[ownerIndex].health = Math.min(
               players[ownerIndex].maxHealth,
-              players[ownerIndex].health + damageRes.dealt * 0.3
+              players[ownerIndex].health + damageRes.dealt * regenMultiplier
             );
           }
           
           // Apply smooth knockback
-          players[targetIndex].knockbackVelocityX = (hitbox.x < target.x ? 1 : -1) * hitbox.knockback * 10;
+          const updated = { ...damageRes.player, knockbackVelocityX: (hitbox.x < target.x ? 1 : -1) * hitbox.knockback * 10 };
+          setTarget(updated);
           
           return false;
         }
@@ -1712,10 +1840,10 @@ export const useGameEngine = (
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
               const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
               const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
-              const damageRes = applyDamage(target, baseDamage * 0.25); // 20% of base damage per tick (26 DPS)
+              const damageRes = applyDamage(target, baseDamage * 0.25); // 25% of base damage per tick
               players[targetIndex] = damageRes.player;
-              // Life steal 20%
-              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.2);
+              // Life steal 20 -> 50%
+              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.5);
               players[i].lastUltTick = now;
               // Slow effect
               players[targetIndex].isSlowed = true;
@@ -1739,6 +1867,7 @@ export const useGameEngine = (
       return {
         ...prev,
         players,
+        clones: nextClones,
         projectiles,
         hazardZones,
         attackHitboxes,
@@ -1773,6 +1902,7 @@ export const useGameEngine = (
         createInitialPlayer(1, player1Character),
         createInitialPlayer(2, player2Character),
       ],
+      clones: [],
       projectiles: [],
       hazardZones: [],
       attackHitboxes: [],

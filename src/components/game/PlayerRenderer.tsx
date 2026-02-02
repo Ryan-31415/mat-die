@@ -61,7 +61,8 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         top: player.y,
         width: PLAYER_SIZE,
         height: PLAYER_SIZE,
-        opacity: player.isInvisible ? 0.3 : (player.isFlying ? 0.6 : 1),
+        opacity: player.isClone ? 0.5 : (player.isInvisible ? 0.3 : (player.isFlying ? 0.6 : 1)),
+        filter: player.isClone ? 'blur(2px)' : undefined,
         transform: `scaleX(${player.facingRight ? 1 : -1})`,
       }}
     >

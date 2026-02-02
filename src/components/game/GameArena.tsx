@@ -213,6 +213,15 @@ const GameArena = ({
           character={player2Character}
         />
 
+        {/* Clones */}
+        {gameState.clones.map((clone, index) => (
+          <PlayerRenderer
+            key={`clone-${clone.id}-${index}-${clone.x}`}
+            player={clone}
+            character={clone.character!}
+          />
+        ))}
+
         {/* Round winner overlay */}
         {gameState.roundWinner && (
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">

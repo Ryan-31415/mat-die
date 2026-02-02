@@ -45,7 +45,7 @@ export interface Projectile {
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
   hasHitReturn?: boolean; // Track if projectile has hit on return path
-  hitTargets: number[]; // Track IDs of players hit by penetrating projectiles
+  lastHitTime: Record<number, number>; // Track timestamp of last hit per player ID
 }
 
 export interface HazardZone {
@@ -125,7 +125,7 @@ export const createProjectile = (
     damageAccumulated: 0,
     hasHitForward: false,
     hasHitReturn: false,
-    hitTargets: [],
+    lastHitTime: {},
   };
 
   let result: Projectile = { ...baseProjectile };
@@ -134,8 +134,8 @@ export const createProjectile = (
     case 'arrow':
       result = {
         ...baseProjectile,
-        width: 40,
-        height: 5,
+        width: 48,
+        height: 6,
         hasGravity: true,
         gravity: 170,
       };
@@ -143,8 +143,8 @@ export const createProjectile = (
     case 'poison-arrow':
       result = {
         ...baseProjectile,
-        width: 40,
-        height: 5,
+        width: 48,
+        height: 6,
         hasGravity: true,
         gravity: 170,
         isPoisonous: true,
@@ -236,7 +236,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 75,
         height: 75,
-        lifetime: 3000,
+        lifetime: 3600,
         canBeDeflected: false,
         isReturning: true,
         hasHitForward: false,
@@ -256,9 +256,9 @@ export const createProjectile = (
         ...baseProjectile,
         width: 33,
         height: 33,
-        knockback: 100,
-        lifetime: 2000,
-        canBeDeflected: false,
+        knockback: 140,
+        lifetime: 1400,
+        canBeDeflected: true,
       };
       break;
     default:

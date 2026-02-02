@@ -88,6 +88,8 @@ export interface Player {
   frozenDuration: number;
   lastHitByIceMage: number;
   lastFreezeGaugeDecay: number;
+  // Clone
+  isClone: boolean;
 }
 
 export interface GameState {
@@ -149,14 +151,14 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.6,
     speed: 5.2,
-    attackDamage: 14,
+    attackDamage: 15,
     attackRange: 600,
     attackCooldown: 600,
     skill: {
       name: '독성 강화',
       description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 33% 감소, 지속 피해)를 부여합니다.',
       manaCost: 35,
-      cooldown: 4000,
+      cooldown: 5000,
     },
     ultimate: {
       name: '화살 폭풍',
@@ -276,14 +278,14 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '사신',
     color: '#475569',
     colorClass: 'bg-slate-600',
-    maxHealth: 110,
+    maxHealth: 115,
     maxMana: 100,
     manaRegen: 6.7,
-    speed: 5.1,
-    attackDamage: 12,
+    speed: 5.2,
+    attackDamage: 14,
     attackRange: 110,
-    attackCooldown: 1050,
-    passive: '가한 데미지의 20%를 체력으로 회복합니다.',
+    attackCooldown: 1100,
+    passive: '흡혈: 가한 데미지의 20%를 체력으로 회복합니다.',
     skill: {
       name: '박쥐',
       description: '부메랑처럼 돌아오는 박쥐를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 50%를 추가 회복합니다.',
@@ -292,7 +294,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '유체화',
-      description: '2.5초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다.',
+      description: '2.5초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기의 흡혈 패시브의 효과는 2.5배로 증가합니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -314,8 +316,8 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '눈사태',
       description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐냅니다.',
-      manaCost: 40,
-      cooldown: 4500,
+      manaCost: 45,
+      cooldown: 5000,
     },
     ultimate: {
       name: '블리자드',
@@ -400,4 +402,5 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   frozenDuration: 0,
   lastHitByIceMage: 0,
   lastFreezeGaugeDecay: 0,
+  isClone: false,
 });
