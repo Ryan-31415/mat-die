@@ -61,11 +61,19 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         top: player.y,
         width: PLAYER_SIZE,
         height: PLAYER_SIZE,
-        opacity: player.isClone ? 0.5 : (player.isInvisible ? 0.3 : (player.isFlying ? 0.6 : 1)),
-        filter: player.isClone ? 'blur(2px)' : undefined,
+        opacity: player.isClone ? 0.4 : (player.isInvisible ? 0.3 : (player.isFlying ? 0.6 : 1)),
         transform: `scaleX(${player.facingRight ? 1 : -1})`,
       }}
     >
+      {/* Mini Health Bar for Clones */}
+      {player.isClone && (
+        <div className="absolute -top-8 left-0 right-0 h-1.5 bg-muted rounded-full overflow-hidden border border-background">
+          <div 
+            className="h-full bg-red-500 transition-all duration-200"
+            style={{ width: `${(player.health / player.maxHealth) * 100}%` }}
+          />
+        </div>
+      )}
       {/* Character body */}
       <div
         className={`w-full h-full border-2 border-foreground/50 ${player.isAttacking || player.isUsingSkill || player.isUsingUltimate
@@ -123,15 +131,17 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
       </div>
 
       {/* Player indicator */}
-      <div
-        className={`absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-0.5 rounded ${player.id === 1
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-destructive text-destructive-foreground'
-          }`}
-        style={{ transform: `scaleX(${player.facingRight ? 1 : -1}) translateX(${player.facingRight ? -50 : 50}%)` }}
-      >
-        P{player.id}
-      </div>
+      {!player.isClone && (
+        <div
+          className={`absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold px-2 py-0.5 rounded ${player.id === 1
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-destructive text-destructive-foreground'
+            }`}
+          style={{ transform: `scaleX(${player.facingRight ? 1 : -1}) translateX(${player.facingRight ? -50 : 50}%)` }}
+        >
+          P{player.id}
+        </div>
+      )}
 
       {/* Status effects */}
       {statusEffects.length > 0 && (

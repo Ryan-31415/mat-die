@@ -90,6 +90,7 @@ export interface Player {
   lastFreezeGaugeDecay: number;
   // Clone
   isClone: boolean;
+  createdAt: number;
 }
 
 export interface GameState {
@@ -403,4 +404,5 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   lastHitByIceMage: 0,
   lastFreezeGaugeDecay: 0,
   isClone: false,
+  createdAt: Date.now(),
 });

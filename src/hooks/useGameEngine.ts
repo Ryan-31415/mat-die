@@ -969,6 +969,7 @@ export const useGameEngine = (
             maxHealth: character.maxHealth / 4,
             health: character.maxHealth / 4,
             isClone: true,
+            createdAt: now,
             speedBoost: 0.2, // 20% faster
           };
           newClones.push(clone);
@@ -1099,6 +1100,8 @@ export const useGameEngine = (
 
       prev.clones.forEach(clone => {
         if (clone.health <= 0) return;
+        // Remove clones after 6 seconds
+        if (now - clone.createdAt > 6000) return;
 
         const target = prev.players[clone.id === 1 ? 1 : 0];
         
@@ -1441,18 +1444,15 @@ export const useGameEngine = (
 
             if (hitPlayer || hitCloneIndex !== -1) {
               const target = hitPlayer ? playerTarget : nextClones[hitCloneIndex];
-              const setTarget = (p: Player) => {
-                if (hitPlayer) players[targetPlayerIndex] = p;
-                else nextClones[hitCloneIndex] = p;
-              };
+              let currentTarget = { ...target };
 
-              if (target.isShielding) {
-                const fromFront = (proj.ownerId === 1 && !target.facingRight) ||
-                  (proj.ownerId === 2 && target.facingRight);
+              if (currentTarget.isShielding) {
+                const fromFront = (proj.ownerId === 1 && !currentTarget.facingRight) ||
+                  (proj.ownerId === 2 && currentTarget.facingRight);
                 if (fromFront) {
                   if (proj.canBeDeflected) {
                     proj.velocityX *= -1;
-                    proj.ownerId = target.id as 1 | 2;
+                    proj.ownerId = currentTarget.id as 1 | 2;
                     return true;
                   }
                   return false;
@@ -1461,30 +1461,27 @@ export const useGameEngine = (
 
               // Check if this projectile has recently hit this target (for penetrating projectiles)
               // Allow re-hit after 100ms
-              const lastHit = proj.lastHitTime[target.id] || 0;
+              const lastHit = proj.lastHitTime[currentTarget.id] || 0;
               if (now - lastHit < 100) {
                 return true;
               }
 
-              const damageRes = applyDamage(target, proj.damage);
-              setTarget(damageRes.player);
+              const damageRes = applyDamage(currentTarget, proj.damage);
+              currentTarget = damageRes.player;
               
               // Record hit time
-              proj.lastHitTime[target.id] = now;
+              proj.lastHitTime[currentTarget.id] = now;
 
               // Ice Mage Passive
-              if (players[proj.ownerId - 1].character?.id === 'ice-mage' && !target.isFrozen) {
+              if (players[proj.ownerId - 1].character?.id === 'ice-mage' && !currentTarget.isFrozen) {
                 if (proj.type === 'snowball') {
-                  const updated = { ...target, freezeGauge: (target.freezeGauge || 0) + 1, lastHitByIceMage: now };
-                  setTarget(updated);
+                  currentTarget.freezeGauge = (currentTarget.freezeGauge || 0) + 1;
+                  currentTarget.lastHitByIceMage = now;
                 } else if (proj.type === 'large-snowball') {
                   if (Math.random() < 0.33) {
-                    const updated = { ...target, freezeGauge: (target.freezeGauge || 0) + 1, lastHitByIceMage: now };
-                    setTarget(updated);
-                  } else {
-                    const updated = { ...target, lastHitByIceMage: now };
-                    setTarget(updated);
+                    currentTarget.freezeGauge = (currentTarget.freezeGauge || 0) + 1;
                   }
+                  currentTarget.lastHitByIceMage = now;
                 }
               }
 
@@ -1501,23 +1498,27 @@ export const useGameEngine = (
               }
 
               if (proj.isPoisonous) {
-                const updated = { ...target, isPoisoned: true, poisonDuration: proj.poisonDuration };
-                setTarget(updated);
+                currentTarget.isPoisoned = true;
+                currentTarget.poisonDuration = proj.poisonDuration;
               }
               if (proj.slowAmount > 0) {
-                const updated = { ...target, isSlowed: true, slowAmount: proj.slowAmount, slowDuration: proj.slowDuration };
-                setTarget(updated);
+                currentTarget.isSlowed = true;
+                currentTarget.slowAmount = proj.slowAmount;
+                currentTarget.slowDuration = proj.slowDuration;
               }
               if (proj.stunDuration > 0 && proj.type === 'electric-orb') {
-                const updated = { ...target, isStunned: true, stunDuration: proj.stunDuration };
-                setTarget(updated);
+                currentTarget.isStunned = true;
+                currentTarget.stunDuration = proj.stunDuration;
               }
               if (proj.knockback > 0) {
                 const knockbackDir = proj.velocityX > 0 ? 1 : -1;
                 // Apply smooth knockback force instead of instant teleport
-                const updated = { ...target, knockbackVelocityX: knockbackDir * proj.knockback * 10 };
-                setTarget(updated);
+                currentTarget.knockbackVelocityX = knockbackDir * proj.knockback * 10;
               }
+
+              // Final target update
+              if (hitPlayer) players[targetPlayerIndex] = currentTarget;
+              else nextClones[hitCloneIndex] = currentTarget;
 
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
@@ -1629,19 +1630,16 @@ export const useGameEngine = (
 
         if (hitPlayer || hitCloneIndex !== -1) {
           const target = hitPlayer ? playerTarget : nextClones[hitCloneIndex];
-          const setTarget = (p: Player) => {
-            if (hitPlayer) players[targetIndex] = p;
-            else nextClones[hitCloneIndex] = p;
-          };
+          let currentTarget = { ...target };
 
-          if (target.isShielding) {
-            const fromFront = (hitbox.ownerId === 1 && !target.facingRight) ||
-              (hitbox.ownerId === 2 && target.facingRight);
+          if (currentTarget.isShielding) {
+            const fromFront = (hitbox.ownerId === 1 && !currentTarget.facingRight) ||
+              (hitbox.ownerId === 2 && currentTarget.facingRight);
             if (fromFront) return true;
           }
 
-          const damageRes = applyDamage(target, hitbox.damage);
-          setTarget(damageRes.player);
+          const damageRes = applyDamage(currentTarget, hitbox.damage);
+          currentTarget = damageRes.player;
 
           // Reaper Passive: Life steal 20%
           const ownerIndex = hitbox.ownerId - 1;
@@ -1654,8 +1652,11 @@ export const useGameEngine = (
           }
           
           // Apply smooth knockback
-          const updated = { ...damageRes.player, knockbackVelocityX: (hitbox.x < target.x ? 1 : -1) * hitbox.knockback * 10 };
-          setTarget(updated);
+          currentTarget.knockbackVelocityX = (hitbox.x < currentTarget.x ? 1 : -1) * hitbox.knockback * 10;
+          
+          // Final target update
+          if (hitPlayer) players[targetIndex] = currentTarget;
+          else nextClones[hitCloneIndex] = currentTarget;
           
           return false;
         }
