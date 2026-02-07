@@ -198,6 +198,11 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
               은신 {(player.invisibleDuration / 1000).toFixed(1)}s
             </span>
           )}
+          {player.regenDuration > 0 && (
+            <span className="text-xs px-1.5 py-0.5 bg-pink-400/20 text-pink-400 rounded">
+              재생 {(player.regenDuration / 1000).toFixed(1)}s
+            </span>
+          )}
         </div>
       )}
     </div>

@@ -160,7 +160,7 @@ export const createProjectile = (
         height: 24,
         isExplosive: true,
         explosionRadius: 50,
-        canBeDeflected: false,
+        canBeDeflected: true,
       };
       break;
     case 'large-fireball':

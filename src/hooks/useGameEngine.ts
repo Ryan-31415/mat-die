@@ -132,8 +132,8 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 1.25;
-      isBreakingFreeze = true;
+      damageMultiplier = 1.3;
+      isBreakingFreeze = false;
     }
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
@@ -172,12 +172,11 @@ export const useGameEngine = (
     const distance = Math.sqrt(distX * distX + distY * distY);
 
     const isVerticalAligned = Math.abs(distY) < 60;
-    const isHorizontalAligned = Math.abs(distX) < aiPlayer.character!.attackRange;
-
+    const canMelee = aiPlayer.character!.id === 'gladiator' || aiPlayer.character!.id === 'ninja';
+    
     // AI decision variables
     const isPlayer2 = aiPlayer.id === 2; // Player 2 uses arrow keys
     const aggressiveness = aiPlayer.health > aiPlayer.maxHealth * 0.5 ? 0.75 : 0.4;
-    const skillChance = aiPlayer.mana > 50 ? 0.6 : 0.2;
     const ultimateChance = 0.25;
 
     const keys: KeyboardState = {
@@ -194,11 +193,22 @@ export const useGameEngine = (
       ((p.velocityX > 0 && p.x < aiPlayer.x) || (p.velocityX < 0 && p.x > aiPlayer.x))
     );
 
-    const isHazardThreat = hazardZones.some(h =>
-      h.ownerId !== aiPlayer.id &&
-      Math.abs(h.x + h.width / 2 - (aiPlayer.x + PLAYER_SIZE / 2)) < (h.width / 2 + PLAYER_SIZE / 2 + 20) &&
-      Math.abs(h.y + h.height / 2 - (aiPlayer.y + PLAYER_SIZE / 2)) < (h.height / 2 + PLAYER_SIZE / 2 + 20)
-    );
+    const isHazardThreat = hazardZones.some(h => {
+      if (h.ownerId === aiPlayer.id) return false;
+      
+      const hazardCenterX = h.x + h.width / 2;
+      const hazardCenterY = h.y + h.height / 2;
+      const playerCenterX = aiPlayer.x + PLAYER_SIZE / 2;
+      const playerCenterY = aiPlayer.y + PLAYER_SIZE / 2;
+      
+      if (h.type === 'tesla-coil') {
+        const dist = Math.sqrt(Math.pow(hazardCenterX - playerCenterX, 2) + Math.pow(hazardCenterY - playerCenterY, 2));
+        return dist < (h.attackRange || 210) + 50; // Add 50px buffer
+      }
+      
+      return Math.abs(hazardCenterX - playerCenterX) < (h.width / 2 + PLAYER_SIZE / 2 + 20) &&
+             Math.abs(hazardCenterY - playerCenterY) < (h.height / 2 + PLAYER_SIZE / 2 + 20);
+    });
 
     const isThreatened = threateningProjectiles.length > 0 || isHazardThreat;
 
@@ -208,11 +218,32 @@ export const useGameEngine = (
           if (isPlayer2) keys.arrowUp = true;
           else keys.w = true;
         }
-        // Also try to move sideways to dodge
-        if (distX > 0) {
+        
+        // Move away from the nearest threat
+        let escapeDirection = 0; // -1 for left, 1 for right
+        
+        if (isHazardThreat) {
+          // Find the nearest hazard and move away from it
+          const nearestHazard = hazardZones
+            .filter(h => h.ownerId !== aiPlayer.id)
+            .sort((a, b) => {
+              const distA = Math.sqrt(Math.pow(a.x - aiPlayer.x, 2) + Math.pow(a.y - aiPlayer.y, 2));
+              const distB = Math.sqrt(Math.pow(b.x - aiPlayer.x, 2) + Math.pow(b.y - aiPlayer.y, 2));
+              return distA - distB;
+            })[0];
+          
+          if (nearestHazard) {
+            escapeDirection = aiPlayer.x + PLAYER_SIZE / 2 > nearestHazard.x + nearestHazard.width / 2 ? 1 : -1;
+          }
+        } else if (threateningProjectiles.length > 0) {
+          // Move away from the average projectile direction or just move sideways
+          escapeDirection = distX > 0 ? -1 : 1;
+        }
+
+        if (escapeDirection === -1) {
           if (isPlayer2) keys.arrowLeft = true;
           else keys.a = true;
-        } else {
+        } else if (escapeDirection === 1) {
           if (isPlayer2) keys.arrowRight = true;
           else keys.d = true;
         }
@@ -235,14 +266,25 @@ export const useGameEngine = (
     const shouldFaceRight = distX > 0;
     let moveLeft = false;
     let moveRight = false;
+    let jump = false;
+    let drop = false;
 
     // Movement logic with larger deadzones
+    const isCornered = (atLeftEdge && distX > 0 && distX < 250) || (atRightEdge && distX < 0 && distX > -250);
+    
     if (atLeftEdge) {
       moveRight = true;
+      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump)) {
+        jump = true;
+      }
     } else if (atRightEdge) {
       moveLeft = true;
+      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump)) {
+        jump = true;
+      }
     } else {
       if (distance > preferredDistance + 100) {
+        // Chase
         if (distX > 40) moveRight = true;
         else if (distX < -40) moveLeft = true;
       } else if (distance < preferredDistance - 100) {
@@ -254,29 +296,47 @@ export const useGameEngine = (
       }
     }
 
+    // Vertical Pursuit Logic
+    // Only pursue vertically if we are "chasing" or trying to align for an attack
+    // And not currently dodging a threat
+    if (!isThreatened) {
+      if (distY < -80) { // Target is significantly above
+        // Jump if grounded
+        if (aiPlayer.isGrounded || (aiPlayer.canDoubleJump && !aiPlayer.isJumping)) {
+           jump = true;
+        }
+      } else if (distY > 80) { // Target is significantly below
+        // Drop down (crouch/move down)
+        drop = true;
+      }
+    }
+
     // Apply movement keys
     if (isPlayer2) {
       keys.arrowLeft = moveLeft;
       keys.arrowRight = moveRight;
+      if (jump) keys.arrowUp = true;
+      if (drop) keys.arrowDown = true;
     } else {
       keys.a = moveLeft;
       keys.d = moveRight;
+      if (jump) keys.w = true;
+      if (drop) keys.s = true;
     }
 
     // 3. Attacking logic & Direction Correction
-    const canMelee = aiPlayer.character!.id === 'gladiator' || aiPlayer.character!.id === 'ninja';
     const attackRangeThreshold = aiPlayer.character!.attackRange + (canMelee ? 40 : 180);
     
     // Use stable random for attack decision to prevent flickering
+    // Require vertical alignment for ALL basic attacks (melee and ranged projectiles are horizontal)
     const isReadyToAttack = aiPlayer.attackCooldownRemaining === 0 && 
                           distance < attackRangeThreshold && 
-                          (isVerticalAligned || !canMelee);
+                          isVerticalAligned;
 
     if (isReadyToAttack) {
       const attackChance = canMelee ? 0.6 : 0.3;
       if (getStableRandom(1) < attackChance) {
         // When attacking, OVERRIDE movement to face the player
-        // This is the key to stopping the vibration
         if (isPlayer2) {
           keys.arrowLeft = !shouldFaceRight;
           keys.arrowRight = shouldFaceRight;
@@ -295,28 +355,51 @@ export const useGameEngine = (
         distance < 450 &&
         getStableRandom(2) < 0.4) {
       
-      // Character specific skill logic
-      if (aiPlayer.character!.id === 'ninja' && distance > 200) {
-        // Use dash to close gap
-        if (isPlayer2) keys.shift = true;
-        else keys.q = true;
-      } else if (aiPlayer.character!.id === 'gladiator') {
-        // Gladiator uses shield if threatened
-        if (isThreatened || distance < 100) {
+      let skillRequiresVertical = true;
+      // Exceptions: Vertical drops or non-projectile skills
+      if (aiPlayer.character!.id === 'mage') skillRequiresVertical = false; // Large Fireball (Drop)
+      if (aiPlayer.character!.id === 'hunter') skillRequiresVertical = false; // Trap (Ground)
+      if (aiPlayer.character!.id === 'gladiator') skillRequiresVertical = false; // Shield (Self)
+      // Ninja Dash should probably align to hit, but used for gap close too. Let's require align for "attack" but maybe relax for gap close? 
+      // User asked: "except... not horizontal projectiles". Ninja dash is horizontal movement.
+      // If used for gap closing (dist > 200), we don't strictly need vertical align to initiate, but better if aligned.
+      
+      if (!skillRequiresVertical || isVerticalAligned) {
+         // Character specific skill logic
+        if (aiPlayer.character!.id === 'ninja' && distance > 200) {
+          // Use dash to close gap
+          if (isPlayer2) keys.shift = true;
+          else keys.q = true;
+        } else if (aiPlayer.character!.id === 'gladiator') {
+          // Gladiator uses shield if threatened
+          if (isThreatened || distance < 100) {
+            if (isPlayer2) keys.shift = true;
+            else keys.q = true;
+          }
+        } else {
           if (isPlayer2) keys.shift = true;
           else keys.q = true;
         }
-      } else {
-        if (isPlayer2) keys.shift = true;
-        else keys.q = true;
       }
     }
 
     // 5. Ultimate usage
     if (aiPlayer.mana >= 100 &&
       (aiPlayer.health < aiPlayer.maxHealth * 0.4 || distance < 300 || Math.random() < ultimateChance)) {
-      if (isPlayer2) keys.slash = true;
-      else keys.e = true;
+        
+      let ultRequiresVertical = true;
+      // Exceptions: Global or Buffs or Vertical Drops
+      if (aiPlayer.character!.id === 'mage') ultRequiresVertical = false; // Meteor (Random)
+      if (aiPlayer.character!.id === 'ice-mage') ultRequiresVertical = false; // Blizzard (Global)
+      if (aiPlayer.character!.id === 'ninja') ultRequiresVertical = false; // Buff + Clone
+      if (aiPlayer.character!.id === 'gladiator') ultRequiresVertical = false; // Buff
+      if (aiPlayer.character!.id === 'scientist') ultRequiresVertical = false; // Tesla Coil (Place)
+
+      // Archer, Hunter, Reaper require alignment
+      if (!ultRequiresVertical || isVerticalAligned) {
+         if (isPlayer2) keys.slash = true;
+         else keys.e = true;
+      }
     }
 
     return keys;
@@ -904,6 +987,8 @@ export const useGameEngine = (
           updatedPlayer.speedBoost = 0.30;
           updatedPlayer.damageReduction = 0.25;
           updatedPlayer.buffDuration = 5000;
+          updatedPlayer.regenDuration = 5000;
+          updatedPlayer.healthRegen = updatedPlayer.maxHealth * 0.04; // 4% max health per second
           break;
         case 'archer':
           // Shotgun arrows - 2 volleys of 5 arrows

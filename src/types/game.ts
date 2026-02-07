@@ -132,12 +132,12 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '방어',
       description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 이동속도가 50% 감소합니다.',
-      manaCost: 20, // per 0.5 seconds
+      manaCost: 15, // per 0.5 seconds
       cooldown: 0,
     },
     ultimate: {
       name: '분노',
-      description: '5초간 공격력 35% 상승, 이동속도 30% 상승, 받는 피해 25% 감소.',
+      description: '5초간 공격력 35% 상승, 이동속도 30% 상승, 받는 피해 25% 감소. 초당 체력 4% 재생.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -216,7 +216,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '그림자 은신',
-      description: '4초간 은신합니다.(공격력 50% 상승, 이동속도 60% 상승, 공격 2회 회피)',
+      description: '4초간 은신하며(공격력 50% 상승, 이동속도 60% 상승, 공격 2회 회피), 6초간 지속되는 자신의 분신을 소환합니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -313,7 +313,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 15,
     attackRange: 600,
     attackCooldown: 900,
-    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 25% 증가합니다. 데미지를 받으면 빙결이 해제됩니다.',
+    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 30% 증가합니다.',
     skill: {
       name: '눈사태',
       description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐냅니다.',
