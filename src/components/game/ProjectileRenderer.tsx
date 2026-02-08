@@ -110,6 +110,13 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           borderRadius: '25%',
           boxShadow: '0 0 12px #4bafdd, inset 0 0 6px #ffffff',
         };
+      case 'blizzard-stone':
+        return {
+          background: 'radial-gradient(circle, #e0f7fa, #81d4fa, #29b6f6)',
+          borderRadius: '40%', // Irregular jagged shape approximation
+          boxShadow: '0 0 15px #4fc3f7, inset 0 0 10px #ffffff',
+          transform: `rotate(${Date.now() / 5 % 360}deg)`, // Fast spin
+        };
       default:
         return {
           backgroundColor: '#fff',

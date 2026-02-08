@@ -20,7 +20,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.freezeGauge > 0 && !player.isFrozen) statusEffects.push(`❄️x${player.freezeGauge}`);
   if (player.isFrozen) statusEffects.push('🧊');
   if (player.isBurning) statusEffects.push('🔥');
-  if (player.mageUltimateDuration > 0) statusEffects.push('⬆️');
+  if (player.mageUltimateDuration > 0) statusEffects.push('🌟');
 
   const now = Date.now();
   const trailPositions = player.trailPositions || [];

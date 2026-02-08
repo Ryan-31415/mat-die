@@ -24,49 +24,7 @@ interface GameArenaProps {
   roundsCompleted: number;
 }
 
-const BlizzardEffect = () => {
-  const snowflakes = Array.from({ length: 50 }).map((_, i) => ({
-    id: i,
-    left: `${Math.random() * 100}%`,
-    animationDuration: `${Math.random() * 5 + 3}s`,
-    animationDelay: `${Math.random() * 5}s`,
-    size: Math.random() * 4 + 2,
-  }));
 
-  return (
-    <div className="absolute inset-0 bg-sky-400/20 pointer-events-none overflow-hidden">
-      <style>
-        {`
-          @keyframes fall {
-            0% { transform: translateY(-10vh) translateX(0); }
-            100% { transform: translateY(110vh) translateX(${Math.random() > 0.5 ? '' : '-'}20px); }
-          }
-          .snowflake {
-            position: absolute;
-            top: -10vh;
-            background: white;
-            border-radius: 50%;
-            animation: fall linear infinite;
-          }
-        `}
-      </style>
-      {snowflakes.map(flake => (
-        <div
-          key={flake.id}
-          className="snowflake"
-          style={{
-            left: flake.left,
-            width: `${flake.size}px`,
-            height: `${flake.size}px`,
-            animationDuration: flake.animationDuration,
-            animationDelay: flake.animationDelay,
-            opacity: Math.random() * 0.5 + 0.3,
-          }}
-        />
-      ))}
-    </div>
-  );
-};
 
 const GameArena = ({
   player1Character,
@@ -176,8 +134,7 @@ const GameArena = ({
           <PlatformRenderer key={platform.id} platform={platform} />
         ))}
 
-        {/* Blizzard Visual Effect */}
-        {isBlizzardActive && <BlizzardEffect />}
+
 
         {/* Hazard zones */}
         {gameState.hazardZones.map(zone => (

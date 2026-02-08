@@ -203,6 +203,16 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
               재생 {(player.regenDuration / 1000).toFixed(1)}s
             </span>
           )}
+          {player.isBurning && (
+            <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded">
+              발화 {(player.burnDuration / 1000).toFixed(1)}s
+            </span>
+          )}
+          {player.mageUltimateDuration > 0 && (
+            <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
+              각성 {(player.mageUltimateDuration / 1000).toFixed(1)}s
+            </span>
+          )}
         </div>
       )}
     </div>

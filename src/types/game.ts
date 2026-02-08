@@ -190,13 +190,13 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 추가 유성이 투하되며, 공중의 적에게는 25% 추가 피해를 입힙니다.',
-      manaCost: 40,
-      cooldown: 4500,
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 추가 유성이 투하됩니다.',
+      manaCost: 35,
+      cooldown: 4000,
     },
     ultimate: {
-      name: '불꽃의 화신',
-      description: '5초간 공격력 45% 상승. 모든 공격이 3초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
+      name: '각성',
+      description: '5초간 공격력이 33%, 마나 재생력이 100% 상승하며, 모든 공격이 3.5초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -321,7 +321,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 15,
     attackRange: 600,
     attackCooldown: 900,
-    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.5초간 빙결 상태가 되어 행동할 수 없게 되고, 받는 피해가 30% 증가합니다.',
+    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.2초간 빙결 상태가 되어 행동할 수 없게 되고, 공격을 받으면 10%의 추가 피해를 입고 빙결이 해제됩니다.',
     skill: {
       name: '눈사태',
       description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐냅니다.',
@@ -329,8 +329,8 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       cooldown: 5000,
     },
     ultimate: {
-      name: '블리자드',
-      description: '2.5초간 지속되는 눈보라를 아레나 전역에 일으켜 지속적인 피해 및 결빙 효과를 입힙니다.',
+      name: '눈보라',
+      description: '거대한 얼음 덩어리를 던져 특정 지역에 눈보라를 일으킵니다. 영역 내 적은 미끄러지며, 둔화 및 빙결 효과가 강화되고 넉백을 더 크게 받습니다.',
       manaCost: 100,
       cooldown: 0,
     },

@@ -1,18 +1,6 @@
 // Projectile Types
 
-export type ProjectileType =
-  | 'arrow'
-  | 'poison-arrow'
-  | 'fireball'
-  | 'large-fireball'
-  | 'flask'
-  | 'electric-orb'
-  | 'meteor'
-  | 'bullet'
-  | 'super-bullet'
-  | 'bat'
-  | 'snowball'
-  | 'large-snowball';
+export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone';
 
 export interface Projectile {
   id: string;
@@ -261,6 +249,15 @@ export const createProjectile = (
         canBeDeflected: true,
       };
       break;
+    case 'blizzard-stone':
+      result = {
+        ...baseProjectile,
+        width: 45,
+        height: 45,
+        hasGravity: true,
+        gravity: 600, // Heavy gravity for arcing
+      };
+      break;
     default:
       result = baseProjectile;
       break;
@@ -322,9 +319,9 @@ export const createHazardZone = (
   if (type === 'blizzard') {
     return {
       ...base,
-      width: 800, // full arena width
-      height: 500, // full arena height
-      tickRate: 500,
+      width: 400, // Circular area diameter (increased)
+      height: 400,
+      tickRate: 200, // Fast tick rate for smooth effect application
     };
   }
 
