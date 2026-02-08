@@ -88,6 +88,13 @@ export interface Player {
   frozenDuration: number;
   lastHitByIceMage: number;
   lastFreezeGaugeDecay: number;
+  // Mage specific
+  isBurning: boolean;
+  burnDuration: number;
+  burnDamagePerTick: number;
+  burnOwner: 1 | 2 | null;
+  lastBurnTick: number;
+  mageUltimateDuration: number;
   // Clone
   isClone: boolean;
   createdAt: number;
@@ -183,16 +190,17 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 화염구는 플레이어 또는 바닥에 닿으면 4초간 화염 영역을 생성합니다.',
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 추가 유성이 투하되며, 공중의 적에게는 25% 추가 피해를 입힙니다.',
       manaCost: 40,
       cooldown: 4500,
     },
     ultimate: {
-      name: '유성우',
-      description: '맵 전역에 파이어볼 13개를 무작위로 투하합니다.',
+      name: '불꽃의 화신',
+      description: '5초간 공격력 45% 상승. 모든 공격이 3초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
+
   },
   ninja: {
     id: 'ninja',
@@ -403,6 +411,13 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   frozenDuration: 0,
   lastHitByIceMage: 0,
   lastFreezeGaugeDecay: 0,
+  // Mage specific
+  isBurning: false,
+  burnDuration: 0,
+  burnDamagePerTick: 0,
+  burnOwner: null,
+  lastBurnTick: 0,
+  mageUltimateDuration: 0,
   isClone: false,
   createdAt: Date.now(),
 });

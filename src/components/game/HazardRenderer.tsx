@@ -52,6 +52,14 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
         return {
           background: '#46688833',
         };
+      case 'fire-ring':
+        return {
+          background: 'transparent',
+          borderRadius: '50%',
+          border: '6px solid rgba(255, 100, 0, 0.8)',
+          boxShadow: '0 0 30px rgba(255, 102, 0, 0.8), inset 0 0 30px rgba(255, 0, 0, 0.4)',
+          animation: 'pulse 0.3s infinite',
+        };
       default:
         return {};
     }

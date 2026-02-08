@@ -50,7 +50,7 @@ export interface Projectile {
 
 export interface HazardZone {
   id: string;
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard';
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring';
   ownerId: 1 | 2;
   x: number;
   y: number;
@@ -275,7 +275,7 @@ export const createProjectile = (
 
 
 export const createHazardZone = (
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard',
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring',
   ownerId: 1 | 2,
   x: number,
   y: number,
@@ -325,6 +325,15 @@ export const createHazardZone = (
       width: 800, // full arena width
       height: 500, // full arena height
       tickRate: 500,
+    };
+  }
+
+  if (type === 'fire-ring') {
+    return {
+      ...base,
+      width: 180, // fire ring diameter
+      height: 180,
+      tickRate: 500, // 0.5 second tick
     };
   }
 

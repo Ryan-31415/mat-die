@@ -132,8 +132,8 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 1.3;
-      isBreakingFreeze = false;
+      damageMultiplier = 1.1;
+      isBreakingFreeze = true;
     }
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
@@ -150,7 +150,7 @@ export const useGameEngine = (
     }
 
     const newHealth = Math.max(0, player.health - actualDamage);
-    
+
     let updatedPlayer = { ...player, health: newHealth };
 
     if (isBreakingFreeze) {
@@ -166,14 +166,14 @@ export const useGameEngine = (
   };
 
   // AI decision making for single-player mode
-  const getAIKeys = (aiPlayer: Player, opponent: Player, projectiles: Projectile[], hazardZones: HazardZone[], isOvertime: boolean, now: number): KeyboardState => {
+  const getAIKeys = (aiPlayer: Player, opponent: Player, projectiles: Projectile[], hazardZones: HazardZone[], platforms: Platform[], isOvertime: boolean, now: number): KeyboardState => {
     const distX = opponent.x - aiPlayer.x;
     const distY = opponent.y - aiPlayer.y;
     const distance = Math.sqrt(distX * distX + distY * distY);
 
     const isVerticalAligned = Math.abs(distY) < 60;
     const canMelee = aiPlayer.character!.id === 'gladiator' || aiPlayer.character!.id === 'ninja';
-    
+
     // AI decision variables
     const isPlayer2 = aiPlayer.id === 2; // Player 2 uses arrow keys
     const aggressiveness = aiPlayer.health > aiPlayer.maxHealth * 0.5 ? 0.75 : 0.4;
@@ -195,19 +195,19 @@ export const useGameEngine = (
 
     const isHazardThreat = hazardZones.some(h => {
       if (h.ownerId === aiPlayer.id) return false;
-      
+
       const hazardCenterX = h.x + h.width / 2;
       const hazardCenterY = h.y + h.height / 2;
       const playerCenterX = aiPlayer.x + PLAYER_SIZE / 2;
       const playerCenterY = aiPlayer.y + PLAYER_SIZE / 2;
-      
+
       if (h.type === 'tesla-coil') {
         const dist = Math.sqrt(Math.pow(hazardCenterX - playerCenterX, 2) + Math.pow(hazardCenterY - playerCenterY, 2));
         return dist < (h.attackRange || 210) + 50; // Add 50px buffer
       }
-      
+
       return Math.abs(hazardCenterX - playerCenterX) < (h.width / 2 + PLAYER_SIZE / 2 + 20) &&
-             Math.abs(hazardCenterY - playerCenterY) < (h.height / 2 + PLAYER_SIZE / 2 + 20);
+        Math.abs(hazardCenterY - playerCenterY) < (h.height / 2 + PLAYER_SIZE / 2 + 20);
     });
 
     const isThreatened = threateningProjectiles.length > 0 || isHazardThreat;
@@ -218,10 +218,10 @@ export const useGameEngine = (
           if (isPlayer2) keys.arrowUp = true;
           else keys.w = true;
         }
-        
+
         // Move away from the nearest threat
         let escapeDirection = 0; // -1 for left, 1 for right
-        
+
         if (isHazardThreat) {
           // Find the nearest hazard and move away from it
           const nearestHazard = hazardZones
@@ -231,7 +231,7 @@ export const useGameEngine = (
               const distB = Math.sqrt(Math.pow(b.x - aiPlayer.x, 2) + Math.pow(b.y - aiPlayer.y, 2));
               return distA - distB;
             })[0];
-          
+
           if (nearestHazard) {
             escapeDirection = aiPlayer.x + PLAYER_SIZE / 2 > nearestHazard.x + nearestHazard.width / 2 ? 1 : -1;
           }
@@ -254,7 +254,7 @@ export const useGameEngine = (
     const preferredDistance = aiPlayer.character!.attackRange * 0.8;
     const atLeftEdge = aiPlayer.x < ARENA.padding + 60;
     const atRightEdge = aiPlayer.x > ARENA.width - ARENA.padding - PLAYER_SIZE - 60;
-    
+
     // Stable decision making based on time (every 150ms)
     // This prevents the AI from toggling keys every single frame
     const decisionSeed = Math.floor(now / 150);
@@ -269,24 +269,47 @@ export const useGameEngine = (
     let jump = false;
     let drop = false;
 
+    // Smart Navigation: Find stepping stones if target is too high
+    let targetX = opponent.x;
+    const isTargetTooHigh = distY < -180;
+
+    if (isTargetTooHigh) {
+      // Find a platform that is between us and the target vertically
+      const steppingStone = platforms
+        .filter(p => p.y < aiPlayer.y - 20 && p.y > opponent.y - 40)
+        .sort((a, b) => {
+          // Prefer platforms closer to our current X, then by proximity to target
+          const distA = Math.abs(a.x + a.width / 2 - aiPlayer.x);
+          const distB = Math.abs(b.x + b.width / 2 - aiPlayer.x);
+          return distA - distB;
+        })[0];
+
+      if (steppingStone) {
+        targetX = steppingStone.x + steppingStone.width / 2 - PLAYER_SIZE / 2;
+      }
+    }
+
+    const relativeTargetX = targetX - aiPlayer.x;
+
     // Movement logic with larger deadzones
     const isCornered = (atLeftEdge && distX > 0 && distX < 250) || (atRightEdge && distX < 0 && distX > -250);
-    
+
     if (atLeftEdge) {
       moveRight = true;
-      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump)) {
+      // Only jump to escape if grounded or can double jump, and not already very high
+      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump) && aiPlayer.y > 300) {
         jump = true;
       }
     } else if (atRightEdge) {
       moveLeft = true;
-      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump)) {
+      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump) && aiPlayer.y > 300) {
         jump = true;
       }
     } else {
-      if (distance > preferredDistance + 100) {
-        // Chase
-        if (distX > 40) moveRight = true;
-        else if (distX < -40) moveLeft = true;
+      if (distance > preferredDistance + 100 || isTargetTooHigh) {
+        // Chase or move to stepping stone
+        if (relativeTargetX > 40) moveRight = true;
+        else if (relativeTargetX < -40) moveLeft = true;
       } else if (distance < preferredDistance - 100) {
         // Kite away ONLY if not currently attacking or preparing to attack
         if (aiPlayer.attackCooldownRemaining > 300) {
@@ -303,7 +326,11 @@ export const useGameEngine = (
       if (distY < -80) { // Target is significantly above
         // Jump if grounded
         if (aiPlayer.isGrounded || (aiPlayer.canDoubleJump && !aiPlayer.isJumping)) {
-           jump = true;
+          // Prevent stuck jumping in corners if we're not moving horizontally towards target
+          const isStuck = isCornered && Math.abs(relativeTargetX) < 50;
+          if (!isStuck || Math.random() < 0.3) {
+            jump = true;
+          }
         }
       } else if (distY > 80) { // Target is significantly below
         // Drop down (crouch/move down)
@@ -326,12 +353,12 @@ export const useGameEngine = (
 
     // 3. Attacking logic & Direction Correction
     const attackRangeThreshold = aiPlayer.character!.attackRange + (canMelee ? 40 : 180);
-    
+
     // Use stable random for attack decision to prevent flickering
     // Require vertical alignment for ALL basic attacks (melee and ranged projectiles are horizontal)
-    const isReadyToAttack = aiPlayer.attackCooldownRemaining === 0 && 
-                          distance < attackRangeThreshold && 
-                          isVerticalAligned;
+    const isReadyToAttack = aiPlayer.attackCooldownRemaining === 0 &&
+      distance < attackRangeThreshold &&
+      isVerticalAligned;
 
     if (isReadyToAttack) {
       const attackChance = canMelee ? 0.6 : 0.3;
@@ -351,10 +378,10 @@ export const useGameEngine = (
 
     // 4. Skill usage with stable decision
     if (aiPlayer.mana >= aiPlayer.character!.skill.manaCost &&
-        aiPlayer.skillCooldownRemaining === 0 &&
-        distance < 450 &&
-        getStableRandom(2) < 0.4) {
-      
+      aiPlayer.skillCooldownRemaining === 0 &&
+      distance < 450 &&
+      getStableRandom(2) < 0.4) {
+
       let skillRequiresVertical = true;
       // Exceptions: Vertical drops or non-projectile skills
       if (aiPlayer.character!.id === 'mage') skillRequiresVertical = false; // Large Fireball (Drop)
@@ -363,9 +390,9 @@ export const useGameEngine = (
       // Ninja Dash should probably align to hit, but used for gap close too. Let's require align for "attack" but maybe relax for gap close? 
       // User asked: "except... not horizontal projectiles". Ninja dash is horizontal movement.
       // If used for gap closing (dist > 200), we don't strictly need vertical align to initiate, but better if aligned.
-      
+
       if (!skillRequiresVertical || isVerticalAligned) {
-         // Character specific skill logic
+        // Character specific skill logic
         if (aiPlayer.character!.id === 'ninja' && distance > 200) {
           // Use dash to close gap
           if (isPlayer2) keys.shift = true;
@@ -386,7 +413,7 @@ export const useGameEngine = (
     // 5. Ultimate usage
     if (aiPlayer.mana >= 100 &&
       (aiPlayer.health < aiPlayer.maxHealth * 0.4 || distance < 300 || Math.random() < ultimateChance)) {
-        
+
       let ultRequiresVertical = true;
       // Exceptions: Global or Buffs or Vertical Drops
       if (aiPlayer.character!.id === 'mage') ultRequiresVertical = false; // Meteor (Random)
@@ -397,8 +424,8 @@ export const useGameEngine = (
 
       // Archer, Hunter, Reaper require alignment
       if (!ultRequiresVertical || isVerticalAligned) {
-         if (isPlayer2) keys.slash = true;
-         else keys.e = true;
+        if (isPlayer2) keys.slash = true;
+        else keys.e = true;
       }
     }
 
@@ -485,7 +512,7 @@ export const useGameEngine = (
     if (otherPlayer.character?.id === 'ice-mage') {
       if (updatedPlayer.freezeGauge >= 5) {
         updatedPlayer.isFrozen = true;
-        updatedPlayer.frozenDuration = 1500; // 1.5 seconds
+        updatedPlayer.frozenDuration = 1200; // 1.2 seconds
         updatedPlayer.freezeGauge = 0;
       } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 3000) {
         if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1500) {
@@ -528,6 +555,31 @@ export const useGameEngine = (
       }
     }
 
+    // Mage ultimate duration
+    if (updatedPlayer.mageUltimateDuration > 0) {
+      updatedPlayer.mageUltimateDuration -= deltaTime;
+      if (updatedPlayer.mageUltimateDuration <= 0) {
+        updatedPlayer.mageUltimateDuration = 0;
+        updatedPlayer.damageBoost = 0;
+      }
+    }
+
+    // Burn damage (from Mage ultimate)
+    if (updatedPlayer.isBurning && updatedPlayer.burnDuration > 0) {
+      updatedPlayer.burnDuration -= deltaTime;
+      // Apply burn damage every 500ms
+      if (now - updatedPlayer.lastBurnTick >= 500) {
+        updatedPlayer.health = Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick);
+        updatedPlayer.lastBurnTick = now;
+      }
+      if (updatedPlayer.burnDuration <= 0) {
+        updatedPlayer.isBurning = false;
+        updatedPlayer.burnDuration = 0;
+        updatedPlayer.burnDamagePerTick = 0;
+        updatedPlayer.burnOwner = null;
+      }
+    }
+
     // Poison damage
     if (updatedPlayer.isPoisoned) {
       const poisonDamage = (updatedPlayer.maxHealth * 0.025) * (deltaTime / 1000);
@@ -563,7 +615,7 @@ export const useGameEngine = (
       updatedPlayer.knockbackVelocityX = 0;
     }
     if (Math.abs(updatedPlayer.knockbackVelocityY) > 10) {
-      updatedPlayer.knockbackVelocityY *= Math.pow(0.9, deltaTime / 16); 
+      updatedPlayer.knockbackVelocityY *= Math.pow(0.9, deltaTime / 16);
     } else {
       updatedPlayer.knockbackVelocityY = 0;
     }
@@ -577,7 +629,7 @@ export const useGameEngine = (
 
       // Calculate new Y position for gravity even when stunned, including vertical knockback
       let stunnedNewY = updatedPlayer.y + (updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY) * (deltaTime / 1000);
-      
+
       let stunnedPlatformResult = { y: stunnedNewY, isGrounded: false, platform: null as Platform | null };
       if (!updatedPlayer.isFlying) {
         stunnedPlatformResult = checkPlatformCollision(updatedPlayer, stunnedNewY, updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY, platforms);
@@ -635,7 +687,7 @@ export const useGameEngine = (
       if (dx === 0) {
         dx = updatedPlayer.facingRight ? 1 : -1;
       }
-      
+
       // Normalize for constant speed
       const length = Math.sqrt(dx * dx + dy * dy);
       if (length > 0) {
@@ -651,7 +703,7 @@ export const useGameEngine = (
     // Apply horizontal movement
     const moveAmount = speed * (deltaTime / 16) * 1.2;
     let newX = updatedPlayer.x + dx * moveAmount;
-    
+
     // Apply knockback to movement
     newX += updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
 
@@ -680,7 +732,7 @@ export const useGameEngine = (
     } else {
       newY += updatedPlayer.velocityY * (deltaTime / 1000);
     }
-    
+
     // Apply vertical knockback to all modes
     newY += updatedPlayer.knockbackVelocityY * (deltaTime / 1000);
 
@@ -912,26 +964,26 @@ export const useGameEngine = (
             ));
             break;
           case 'reaper':
-              // Spawn bat slightly in front of the player to avoid initial overlap
-              const batSpawnX = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * (PLAYER_SIZE / 2 + 20));
-              const bat = createProjectile(
-                'bat',
-                player.id,
-                batSpawnX,
-                updatedPlayer.y + PLAYER_SIZE / 2, // Center vertically
-                attackDirection * 550,
-                0,
-                baseDamage * 0.8,
-              );
-              // Clamp bat top-left inside arena so it doesn't immediately trigger bounds
-              bat.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - bat.width, bat.x));
-              bat.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - bat.height, bat.y));
-              // Dev log: bat spawn (with clamped coords)
-              if (process.env.NODE_ENV !== 'production') {
-                // eslint-disable-next-line no-console
-                console.log('BAT SPAWN', { id: bat.id, owner: bat.ownerId, x: bat.x, y: bat.y, vx: bat.velocityX, vy: bat.velocityY });
-              }
-              newProjectiles.push(bat);
+            // Spawn bat slightly in front of the player to avoid initial overlap
+            const batSpawnX = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * (PLAYER_SIZE / 2 + 20));
+            const bat = createProjectile(
+              'bat',
+              player.id,
+              batSpawnX,
+              updatedPlayer.y + PLAYER_SIZE / 2, // Center vertically
+              attackDirection * 550,
+              0,
+              baseDamage * 0.8,
+            );
+            // Clamp bat top-left inside arena so it doesn't immediately trigger bounds
+            bat.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - bat.width, bat.x));
+            bat.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - bat.height, bat.y));
+            // Dev log: bat spawn (with clamped coords)
+            if (process.env.NODE_ENV !== 'production') {
+              // eslint-disable-next-line no-console
+              console.log('BAT SPAWN', { id: bat.id, owner: bat.ownerId, x: bat.x, y: bat.y, vx: bat.velocityX, vy: bat.velocityY });
+            }
+            newProjectiles.push(bat);
             break;
           case 'ice-mage':
             // Avalanche: 4 large snowballs
@@ -945,7 +997,7 @@ export const useGameEngine = (
                     'large-snowball',
                     player.id,
                     currentPlayer.x + PLAYER_SIZE / 2,
-                    currentPlayer.y + PLAYER_SIZE / 2 + (i-1) * projGap - projGap * 0.5, // Offset each snowball vertically
+                    currentPlayer.y + PLAYER_SIZE / 2 + (i - 1) * projGap - projGap * 0.5, // Offset each snowball vertically
                     (currentPlayer.facingRight ? 1 : -1) * 900,
                     0,
                     baseDamage * 0.2
@@ -1018,34 +1070,27 @@ export const useGameEngine = (
           }
           break;
         case 'mage':
-          // Meteor shower - 12 random fireballs
-          for (let i = 0; i < 12; i++) {
-            setTimeout(() => {
-              setGameState(prev => {
-                const randomX = ARENA.padding + Math.random() * (ARENA.width - 2 * ARENA.padding);
-                return {
-                  ...prev,
-                  projectiles: [...prev.projectiles, createProjectile(
-                    'meteor',
-                    player.id,
-                    randomX,
-                    0,
-                    0,
-                    500,
-                    baseDamage
-                  )],
-                };
-              });
-            }, i * 200);
-          }
+          // Fire Avatar - 5 second buff with fire ring
+          updatedPlayer.mageUltimateDuration = 5000;
+          updatedPlayer.damageBoost = 0.45; // 45% damage increase
+          // Create fire ring hazard zone centered on mage
+          newHazards.push(createHazardZone(
+            'fire-ring',
+            player.id,
+            updatedPlayer.x + PLAYER_SIZE / 2 - 90, // Center on player
+            updatedPlayer.y + PLAYER_SIZE / 2 - 90,
+            baseDamage * 0.15, // 15% of attack damage per tick
+            5000 // 5 seconds duration
+          ));
           break;
+
         case 'ninja':
           updatedPlayer.isInvisible = true;
           updatedPlayer.invisibleDuration = 4000;
           updatedPlayer.damageBoost = 0.50;
           updatedPlayer.speedBoost = 0.60;
           updatedPlayer.dodgesRemaining = 2;
-          
+
           // Spawn Clone
           const clone: Player = {
             ...createInitialPlayer(player.id, character),
@@ -1153,7 +1198,7 @@ export const useGameEngine = (
       };
 
       // Get player 2 keys from AI or keyboard
-      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.isOvertime, now) : p1Keys;
+      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now) : p1Keys;
 
       // Update players
       const p1Result = updatePlayer(
@@ -1176,7 +1221,7 @@ export const useGameEngine = (
       shieldManaTickRef.current = [p1Result.newShieldTick, p2Result.newShieldTick];
 
       let players: [Player, Player] = [p1Result.player, p2Result.player];
-      
+
       // Update clones
       let nextClones: Player[] = [];
       let cloneProjectiles: Projectile[] = [];
@@ -1189,12 +1234,12 @@ export const useGameEngine = (
         if (now - clone.createdAt > 6000) return;
 
         const target = prev.players[clone.id === 1 ? 1 : 0];
-        
+
         // Clone AI
-        let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.isOvertime, now);
+        let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now);
         // Disable skills/ultimate for clones
         aiKeys = { ...aiKeys, q: false, e: false, shift: false, slash: false };
-        
+
         const cloneRes = updatePlayer(
           clone,
           aiKeys,
@@ -1248,15 +1293,15 @@ export const useGameEngine = (
         if (newProj.type === 'bat' && newProj.isReturning) {
           const timeSinceCreated = now - newProj.createdAt;
           const owner = players[newProj.ownerId - 1];
-          
+
           // Check if should return: after 35% of lifetime OR hit bounds
           const lifetimeThreshold = newProj.lifetime * 0.35;
           const shouldReturnByTime = timeSinceCreated > lifetimeThreshold;
-          
+
           // Calculate next position to check bounds
           const nextX = newProj.x + newProj.velocityX * (deltaTime / 1000);
           const nextY = newProj.y + newProj.velocityY * (deltaTime / 1000);
-          
+
           // Check if will hit arena bounds (only check after initial delay to prevent false positives)
           const hitBounds = timeSinceCreated > 50 && (
             nextX < ARENA.padding ||
@@ -1264,7 +1309,7 @@ export const useGameEngine = (
             nextY < ARENA.padding ||
             nextY > ARENA.height - ARENA.padding - newProj.height
           );
-          
+
           // Only set return velocity once; don't recalculate every frame near bounds
           if ((shouldReturnByTime || hitBounds) && Math.abs(newProj.velocityX) < 600) {
             // Start returning to owner (velocity < 600 ensures we set it only once from forward flight)
@@ -1316,7 +1361,7 @@ export const useGameEngine = (
         if (newProj.type === 'bat') {
           const clampedX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - newProj.width, newProj.x));
           const clampedY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - newProj.height, newProj.y));
-          
+
           // If position was clamped (hit boundary), reset velocity toward owner
           const isClamped = clampedX !== newProj.x || clampedY !== newProj.y;
           if (isClamped && newProj.isReturning) {
@@ -1345,6 +1390,8 @@ export const useGameEngine = (
         return newProj;
       });
 
+      const newlySpawnedProjectiles: Projectile[] = [];
+
       // Check projectile collisions
       projectiles = projectiles.filter(proj => {
         // Check lifetime
@@ -1361,7 +1408,7 @@ export const useGameEngine = (
                 proj.damage * 0.2,
                 proj.firePoolDuration
               );
-              
+
               pool.y = platform.y - pool.height / 2;
               pool.x = proj.x + proj.width / 2 - pool.width / 2;
               pool.x = Math.max(platform.x, Math.min(pool.x, platform.x + platform.width - pool.width));
@@ -1428,7 +1475,7 @@ export const useGameEngine = (
         // Check player collision
         const timeSinceCreated = now - proj.createdAt;
         const isReturningToOwner = proj.isReturning && timeSinceCreated > proj.lifetime * 0.35;
-        
+
         const opponentId = proj.ownerId === 1 ? 2 : 1;
         const targetPlayerIndex = opponentId - 1;
         const playerTarget = players[targetPlayerIndex];
@@ -1498,7 +1545,7 @@ export const useGameEngine = (
 
               return false;
             }
-            
+
             // Check collision with clones on forward path
             for (let i = 0; i < nextClones.length; i++) {
               const clone = nextClones[i];
@@ -1520,7 +1567,7 @@ export const useGameEngine = (
               proj.x, proj.y, proj.width, proj.height,
               playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
             );
-            
+
             // Find clone collision if player not hit
             let hitCloneIndex = -1;
             if (!hitPlayer) {
@@ -1553,7 +1600,7 @@ export const useGameEngine = (
 
               const damageRes = applyDamage(currentTarget, proj.damage);
               currentTarget = damageRes.player;
-              
+
               // Record hit time
               proj.lastHitTime[currentTarget.id] = now;
 
@@ -1582,10 +1629,44 @@ export const useGameEngine = (
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
               }
 
+              // Mage Skill: Large-fireball improvements
+              if (proj.type === 'large-fireball' && players[ownerIndex].character?.id === 'mage') {
+                // 25% bonus damage if target is airborne
+                if (!currentTarget.isGrounded) {
+                  const bonusDamage = proj.damage * 0.25;
+                  const bonusRes = applyDamage(currentTarget, bonusDamage);
+                  currentTarget = bonusRes.player;
+                }
+                // Spawn 5 meteors at hit location with random offsets
+                for (let i = 0; i < 5; i++) {
+                  const xOffset = (Math.random() - 0.5) * 60; // Random offset ±30px
+                  const meteorProj = createProjectile(
+                    'meteor',
+                    proj.ownerId,
+                    proj.x + proj.width / 2 + xOffset,
+                    0, // Start from top
+                    0,
+                    520,
+                    proj.damage * 0.4 // Adjusted damage for 5 meteors
+                  );
+                  newlySpawnedProjectiles.push(meteorProj);
+                }
+              }
+
+              // Mage Ultimate: Apply burn effect on any attack
+              if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
+                currentTarget.isBurning = true;
+                currentTarget.burnDuration = 3000; // 3 seconds
+                currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.20; // 20% of mage attack per tick
+                currentTarget.burnOwner = proj.ownerId;
+                currentTarget.lastBurnTick = now;
+              }
+
               if (proj.isPoisonous) {
                 currentTarget.isPoisoned = true;
                 currentTarget.poisonDuration = proj.poisonDuration;
               }
+
               if (proj.slowAmount > 0) {
                 currentTarget.isSlowed = true;
                 currentTarget.slowAmount = proj.slowAmount;
@@ -1628,7 +1709,7 @@ export const useGameEngine = (
                   return true;
                 }
               }
-              
+
               // Ice Mage skill projectiles (large-snowball) penetrate
               if (proj.type === 'large-snowball') {
                 return true;
@@ -1689,6 +1770,8 @@ export const useGameEngine = (
         return true;
       });
 
+      projectiles = [...projectiles, ...newlySpawnedProjectiles];
+
       // Check melee attack hitboxes
       attackHitboxes = attackHitboxes.filter(hitbox => {
         if (now - hitbox.createdAt > hitbox.duration) return false;
@@ -1735,16 +1818,26 @@ export const useGameEngine = (
               players[ownerIndex].health + damageRes.dealt * regenMultiplier
             );
           }
-          
+
+          // Mage Ultimate: Apply burn effect on melee attacks
+          if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
+            currentTarget.isBurning = true;
+            currentTarget.burnDuration = 3000; // 3 seconds
+            currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.20;
+            currentTarget.burnOwner = hitbox.ownerId;
+            currentTarget.lastBurnTick = now;
+          }
+
           // Apply smooth knockback
           currentTarget.knockbackVelocityX = (hitbox.x < currentTarget.x ? 1 : -1) * hitbox.knockback * 10;
-          
+
           // Final target update
           if (hitPlayer) players[targetIndex] = currentTarget;
           else nextClones[hitCloneIndex] = currentTarget;
-          
+
           return false;
         }
+
 
         return true;
       });
@@ -1862,12 +1955,39 @@ export const useGameEngine = (
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {
-                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
-                  players[targetIndex].lastHitByIceMage = now;
+                players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + Math.round(Math.random());
+                players[targetIndex].lastHitByIceMage = now;
               }
             }
           }
+        } else if (zoneCopy.type === 'fire-ring') {
+          // Fire ring follows the Mage
+          const owner = players[zoneCopy.ownerId - 1];
+          zoneCopy.x = owner.x + PLAYER_SIZE / 2 - zoneCopy.width / 2;
+          zoneCopy.y = owner.y + PLAYER_SIZE / 2 - zoneCopy.height / 2;
+
+          // Apply damage every tick
+          if (now - zoneCopy.lastTick >= zoneCopy.tickRate) {
+            zoneCopy.lastTick = now;
+            const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
+            const target = players[targetIndex];
+
+            // Check if target is within circular fire ring range
+            const ringCenterX = zoneCopy.x + zoneCopy.width / 2;
+            const ringCenterY = zoneCopy.y + zoneCopy.height / 2;
+            const targetCenterX = target.x + PLAYER_SIZE / 2;
+            const targetCenterY = target.y + PLAYER_SIZE / 2;
+            const distance = Math.sqrt(
+              Math.pow(ringCenterX - targetCenterX, 2) +
+              Math.pow(ringCenterY - targetCenterY, 2)
+            );
+
+            if (distance < zoneCopy.width / 2) {
+              players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
+            }
+          }
         } else if (zoneCopy.type !== 'tesla-coil' && zoneCopy.type !== 'bear-trap' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
+
           zoneCopy.lastTick = now;
           for (let i = 0; i < 2; i++) {
             if (i !== zoneCopy.ownerId - 1) {
