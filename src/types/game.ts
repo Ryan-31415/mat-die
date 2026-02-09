@@ -82,6 +82,8 @@ export interface Player {
   isFlying: boolean;
   lastUltTick?: number;
   trailPositions?: Array<{ x: number; y: number; timestamp: number }>;
+  // Archer specific
+  archerBuffStacks?: number;
   // Ice Mage specific
   freezeGauge: number;
   isFrozen: boolean;
@@ -159,18 +161,19 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.6,
     speed: 5.2,
-    attackDamage: 15,
+    attackDamage: 16,
     attackRange: 600,
     attackCooldown: 600,
+    passive: '장거리 공격 시 데미지가 15% 상승합니다.',
     skill: {
-      name: '독성 강화',
+      name: '독화살',
       description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 33% 감소, 지속 피해)를 부여합니다.',
       manaCost: 35,
       cooldown: 5000,
     },
     ultimate: {
-      name: '화살 폭풍',
-      description: '전방으로 화살 5발을 2번 연속 발사합니다.',
+      name: '명사수',
+      description: '4초간 발사하는 화살이 유도되고, 공격력이 20% 상승하고, 공격속도가 15% 상승합니다. 이 상태에서 적을 명중시킬 때마다 효과가 강화되고 지속 시간이 길어집니다. 최대 5번까지 강화 가능합니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -181,7 +184,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '마법사',
     color: '#7c3aed',
     colorClass: 'bg-violet-600',
-    maxHealth: 95,
+    maxHealth: 90,
     maxMana: 100,
     manaRegen: 6.8,
     speed: 4.9,
@@ -190,13 +193,13 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 추가 유성이 투하됩니다.',
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 파이어볼 5개가 추가적으로 투하됩니다.',
       manaCost: 35,
       cooldown: 4000,
     },
     ultimate: {
       name: '각성',
-      description: '5초간 공격력이 33%, 마나 재생력이 100% 상승하며, 모든 공격이 3.5초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
+      description: '5초간 공격력이 30%, 마나 재생력이 50% 상승하며, 모든 공격이 3.5초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },

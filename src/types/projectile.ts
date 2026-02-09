@@ -33,6 +33,7 @@ export interface Projectile {
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
   hasHitReturn?: boolean; // Track if projectile has hit on return path
+  isHoming?: boolean; // Track if projectile is homing
   lastHitTime: Record<number, number>; // Track timestamp of last hit per player ID
 }
 
@@ -122,19 +123,19 @@ export const createProjectile = (
     case 'arrow':
       result = {
         ...baseProjectile,
-        width: 48,
-        height: 6,
+        width: 56,
+        height: 12,
         hasGravity: true,
-        gravity: 170,
+        gravity: 190,
       };
       break;
     case 'poison-arrow':
       result = {
         ...baseProjectile,
-        width: 48,
-        height: 6,
+        width: 56,
+        height: 12,
         hasGravity: true,
-        gravity: 170,
+        gravity: 190,
         isPoisonous: true,
         poisonDuration: 5000,
         slowAmount: 0.33,
@@ -166,8 +167,8 @@ export const createProjectile = (
     case 'meteor':
       result = {
         ...baseProjectile,
-        width: 30,
-        height: 30,
+        width: 24,
+        height: 24,
         hasGravity: false,
         isExplosive: true,
         explosionRadius: 55,

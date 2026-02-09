@@ -21,6 +21,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isFrozen) statusEffects.push('🧊');
   if (player.isBurning) statusEffects.push('🔥');
   if (player.mageUltimateDuration > 0) statusEffects.push('🌟');
+  if (character.id === 'archer' && player.buffDuration > 0) statusEffects.push(`🏹x${player.archerBuffStacks || 0}`);
 
   const now = Date.now();
   const trailPositions = player.trailPositions || [];

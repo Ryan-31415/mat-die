@@ -132,8 +132,8 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 1.1;
-      isBreakingFreeze = true;
+      damageMultiplier = 1.0;
+      isBreakingFreeze = false;
     }
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
@@ -513,7 +513,7 @@ export const useGameEngine = (
     if (otherPlayer.character?.id === 'ice-mage') {
       if (updatedPlayer.freezeGauge >= 5) {
         updatedPlayer.isFrozen = true;
-        let freezeDur = 1200;
+        let freezeDur = 1000;
 
         // Ice Mage Blizzard: Increased freeze duration
         const inBlizzard = hazardZones.some(z =>
@@ -599,7 +599,7 @@ export const useGameEngine = (
     }
 
     // Mana regeneration
-    const manaRegen = (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 2.0 : 1.0);
+    const manaRegen = (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.6 : 1.0);
     updatedPlayer.mana = Math.min(updatedPlayer.maxMana, updatedPlayer.mana + manaRegen);
 
     // Cooldown reduction
@@ -828,7 +828,12 @@ export const useGameEngine = (
 
     // Basic Attack
     if (attackKey && updatedPlayer.attackCooldownRemaining <= 0) {
-      updatedPlayer.attackCooldownRemaining = character.attackCooldown;
+      let cooldown = character.attackCooldown;
+      // Archer Ultimate: +15% Attack Speed (reduce cooldown)
+      if (character.id === 'archer' && updatedPlayer.buffDuration > 0) {
+        cooldown /= 1.15;
+      }
+      updatedPlayer.attackCooldownRemaining = cooldown;
       updatedPlayer.isAttacking = true;
 
       const attackDirection = updatedPlayer.facingRight ? 1 : -1;
@@ -838,7 +843,12 @@ export const useGameEngine = (
       const attackY = updatedPlayer.y + PLAYER_SIZE / 4;
 
       const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
-      const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
+      let damageBoost = updatedPlayer.damageBoost;
+      // Archer Ultimate: +5% damage per stack
+      if (character.id === 'archer' && updatedPlayer.buffDuration > 0) {
+        damageBoost += (updatedPlayer.archerBuffStacks || 0) * 0.05;
+      }
+      const baseDamage = character.attackDamage * (1 + damageBoost) * damageMultiplier;
 
       switch (character.id) {
         case 'gladiator':
@@ -855,15 +865,19 @@ export const useGameEngine = (
           break;
         case 'archer': {
           const isPoisoned = updatedPlayer.poisonArrowsRemaining > 0;
-          newProjectiles.push(createProjectile(
-            isPoisoned ? 'poison-arrow' : 'arrow',
-            player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 950, // Increased speed
-            -60,
-            isPoisoned ? baseDamage * 1.0 : baseDamage
-          ));
+          const isHoming = updatedPlayer.buffDuration > 0;
+          newProjectiles.push({
+            ...createProjectile(
+              isPoisoned ? 'poison-arrow' : 'arrow',
+              player.id,
+              updatedPlayer.x + PLAYER_SIZE / 2,
+              updatedPlayer.y + PLAYER_SIZE / 2,
+              (isHoming ? attackDirection * 1330 : attackDirection * 1000), // Increased speed
+              -80,
+              isPoisoned ? baseDamage * 1.0 : baseDamage
+            ),
+            isHoming: isHoming
+          });
           if (isPoisoned) {
             updatedPlayer.poisonArrowsRemaining--;
           }
@@ -1096,36 +1110,15 @@ export const useGameEngine = (
           updatedPlayer.healthRegen = updatedPlayer.maxHealth * 0.04; // 4% max health per second
           break;
         case 'archer':
-          // Shotgun arrows - 2 volleys of 5 arrows
-          for (let volley = 0; volley < 2; volley++) {
-            setTimeout(() => {
-              setGameState(prev => {
-                const arrows: Projectile[] = [];
-                for (let i = 0; i < 5; i++) {
-                  const spreadAngle = (i - 2) * 15;
-                  const radians = spreadAngle * (Math.PI / 180);
-                  arrows.push(createProjectile(
-                    'arrow',
-                    player.id,
-                    prev.players[player.id - 1].x + PLAYER_SIZE / 2,
-                    prev.players[player.id - 1].y + PLAYER_SIZE / 2,
-                    attackDirection * 750 * Math.cos(radians), // Increased speed
-                    -50 + Math.sin(radians) * 100,
-                    baseDamage
-                  ));
-                }
-                return {
-                  ...prev,
-                  projectiles: [...prev.projectiles, ...arrows],
-                };
-              });
-            }, volley * 300);
-          }
+          // Archer Ultimate: 4s buff, +20% damage (base), +15% attack speed (handled in cooldown)
+          updatedPlayer.buffDuration = 4000;
+          updatedPlayer.archerBuffStacks = 0;
+          updatedPlayer.damageBoost = 0.20; // Base +20%
           break;
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
           updatedPlayer.mageUltimateDuration = 5000;
-          updatedPlayer.damageBoost = 0.33; // 33% damage increase
+          updatedPlayer.damageBoost = 0.3; // 30% damage increase
           // Create fire ring hazard zone centered on mage
           newHazards.push(createHazardZone(
             'fire-ring',
@@ -1163,7 +1156,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x,
             updatedPlayer.y,
-            baseDamage * 0.2,
+            baseDamage * 0.15,
             30000
           ));
           break;
@@ -1414,6 +1407,44 @@ export const useGameEngine = (
           }
         }
 
+        // Homing Logic for Archer Ultimate
+        if (newProj.isHoming && newProj.type === 'arrow') {
+          const owner = players[newProj.ownerId - 1];
+          const opponentId = newProj.ownerId === 1 ? 2 : 1;
+          const target = players[opponentId - 1];
+
+          // Basic Homing
+          const dx = (target.x + PLAYER_SIZE / 2) - newProj.x;
+          const dy = (target.y + PLAYER_SIZE / 2) - newProj.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist > 0) {
+            const currentSpeed = Math.sqrt(newProj.velocityX * newProj.velocityX + newProj.velocityY * newProj.velocityY);
+            const targetVx = (dx / dist) * currentSpeed;
+            const targetVy = (dy / dist) * currentSpeed;
+
+            // Turn rate increases with flight time (lifetime) and stacks
+            const flightTime = now - newProj.createdAt;
+            // Base turn rate + bonus from time + bonus from stacks
+            // Time bonus: max at 325ms
+            const timeFactor = Math.min(1, flightTime / 360);
+            // Stack bonus: each stack adds performance
+            const stackFactor = (owner.archerBuffStacks || 0);
+
+            const turnRate = timeFactor >= 0.33 ? 0.05 + (0.02 * timeFactor) + (0.005 * stackFactor) : 0;
+
+            newProj.velocityX += (targetVx - newProj.velocityX) * turnRate;
+            newProj.velocityY += (targetVy - newProj.velocityY) * turnRate;
+
+            // Normalize speed
+            const newSpeed = Math.sqrt(newProj.velocityX * newProj.velocityX + newProj.velocityY * newProj.velocityY);
+            newProj.velocityX = (newProj.velocityX / newSpeed) * currentSpeed;
+            newProj.velocityY = (newProj.velocityY / newSpeed) * currentSpeed;
+
+            // Rotate arrow visual (if renderer supports it, usually based on velocity)
+          }
+        }
+
         newProj.x += newProj.velocityX * (deltaTime / 1000);
         newProj.y += newProj.velocityY * (deltaTime / 1000);
 
@@ -1478,7 +1509,7 @@ export const useGameEngine = (
             }
 
             // For now, only projectiles with gravity are blocked by platforms (except meteors)
-            if (proj.hasGravity && proj.type !== 'meteor') {
+            if (proj.hasGravity && proj.type !== 'meteor' && !proj.isHoming) {
               if (proj.type === 'blizzard-stone') {
                 const blizzard = createHazardZone(
                   'blizzard',
@@ -1705,8 +1736,33 @@ export const useGameEngine = (
                 return true;
               }
 
+              // Archer Passive: Long range shot (> 325ms) deals 15% bonus damage
+              if (players[proj.ownerId - 1].character?.id === 'archer' && now - proj.createdAt > 360) {
+                // Check if it's an arrow
+                if (proj.type === 'arrow' || proj.type === 'poison-arrow') {
+                  const bonusDamage = proj.damage * 0.15;
+                  const bonusRes = applyDamage(currentTarget, bonusDamage);
+                  currentTarget = bonusRes.player;
+                }
+              }
+
               const damageRes = applyDamage(currentTarget, proj.damage);
               currentTarget = damageRes.player;
+
+              // Archer Ultimate: Stacking buff on hit
+              const ownerIndex = proj.ownerId - 1;
+              if (players[ownerIndex].character?.id === 'archer' && players[ownerIndex].buffDuration > 0) {
+                if (proj.type === 'arrow' || proj.type === 'poison-arrow') {
+                  // Add stack
+                  // Ensure stack count logic
+                  const currentStacks = players[ownerIndex].archerBuffStacks || 0;
+                  if (currentStacks < 4) {
+                    players[ownerIndex].archerBuffStacks = currentStacks + 1;
+                  }
+                  // Extend duration
+                  players[ownerIndex].buffDuration += 600;
+                }
+              }
 
               // Record hit time
               proj.lastHitTime[currentTarget.id] = now;
@@ -1725,7 +1781,7 @@ export const useGameEngine = (
               }
 
               // Reaper Passive: Life steal 20%
-              const ownerIndex = proj.ownerId - 1;
+
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
                 players[ownerIndex].health = Math.min(
@@ -1746,7 +1802,7 @@ export const useGameEngine = (
                 }
                 // Spawn 5 meteors at hit location with random offsets
                 for (let i = 0; i < 5; i++) {
-                  const xOffset = 0 + (i - 2) * 45; // Random offset ±30px
+                  const xOffset = 0 + (i - 2) * 35;
                   const meteorProj = createProjectile(
                     'meteor',
                     proj.ownerId,
@@ -1754,7 +1810,7 @@ export const useGameEngine = (
                     0, // Start from top
                     0,
                     750,
-                    proj.damage * 0.4 // Adjusted damage for 5 meteors
+                    proj.damage * 0.25 // Adjusted damage for 5 meteors
                   );
                   newlySpawnedProjectiles.push(meteorProj);
                 }
@@ -2105,7 +2161,9 @@ export const useGameEngine = (
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {
-                players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + Math.round(Math.random());
+                if (Math.random() <= 0.25) {
+                  players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
+                }
                 players[targetIndex].lastHitByIceMage = now;
               }
             }

@@ -5,6 +5,33 @@ interface ProjectileRendererProps {
 }
 
 const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
+  // Special case for Archer arrows to have hitbox larger than visual
+  if (projectile.type === 'arrow' || projectile.type === 'poison-arrow') {
+    const angle = Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI);
+    return (
+      <div
+        className="absolute pointer-events-none flex items-center justify-center"
+        style={{
+          left: projectile.x,
+          top: projectile.y,
+          width: projectile.width,
+          height: projectile.height,
+        }}
+      >
+        <div
+          style={{
+            width: '48px', // Fixed visual size
+            height: '6px',
+            backgroundColor: projectile.type === 'arrow' ? '#8B4513' : '#22c55e',
+            borderRadius: '2px',
+            boxShadow: projectile.type === 'poison-arrow' ? '0 0 8px #22c55e' : 'none',
+            transform: `rotate(${angle}deg)`,
+          }}
+        />
+      </div>
+    );
+  }
+
   if (projectile.type === 'bat') {
     // Calculate rotation angle based on velocity direction
     // SVG bat is facing upward by default, so add 90 degrees to face right
@@ -39,19 +66,6 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
 
   const getProjectileStyle = () => {
     switch (projectile.type) {
-      case 'arrow':
-        return {
-          backgroundColor: '#8B4513',
-          borderRadius: '2px',
-          transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
-        };
-      case 'poison-arrow':
-        return {
-          backgroundColor: '#22c55e',
-          borderRadius: '2px',
-          boxShadow: '0 0 8px #22c55e',
-          transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
-        };
       case 'fireball':
         return {
           background: 'radial-gradient(circle, #ffff99, #ff9900, #ff3300)',

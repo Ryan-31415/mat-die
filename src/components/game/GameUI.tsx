@@ -161,7 +161,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
       </div>
 
       {/* Status effects display */}
-      {(player.buffDuration > 0 || player.isPoisoned || player.isSlowed || player.isStunned || player.isInvisible || player.isFrozen || player.freezeGauge > 0) && (
+      {(player.buffDuration > 0 || player.isPoisoned || player.isSlowed || player.isStunned || player.isInvisible || player.isFrozen || player.freezeGauge > 0 || player.mageUltimateDuration > 0 || player.isBurning || player.regenDuration > 0) && (
         <div className="mt-2 flex flex-wrap gap-1">
           {player.isFrozen && (
             <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-500 rounded animate-pulse">
@@ -170,7 +170,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           )}
           {player.freezeGauge > 0 && !player.isFrozen && (
             <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-400 rounded">
-              결빙: {player.freezeGauge} / 5
+              결빙 {player.freezeGauge} / 5
             </span>
           )}
           {player.buffDuration > 0 && (
@@ -190,7 +190,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           )}
           {player.isStunned && (
             <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 rounded">
-              기절
+              기절 {(player.stunDuration / 1000).toFixed(1)}s
             </span>
           )}
           {player.isInvisible && (
