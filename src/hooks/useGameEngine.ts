@@ -38,7 +38,7 @@ export const useGameEngine = (
     projectiles: [],
     hazardZones: [],
     attackHitboxes: [],
-    roundTimeRemaining: isOvertimeProp ? 30 : roundTimeLimit,
+    roundTimeRemaining: isOvertimeProp ? 30 : (roundTimeLimit === 0 ? 999 : roundTimeLimit),
     isRoundActive: true,
     roundWinner: null,
     isPaused: false,
@@ -1561,7 +1561,12 @@ export const useGameEngine = (
 
       // Update time
       const elapsedSeconds = (now - roundStartTimeRef.current) / 1000;
-      const newTimeRemaining = Math.max(0, roundTimeLimit - elapsedSeconds);
+      let newTimeRemaining: number;
+      if (roundTimeLimit === 0) {
+        newTimeRemaining = 999; // Arbitrary large number for UI, or we can handle it in UI
+      } else {
+        newTimeRemaining = Math.max(0, roundTimeLimit - elapsedSeconds);
+      }
 
       // Get player 1 keys from keyboard input
       const p1Keys = keysRefHolder.current?.current || {
@@ -2698,7 +2703,7 @@ export const useGameEngine = (
       if (players[0].health <= 0 && players[1].health <= 0) roundWinner = 'draw';
       else if (players[0].health <= 0) roundWinner = 2;
       else if (players[1].health <= 0) roundWinner = 1;
-      else if (newTimeRemaining <= 0) {
+      else if (roundTimeLimit > 0 && newTimeRemaining <= 0) {
         if (players[0].health === players[1].health) roundWinner = 'draw';
         else roundWinner = players[0].health > players[1].health ? 1 : 2;
       }
@@ -2745,7 +2750,7 @@ export const useGameEngine = (
       projectiles: [],
       hazardZones: [],
       attackHitboxes: [],
-      roundTimeRemaining: isOvertimeProp ? 30 : roundTimeLimit,
+      roundTimeRemaining: isOvertimeProp ? 30 : (roundTimeLimit === 0 ? 999 : roundTimeLimit),
       isRoundActive: true,
       roundWinner: null,
       isPaused: false,
