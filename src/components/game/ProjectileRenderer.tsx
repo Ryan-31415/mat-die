@@ -92,11 +92,18 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           transform: `rotate(${Date.now() / 10 % 360}deg)`,
         };
       case 'electric-orb':
+        const chargeLevel = projectile.chargeLevel || 0;
+        const isMaxCharge = chargeLevel >= 1;
         return {
-          background: 'radial-gradient(circle, #ffffff, #00ffff, #0088ff, #0044aa)',
+          background: isMaxCharge
+            ? 'radial-gradient(circle, #ffffff, #00ffff, #0000ff)'
+            : 'radial-gradient(circle, #ffffff, #00ffff, #0088ff, #0044aa)',
           borderRadius: '50%',
-          boxShadow: '0 0 35px #00ffff, 0 0 60px #0088ff, inset 0 0 20px #ffffff',
-          animation: 'pulse 0.08s infinite',
+          boxShadow: isMaxCharge
+            ? `0 0 45px #00ffff, 0 0 70px #0000ff, inset 0 0 25px #ffffff`
+            : `0 0 ${35}px #00ffff, 0 0 ${60}px #0088ff, inset 0 0 20px #ffffff`,
+          animation: isMaxCharge ? 'pulse 0.05s infinite' : 'pulse 0.08s infinite',
+          border: isMaxCharge ? '2px solid #fff' : 'none',
         };
       case 'bullet':
         return {
@@ -107,7 +114,7 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
         };
       case 'super-bullet':
         return {
-          backgroundColor: '#df9d46', // Goldish
+          backgroundColor: '#ff6600', // Orange as requested
           borderRadius: '4px',
           boxShadow: '0 0 4px rgba(0,0,0,0.5)',
           transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
@@ -130,6 +137,23 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           borderRadius: '40%', // Irregular jagged shape approximation
           boxShadow: '0 0 15px #4fc3f7, inset 0 0 10px #ffffff',
           transform: `rotate(${Date.now() / 5 % 360}deg)`, // Fast spin
+        };
+      case 'net':
+        return {
+          background: 'transparent',
+          borderRadius: '50%',
+          border: '2px solid #8B4513',
+          boxShadow: 'inset 0 0 10px #8B4513',
+          backgroundImage: 'radial-gradient(#8B4513 1px, transparent 1px)',
+          backgroundSize: '8px 8px',
+          transform: `rotate(${Date.now() / 5 % 360}deg)`,
+        };
+      case 'hacker-missile':
+        return {
+          backgroundColor: '#84cc16', // lime-500 yellow-green
+          borderRadius: '2px', // Square
+          boxShadow: '0 0 8px #84cc16',
+          border: '1px solid #fff',
         };
       default:
         return {

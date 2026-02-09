@@ -2,7 +2,7 @@
 
 export type GameScreen = 'menu' | 'character-select' | 'game' | 'result';
 
-export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage';
+export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage' | 'hacker';
 
 export type GameMode = 'single' | 'multi';
 
@@ -97,9 +97,23 @@ export interface Player {
   burnOwner: 1 | 2 | null;
   lastBurnTick: number;
   mageUltimateDuration: number;
-  // Clone
   isClone: boolean;
   createdAt: number;
+  // Scientist specific
+  skillChargeStartTime?: number;
+  isChargingSkill?: boolean;
+  // Hunter specific
+  isMarked?: boolean;
+  markDuration?: number;
+  markOwnerId?: 1 | 2;
+  hunterFocusedDuration?: number;
+  isEvading: boolean;
+  evadeDuration: number;
+  // Hacker specific
+  isSilenced: boolean;
+  silenceDuration: number;
+  isHacked: boolean; // System Override effect (control inversion, damage reduction)
+  hackedDuration: number;
 }
 
 export interface GameState {
@@ -133,14 +147,14 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     colorClass: 'bg-red-600',
     maxHealth: 150,
     maxMana: 100,
-    manaRegen: 6.7, // Reduced to 60%
+    manaRegen: 6.6, // Reduced to 60%
     speed: 5.0,
     attackDamage: 16,
     attackRange: 80,
     attackCooldown: 800,
     skill: {
       name: '방어',
-      description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 이동속도가 50% 감소합니다.',
+      description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
       manaCost: 15, // per 0.5 seconds
       cooldown: 0,
     },
@@ -168,7 +182,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '독화살',
       description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 33% 감소, 지속 피해)를 부여합니다.',
-      manaCost: 35,
+      manaCost: 45,
       cooldown: 5000,
     },
     ultimate: {
@@ -194,12 +208,12 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '대형 파이어볼',
       description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 파이어볼 5개가 추가적으로 투하됩니다.',
-      manaCost: 35,
-      cooldown: 4000,
+      manaCost: 40,
+      cooldown: 3500,
     },
     ultimate: {
       name: '각성',
-      description: '5초간 공격력이 30%, 마나 재생력이 50% 상승하며, 모든 공격이 3.5초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
+      description: '5초간 공격력이 30%, 마나 재생력이 50% 상승하며, 모든 공격이 3초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -213,7 +227,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     colorClass: 'bg-slate-800',
     maxHealth: 115,
     maxMana: 100,
-    manaRegen: 6.6,
+    manaRegen: 6.5,
     speed: 5.5, // slightly faster base speed
     attackDamage: 15,
     attackRange: 85,
@@ -227,7 +241,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '그림자 은신',
-      description: '4초간 은신하며(공격력 50% 상승, 이동속도 60% 상승, 공격 2회 회피), 6초간 지속되는 자신의 분신을 소환합니다.',
+      description: '4초간 은신해서 이동속도가 40% 상승하고, 공격력이 25% 상승합니다. 은신 시 1회 한정으로 공격을 회피 가능합니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -247,7 +261,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 900,
     skill: {
       name: '전자총',
-      description: '전기 구체를 발사해 강한 피해와 넉백을 입힙니다. 피격된 적은 1초간 기절하고 4.5초간 이동속도가 40% 감소합니다.',
+      description: '스킬 버튼을 길게 눌러 에너지를 충전합니다. 충전 시간에 비례해 전기 구체의 화력이 증가합니다. 완충 시 피격된 적을 기절시킵니다. 과도하게 충전하면 자폭으로 데미지를 받습니다.',
       manaCost: 45,
       cooldown: 5500,
     },
@@ -272,14 +286,14 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackRange: 200,
     attackCooldown: 1100,
     skill: {
-      name: '함정',
-      description: '바닥에 함정을 설치합니다. 설치 1.5초 후 투명해지며, 밟은 적에게 피해를 입히고, 2초간 속박하며 4초간 이동속도를 50% 감소시킵니다. (최대 1개)',
-      manaCost: 50,
-      cooldown: 6000,
+      name: '그물 투척',
+      description: '투척형 그물을 던져 적중 시 적을 플레이어 쪽으로 약간 끌어오고, 6초간 표식을 부여합니다. 표식 대상은 사냥꾼에게 받는 피해가 20% 증가하며, 피격 시 0.7초간 이동속도가 15% 감소합니다.',
+      manaCost: 40,
+      cooldown: 4000,
     },
     ultimate: {
-      name: '슈퍼 샷건',
-      description: '더 강력한 산탄총으로 9발의 총알을 발사합니다.',
+      name: '집중 사격',
+      description: '5초간 기본 공격의 탄환 수가 5발에서 7발로 증가하고, 집탄률, 사거리, 탄속이 향상됩니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -306,7 +320,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '유체화',
-      description: '2.5초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기의 흡혈 패시브의 효과는 2.5배로 증가합니다.',
+      description: '2.5초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기의 흡혈 패시브는 50% 증가되어 적용됩니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -334,6 +348,32 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     ultimate: {
       name: '눈보라',
       description: '거대한 얼음 덩어리를 던져 특정 지역에 눈보라를 일으킵니다. 영역 내 적은 미끄러지며, 둔화 및 빙결 효과가 강화되고 넉백을 더 크게 받습니다.',
+      manaCost: 100,
+      cooldown: 0,
+    },
+  },
+  hacker: {
+    id: 'hacker',
+    name: 'Hacker',
+    nameKo: '해커',
+    color: '#84cc16', // lime-500
+    colorClass: 'bg-lime-500',
+    maxHealth: 80,
+    maxMana: 100,
+    manaRegen: 6.6,
+    speed: 4.7,
+    attackDamage: 11,
+    attackRange: 550, // Ranged character similar to others
+    attackCooldown: 900, // Standard ranged cooldown
+    skill: {
+      name: '백도어',
+      description: '전방에 5초간 지속되는 사각형 영역을 설치합니다. 영역에 닿은 적은 스킬/궁극기 사용이 봉인됩니다. 해커가 이 영역 안에서 적을 공격하면 데미지가 25% 증가하고 적과 위치를 바꿉니다.',
+      manaCost: 35,
+      cooldown: 5000,
+    },
+    ultimate: {
+      name: '해킹',
+      description: '4초간 상대방을 해킹하여 공격력을 20% 감소시키고 이동 조작을 반전시킵니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -423,4 +463,16 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   mageUltimateDuration: 0,
   isClone: false,
   createdAt: Date.now(),
+  skillChargeStartTime: undefined,
+  isChargingSkill: false,
+  isMarked: false,
+  markDuration: 0,
+  markOwnerId: undefined,
+  hunterFocusedDuration: 0,
+  isEvading: false,
+  evadeDuration: 0,
+  isSilenced: false,
+  silenceDuration: 0,
+  isHacked: false,
+  hackedDuration: 0,
 });

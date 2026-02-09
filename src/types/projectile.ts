@@ -1,6 +1,6 @@
 // Projectile Types
 
-export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone';
+export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile';
 
 export interface Projectile {
   id: string;
@@ -35,11 +35,12 @@ export interface Projectile {
   hasHitReturn?: boolean; // Track if projectile has hit on return path
   isHoming?: boolean; // Track if projectile is homing
   lastHitTime: Record<number, number>; // Track timestamp of last hit per player ID
+  chargeLevel?: number; // 0-1 (or >1 for overcharge visuals)
 }
 
 export interface HazardZone {
   id: string;
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring';
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring' | 'packet-block-zone';
   ownerId: 1 | 2;
   x: number;
   y: number;
@@ -155,8 +156,8 @@ export const createProjectile = (
     case 'large-fireball':
       result = {
         ...baseProjectile,
-        width: 50,
-        height: 50,
+        width: 42,
+        height: 42,
         isExplosive: true,
         explosionRadius: 300,
         createsFirePool: true,
@@ -167,8 +168,8 @@ export const createProjectile = (
     case 'meteor':
       result = {
         ...baseProjectile,
-        width: 24,
-        height: 24,
+        width: 20,
+        height: 20,
         hasGravity: false,
         isExplosive: true,
         explosionRadius: 55,
@@ -207,17 +208,17 @@ export const createProjectile = (
         ...baseProjectile,
         width: 10,
         height: 8,
-        lifetime: 320,
+        lifetime: 305,
         knockback: 10,
       };
       break;
     case 'super-bullet':
       result = {
         ...baseProjectile,
-        width: 15,
-        height: 12,
-        lifetime: 300,
-        knockback: 35,
+        width: 10,
+        height: 8,
+        lifetime: 305,
+        knockback: 15,
       };
       break;
     case 'bat':
@@ -235,8 +236,8 @@ export const createProjectile = (
     case 'snowball':
       result = {
         ...baseProjectile,
-        width: 25,
-        height: 25,
+        width: 24,
+        height: 24,
         canBeDeflected: true,
       };
       break;
@@ -259,6 +260,25 @@ export const createProjectile = (
         gravity: 600, // Heavy gravity for arcing
       };
       break;
+    case 'net':
+      result = {
+        ...baseProjectile,
+        width: 40,
+        height: 40,
+        hasGravity: true,
+        gravity: 300,
+        lifetime: 3500,
+        canBeDeflected: false,
+      };
+      break;
+    case 'hacker-missile':
+      result = {
+        ...baseProjectile,
+        width: 24,
+        height: 24,
+        canBeDeflected: true,
+      };
+      break;
     default:
       result = baseProjectile;
       break;
@@ -273,7 +293,7 @@ export const createProjectile = (
 
 
 export const createHazardZone = (
-  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring',
+  type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring' | 'packet-block-zone',
   ownerId: 1 | 2,
   x: number,
   y: number,
@@ -332,6 +352,15 @@ export const createHazardZone = (
       width: 180, // fire ring diameter
       height: 180,
       tickRate: 500, // 0.5 second tick
+    };
+  }
+
+  if (type === 'packet-block-zone') {
+    return {
+      ...base,
+      width: 250,
+      height: 250,
+      tickRate: 100, // Fast tick to ensure silence is applied
     };
   }
 

@@ -4,7 +4,47 @@ interface HazardRendererProps {
   zone: HazardZone;
 }
 
+import { useRef, useEffect } from 'react';
+
 const HazardRenderer = ({ zone }: HazardRendererProps) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Matrix effect for packet block zone
+  useEffect(() => {
+    if (zone.type !== 'packet-block-zone' || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationFrameId: number;
+    const columns = Math.floor(canvas.width / 10);
+    const drops: number[] = new Array(columns).fill(1);
+
+    const draw = () => {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#84cc16'; // lime-500
+      ctx.font = '10px monospace';
+
+      for (let i = 0; i < drops.length; i++) {
+        const text = String.fromCharCode(0x30A0 + Math.random() * 96);
+        ctx.fillText(text, i * 10, drops[i] * 10);
+
+        if (drops[i] * 10 > canvas.height && Math.random() > 0.975) {
+          drops[i] = 0;
+        }
+        drops[i]++;
+      }
+      animationFrameId = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [zone.type, zone.width, zone.height]);
+
   const getHazardStyle = () => {
     switch (zone.type) {
       case 'fire-pool':
@@ -62,6 +102,14 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
           border: '6px solid rgba(255, 100, 0, 0.8)',
           boxShadow: '0 0 30px rgba(255, 102, 0, 0.8), inset 0 0 30px rgba(255, 0, 0, 0.4)',
           animation: 'pulse 0.3s infinite',
+        };
+      case 'packet-block-zone':
+        return {
+          background: 'rgba(0, 0, 0, 0.3)',
+          border: '2px solid #84cc16', // lime-500
+          boxShadow: '0 0 15px rgba(132, 204, 22, 0.4)',
+          zIndex: 5,
+          overflow: 'hidden', // Contain the matrix canvas
         };
       default:
         return {};
@@ -153,6 +201,16 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
             </svg>
           )}
         </>
+      )}
+
+      {/* Matrix Hazard Effect */}
+      {zone.type === 'packet-block-zone' && (
+        <canvas
+          ref={canvasRef}
+          width={zone.width}
+          height={zone.height}
+          className="absolute top-0 left-0 w-full h-full opacity-50 pointer-events-none"
+        />
       )}
     </div>
   );

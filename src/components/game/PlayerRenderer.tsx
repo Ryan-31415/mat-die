@@ -11,8 +11,10 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isSlowed) statusEffects.push('🐌');
   if (player.isStunned) statusEffects.push('💫');
   if (player.isShielding) statusEffects.push('🛡️');
-  if (player.isDashing) statusEffects.push('💨');
-  if (player.buffDuration > 0) statusEffects.push('⬆️');
+  if (player.isSilenced) statusEffects.push('🔇');
+  if (player.isHacked) statusEffects.push('💻');
+  if (player.dodgesRemaining > 0) statusEffects.push(`💨x${player.dodgesRemaining}`);
+  if (character.id !== 'archer' && player.buffDuration > 0) statusEffects.push('⬆️');
   if (player.rootDuration > 0) statusEffects.push('🕸️');
   if (player.regenDuration > 0) statusEffects.push('♥️');
   if (player.poisonArrowsRemaining > 0) statusEffects.push(`🟢x${player.poisonArrowsRemaining}`);
@@ -22,6 +24,8 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isBurning) statusEffects.push('🔥');
   if (player.mageUltimateDuration > 0) statusEffects.push('🌟');
   if (character.id === 'archer' && player.buffDuration > 0) statusEffects.push(`🏹x${player.archerBuffStacks || 0}`);
+  if (player.isMarked) statusEffects.push('🎯');
+  if (player.hunterFocusedDuration > 0) statusEffects.push('🔭');
 
   const now = Date.now();
   const trailPositions = player.trailPositions || [];
@@ -107,7 +111,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
         )}
         {/* Character body */}
         <div
-          className={`w-full h-full border-2 border-foreground/50 ${player.isAttacking || player.isUsingSkill || player.isUsingUltimate
+          className={`w-full h-full border-2 border-foreground/50 ${player.isAttacking || player.isUsingSkill || player.isChargingSkill || player.isUsingUltimate
             ? 'animate-pulse'
             : ''
             } ${player.isStunned ? 'opacity-50' : ''} ${player.isFlying ? 'rounded-full' : 'rounded-lg'}`}
@@ -160,6 +164,48 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
             />
           )}
         </div>
+
+        {/* Scientist Charge Bar */}
+        {character.id === 'scientist' && player.isChargingSkill && player.skillChargeStartTime && (
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-12 h-2 bg-gray-700/80 rounded-full overflow-hidden border border-white/30">
+            {(() => {
+              const chargeTime = now - player.skillChargeStartTime;
+              const chargeRatio = Math.min(1, chargeTime / 1750);
+              const overchargeRatio = Math.max(0, (chargeTime - 1750) / 3000);
+
+              // Color: Yellow -> Red as it overcharges
+              let barColor = '#fbbf24'; // Amber-400
+              if (chargeRatio >= 1) {
+                // Flash red when near explosion
+                if (overchargeRatio > 0.85 && Math.floor(now / 100) % 2 === 0) {
+                  barColor = '#ef4444'; // Red-500
+                } else if (overchargeRatio > 0.4) {
+                  // Interpolate from Yellow to Red
+                  barColor = `rgb(${251 + (239 - 251) * overchargeRatio}, ${191 + (68 - 191) * overchargeRatio}, ${36 + (68 - 36) * overchargeRatio})`;
+                }
+                else if (overchargeRatio > 0) {
+                  // Interpolate from blue to yellow  
+                  barColor = `rgb(${59 + (251 - 59) * overchargeRatio}, ${130 + (191 - 130) * overchargeRatio}, ${246 + (36 - 246) * overchargeRatio})`;
+                } else {
+                  barColor = '#3b82f6'; // Blue
+                }
+              } else {
+                // Charging phase
+                barColor = '#22c55e'; // Green
+              }
+
+              return (
+                <div
+                  className="h-full transition-all duration-75"
+                  style={{
+                    width: `${Math.min(100, (chargeTime / 1750) * 100)}%`,
+                    backgroundColor: barColor,
+                  }}
+                />
+              );
+            })()}
+          </div>
+        )}
 
         {/* Player indicator */}
         {!player.isClone && (

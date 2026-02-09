@@ -125,8 +125,12 @@ export const useGameEngine = (
     return { y: newY, isGrounded: false, platform: null };
   };
 
-  const applyDamage = (player: Player, damage: number): { player: Player; dealt: number } => {
+  const applyDamage = (player: Player, damage: number, isHazard: boolean = false): { player: Player; dealt: number } => {
+    // If truly invulnerable (Reaper ult), block everything
     if (player.isInvulnerable) return { player, dealt: 0 };
+
+    // If Ninja is evading, block non-hazard hits
+    if (player.isEvading && !isHazard) return { player, dealt: 0 };
 
     let damageMultiplier = 1.0;
     let isBreakingFreeze = false;
@@ -138,12 +142,14 @@ export const useGameEngine = (
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
 
-    // Check dodge for ninja
-    if (player.dodgesRemaining > 0) {
+    // Check dodge for ninja (non-hazard only)
+    if (player.dodgesRemaining > 0 && !isHazard) {
       return {
         player: {
           ...player,
           dodgesRemaining: player.dodgesRemaining - 1,
+          isEvading: true,
+          evadeDuration: 500, // 0.5s
         },
         dealt: 0
       };
@@ -462,6 +468,25 @@ export const useGameEngine = (
 
     let updatedPlayer = { ...player };
 
+    // HACKER ULTIMATE: System Override (Input Inversion)
+    // If player is hacked, invert controls
+    let effectiveMoveLeft = moveLeft;
+    let effectiveMoveRight = moveRight;
+    let effectiveJump = jumpKey;
+    let effectiveMoveDown = moveDown;
+
+    if (updatedPlayer.isHacked) {
+      effectiveMoveLeft = moveRight;
+      effectiveMoveRight = moveLeft;
+      effectiveJump = moveDown;
+      effectiveMoveDown = jumpKey;
+    }
+
+    // Use effective keys for movement logic
+    // We need to override the variables used later
+    // Logic below uses explicit checks like 'moveLeft', 'moveRight' etc.
+    // So we'll use these effective variables in the movement section.
+
     // Update status effect durations
     if (updatedPlayer.poisonDuration > 0) {
       updatedPlayer.poisonDuration -= deltaTime;
@@ -566,6 +591,27 @@ export const useGameEngine = (
         }
       }
     }
+    if (updatedPlayer.markDuration && updatedPlayer.markDuration > 0) {
+      updatedPlayer.markDuration -= deltaTime;
+      if (updatedPlayer.markDuration <= 0) {
+        updatedPlayer.isMarked = false;
+        updatedPlayer.markDuration = 0;
+        updatedPlayer.markOwnerId = undefined;
+      }
+    }
+    if (updatedPlayer.hunterFocusedDuration && updatedPlayer.hunterFocusedDuration > 0) {
+      updatedPlayer.hunterFocusedDuration -= deltaTime;
+      if (updatedPlayer.hunterFocusedDuration <= 0) {
+        updatedPlayer.hunterFocusedDuration = 0;
+      }
+    }
+    if (updatedPlayer.evadeDuration > 0) {
+      updatedPlayer.evadeDuration -= deltaTime;
+      if (updatedPlayer.evadeDuration <= 0) {
+        updatedPlayer.isEvading = false;
+        updatedPlayer.evadeDuration = 0;
+      }
+    }
 
     // Mage ultimate duration
     if (updatedPlayer.mageUltimateDuration > 0) {
@@ -574,6 +620,37 @@ export const useGameEngine = (
         updatedPlayer.mageUltimateDuration = 0;
         updatedPlayer.damageBoost = 0;
       }
+    }
+
+    // Hacker Status Effects
+    if (updatedPlayer.silenceDuration > 0) {
+      updatedPlayer.silenceDuration -= deltaTime;
+      if (updatedPlayer.silenceDuration <= 0) {
+        updatedPlayer.isSilenced = false;
+        updatedPlayer.silenceDuration = 0;
+      }
+    }
+    if (updatedPlayer.hackedDuration > 0) {
+      updatedPlayer.hackedDuration -= deltaTime;
+      if (updatedPlayer.hackedDuration <= 0) {
+        updatedPlayer.isHacked = false;
+        updatedPlayer.hackedDuration = 0;
+      }
+    }
+
+    // Packet Block Zone Effect (Continuous Silence while inside)
+    // Check if player is inside an ENEMY packet-block-zone
+    const inPacketBlock = hazardZones.some(z =>
+      z.type === 'packet-block-zone' &&
+      z.ownerId !== updatedPlayer.id &&
+      checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
+    );
+
+    if (inPacketBlock) {
+      updatedPlayer.isSilenced = true;
+      updatedPlayer.silenceDuration = 100; // Persist for small amount after leaving
+    } else if (updatedPlayer.silenceDuration <= 0) {
+      updatedPlayer.isSilenced = false;
     }
 
     // Burn damage (from Mage ultimate)
@@ -599,7 +676,9 @@ export const useGameEngine = (
     }
 
     // Mana regeneration
-    const manaRegen = (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.6 : 1.0);
+    // Scientist only regenerates mana when NOT charging
+    const isCharging = character.id === 'scientist' && updatedPlayer.isChargingSkill;
+    const manaRegen = isCharging ? 0 : (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.6 : 1.0);
     updatedPlayer.mana = Math.min(updatedPlayer.maxMana, updatedPlayer.mana + manaRegen);
 
     // Cooldown reduction
@@ -678,6 +757,19 @@ export const useGameEngine = (
     // Calculate speed
     let speed = character.speed;
     if (updatedPlayer.isShielding) speed *= 0.5;
+    // Scientist charging speed penalty
+    if (updatedPlayer.isChargingSkill) {
+      const chargeTime = now - (updatedPlayer.skillChargeStartTime || now);
+      const chargeRatio = Math.min(1, chargeTime / 1750);
+
+      // Base penalty: 33% slow
+      let slowFactor = 0.33;
+
+      // Reinforced penalty: 40% slow if charged >= 50%
+      if (chargeRatio >= 0.5) slowFactor = 0.40;
+
+      speed *= (1 - slowFactor);
+    }
     if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
     // Apply freeze gauge slow (10% per stack)
     if (updatedPlayer.freezeGauge > 0) speed *= (1 - (updatedPlayer.freezeGauge * 0.1));
@@ -686,13 +778,13 @@ export const useGameEngine = (
 
     // Horizontal Movement
     let dx = 0;
-    if (moveLeft) dx -= 1;
-    if (moveRight) dx += 1;
+    if (effectiveMoveLeft) dx -= 1;
+    if (effectiveMoveRight) dx += 1;
 
     let dy = 0;
     if (updatedPlayer.isFlying) {
-      if (jumpKey) dy -= 1;
-      if (moveDown) dy += 1;
+      if (effectiveJump) dy -= 1;
+      if (effectiveMoveDown) dy += 1;
 
       // Force horizontal movement if isFlying (Reaper constant movement)
       // Even if moving vertically, add horizontal component to ensure no stopping
@@ -767,14 +859,14 @@ export const useGameEngine = (
     // Jumping logic
     const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
 
-    if (jumpKey && canJump && !updatedPlayer.isJumping) {
+    if (effectiveJump && canJump && !updatedPlayer.isJumping) {
       updatedPlayer.velocityY = JUMP_FORCE;
       updatedPlayer.isJumping = true;
       updatedPlayer.isGrounded = false;
     }
 
     // Reset jump flag when key released
-    if (!jumpKey) {
+    if (!effectiveJump) {
       updatedPlayer.isJumping = false;
     }
 
@@ -803,7 +895,7 @@ export const useGameEngine = (
       updatedPlayer.lastGroundedTime = now;
 
       // Drop through one-way platform - only if NOT currently jumping
-      if (moveDown && platformResult.platform?.type === 'one-way' && !updatedPlayer.isJumping) {
+      if (effectiveMoveDown && platformResult.platform?.type === 'one-way' && !updatedPlayer.isJumping) {
         updatedPlayer.isGrounded = false;
         newY += 25; // Push through platform
         updatedPlayer.velocityY = 300; // Add downward velocity
@@ -848,6 +940,23 @@ export const useGameEngine = (
       if (character.id === 'archer' && updatedPlayer.buffDuration > 0) {
         damageBoost += (updatedPlayer.archerBuffStacks || 0) * 0.05;
       }
+
+      // Hacker System Override: Reduce damage by 20%
+      if (updatedPlayer.isHacked) {
+        damageBoost -= 0.20;
+      }
+
+      // Hacker Packet Block: Check if standing in OWN packet-block-zone
+      const inOwnPacketBlock = hazardZones.some(z =>
+        z.type === 'packet-block-zone' &&
+        z.ownerId === updatedPlayer.id &&
+        checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
+      );
+
+      if (character.id === 'hacker' && inOwnPacketBlock) {
+        damageBoost += 0.25;
+      }
+
       const baseDamage = character.attackDamage * (1 + damageBoost) * damageMultiplier;
 
       switch (character.id) {
@@ -918,18 +1027,26 @@ export const useGameEngine = (
           ));
           break;
         case 'hunter':
-          // Shotgun: 5 bullets with spread
-          for (let i = 0; i < 5; i++) {
-            const spreadAngle = (i - 2) * 8;
+          // Shotgun: 5 bullets (or 9 if Focused Fire) with spread
+          const isFocused = (updatedPlayer.hunterFocusedDuration || 0) > 0;
+          const bulletCount = isFocused ? 7 : 5;
+          const spreadFactor = isFocused ? 0.35 : 1.0; // Tighter spread if focused
+          const speedMultiplier = isFocused ? 1.2 : 1.0; // Faster bullets if focused
+          const damageMultiplier = isFocused ? 1.0 : 1.0; // Increased damage if focused, Not used but kept for future use
+
+          for (let i = 0; i < bulletCount; i++) {
+            const centerIndex = (bulletCount - 1) / 2;
+            const spreadAngle = (i - centerIndex) * 8 * spreadFactor;
             const radians = spreadAngle * (Math.PI / 180);
+
             newProjectiles.push(createProjectile(
-              'bullet',
+              isFocused ? 'super-bullet' : 'bullet',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 1250 * Math.cos(radians),
+              attackDirection * 1250 * speedMultiplier * Math.cos(radians),
               850 * Math.sin(radians),
-              baseDamage * 0.4 // Each bullet does 40% of base damage
+              baseDamage * 0.4 * damageMultiplier // Each bullet does 40% of base damage
             ));
           }
           break;
@@ -955,6 +1072,37 @@ export const useGameEngine = (
             baseDamage
           ));
           break;
+        case 'hacker':
+          const missile = createProjectile(
+            'hacker-missile',
+            player.id,
+            updatedPlayer.x + PLAYER_SIZE / 2,
+            updatedPlayer.y + PLAYER_SIZE / 2,
+            attackDirection * 800,
+            0,
+            baseDamage
+          );
+          // If in own packet block, this missile carries the swap effect
+          // We can mark it using a special property not on the type yet, or deduce it on hit.
+          // Actually, we calculated baseDamage with +25% already.
+          // We need to know if we should swap on hit.
+          if (inOwnPacketBlock) {
+            // We'll use a property on the projectile to indicate it's a swap missile
+            // Since we don't have a dedicated field, we can abuse `createsFirePool` or similar, or just check damage? 
+            // Checking baseDamage is unreliable due to other buffs.
+            // Let's add a temporary property or use `stunDuration` to flag it? No, stun has effect.
+            // Let's rely on the damage calculation at hit time ONLY if we added a specific flag.
+            // OR: We update Projectile interface to support `isSwapMissile`.
+            // For now, let's cast it to any and add the prop, or add it to interface.
+            // Let's stick to adding it to interface in types/projectile.ts? 
+            // It's cleaner to check at hit time: "If projectile owner is Hacker AND projectile has specific damage?" No.
+            // Let's add `knockback` as a signal? No.
+            // Let's assume we can attach the swap logic to the hit handler by checking if the source was boosted.
+            // We can just add a property to the object literal. JS allows it.
+            (missile as any).isSwapMissile = true;
+          }
+          newProjectiles.push(missile);
+          break;
       }
 
       setTimeout(() => {
@@ -967,8 +1115,9 @@ export const useGameEngine = (
       }, 200);
     }
 
-    // Skills (non-gladiator)
-    if (skillKey && character.id !== 'gladiator' && updatedPlayer.skillCooldownRemaining <= 0) {
+    // Skills (non-gladiator and non-scientist)
+    // Also block skill if Silenced
+    if (skillKey && !character.id.match(/^(gladiator|scientist)$/) && updatedPlayer.skillCooldownRemaining <= 0 && !updatedPlayer.isSilenced) {
       const manaCost = character.skill.manaCost;
       if (updatedPlayer.mana >= manaCost) {
         updatedPlayer.mana -= manaCost;
@@ -991,13 +1140,13 @@ export const useGameEngine = (
               0,
               0,
               675,
-              baseDamage * 2
+              baseDamage * 1.75
             );
             newProjectiles.push(largeFireball);
             break;
           case 'ninja':
             updatedPlayer.isDashing = true;
-            const dashDistance = 300; // Increased range
+            const dashDistance = 270; // Increased range
             const dashX = updatedPlayer.x + (attackDirection * dashDistance);
             updatedPlayer.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, dashX));
             setTimeout(() => {
@@ -1009,25 +1158,15 @@ export const useGameEngine = (
               }));
             }, 200);
             break;
-          case 'scientist':
+          case 'hunter':
             newProjectiles.push(createProjectile(
-              'electric-orb',
+              'net',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 880,
-              0,
-              baseDamage * 3
-            ));
-            break;
-          case 'hunter':
-            newHazards.push(createHazardZone(
-              'bear-trap',
-              player.id,
-              updatedPlayer.x,
-              updatedPlayer.y + PLAYER_SIZE - 20,
-              baseDamage,
-              60000 // 1 minute lifetime
+              attackDirection * 750,
+              -125,
+              baseDamage * 0.2 // Low damage, utility focus
             ));
             break;
           case 'reaper':
@@ -1077,6 +1216,24 @@ export const useGameEngine = (
               }, 0);
             }
             break;
+          case 'hacker':
+            const zone = createHazardZone(
+              'packet-block-zone',
+              player.id,
+              updatedPlayer.x + (attackDirection * 150),
+              updatedPlayer.y - 50, // Slightly higher
+              0, // No direct damage
+              5000
+            );
+            // Center the zone ahead of player
+            zone.x = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * 150) - (zone.width / 2);
+            zone.y = ARENA.height - ARENA.padding - zone.height; // On ground? Or floating? "Install square area"
+            // Let's put it on the ground level or centered on player Y?
+            // "In front" implies same Y level.
+            zone.y = updatedPlayer.y + PLAYER_SIZE / 2 - zone.height / 2;
+
+            newHazards.push(zone);
+            break;
         }
 
         setTimeout(() => {
@@ -1090,8 +1247,186 @@ export const useGameEngine = (
       }
     }
 
+    // Scientist Charge Logic
+    if (character.id === 'scientist') {
+      const manaCost = character.skill.manaCost;
+
+      // Start Charging
+      if (skillKey && !updatedPlayer.isChargingSkill && updatedPlayer.skillCooldownRemaining <= 0 && updatedPlayer.mana >= manaCost) {
+        updatedPlayer.isChargingSkill = true;
+        updatedPlayer.skillChargeStartTime = now;
+      }
+
+      // Continue Charging & Overcharge Check
+      if (updatedPlayer.isChargingSkill) {
+        // If mana drops below cost (e.g. drained), cancel charge
+        if (updatedPlayer.mana < manaCost) {
+          updatedPlayer.isChargingSkill = false;
+          updatedPlayer.skillChargeStartTime = undefined;
+        } else {
+          const chargeDuration = now - (updatedPlayer.skillChargeStartTime || now);
+          const fullChargeTime = 1750;
+          const overchargeTime = fullChargeTime + 3000; // 3 seconds after full charge
+
+          // Overcharge Self-Destruct
+          if (chargeDuration > overchargeTime) {
+            updatedPlayer.isChargingSkill = false;
+            updatedPlayer.skillChargeStartTime = undefined;
+            updatedPlayer.skillCooldownRemaining = character.skill.cooldown;
+
+            // Self Damage: 6x Attack Damage
+            const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
+            const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
+            const selfDamage = baseDamage * 6;
+
+            // Apply Self Damage
+            const selfDamageResult = applyDamage(updatedPlayer, selfDamage);
+            updatedPlayer = selfDamageResult.player;
+            // If survived, apply status effects
+            if (updatedPlayer.health > 0) {
+              updatedPlayer.isStunned = true;
+              updatedPlayer.stunDuration = 1250;
+
+              updatedPlayer.isSlowed = true;
+              updatedPlayer.slowAmount = 0.5;
+              updatedPlayer.slowDuration = 6500;
+
+              // Knockback backwards
+              const facingDir = updatedPlayer.facingRight ? 1 : -1;
+              updatedPlayer.knockbackVelocityX = -facingDir * 300;
+              updatedPlayer.knockbackVelocityY = -200; // Slight pop up
+              updatedPlayer.isGrounded = false;
+            }
+
+            // Area Damage to enemies
+            // 3.75x Damage, Slow 40% 5s, Knockback 220
+            const explosionDamage = baseDamage * 3.75;
+            const explosion = createHazardZone(
+              'electric-explosion',
+              player.id,
+              updatedPlayer.x,
+              updatedPlayer.y,
+              explosionDamage,
+              200 // Instant duration
+            );
+            // Customizing hazard for explosion effect
+            explosion.width = 250;
+            explosion.height = 250;
+            // Center it
+            explosion.x = updatedPlayer.x + PLAYER_SIZE / 2 - explosion.width / 2;
+            explosion.y = updatedPlayer.y + PLAYER_SIZE / 2 - explosion.height / 2;
+
+            newHazards.push(explosion);
+
+            // We need to apply this immediately to the other player? 
+            // Hazard zones are processed in next tick usually, but instant explosion might need immediate handling if we want it "instant".
+            // For now, let's use a short duration hazard or a projectile that explodes instantly.
+            // Actually hazard zone logic handles damage over time. For instant burst, maybe projectile is better? 
+            // Or just check collision right here.
+
+            if (checkCollision(explosion.x, explosion.y, explosion.width, explosion.height, otherPlayer.x, otherPlayer.y, PLAYER_SIZE, PLAYER_SIZE)) {
+              // Apply effects to opponent directly here or let hazard handle it?
+              // Hazard logic in game loop applies damage based on tickRate. 
+              // Let's create a special projectile "explosion" that lasts 1 frame?
+              // Or simply stick to hazard but ensure it ticks once. 
+              // The current hazard logic checks tickRate. If we set tickRate to 0 or small, it should tick.
+              // Re-using 'electric-orb' logic but stationary might be easier visually.
+
+              // Let's use a "System" where we manually apply damage to other player for instant effects?
+              // No, sticking to patterns is better. 
+              // Let's use a large projectile that explodes immediately.
+              const explosionProj = createProjectile(
+                'electric-orb',
+                player.id,
+                updatedPlayer.x + PLAYER_SIZE / 2,
+                updatedPlayer.y + PLAYER_SIZE / 2,
+                0, 0,
+                explosionDamage
+              );
+              explosionProj.width = 1; // Invisible center
+              explosionProj.height = 1;
+              explosionProj.isExplosive = true;
+              explosionProj.explosionRadius = 125; // 250 diameter
+              explosionProj.lifetime = 50; // Instant
+              explosionProj.knockback = 220;
+              explosionProj.slowAmount = 0.4;
+              explosionProj.slowDuration = 5000;
+              newProjectiles.push(explosionProj);
+            }
+          }
+        }
+      }
+
+      // Fire (Release Key)
+      if (!skillKey && updatedPlayer.isChargingSkill) {
+        const chargeStartTime = updatedPlayer.skillChargeStartTime || now;
+        const chargeDuration = now - chargeStartTime;
+        const chargeRatio = Math.min(1, chargeDuration / 1500);
+
+        updatedPlayer.isChargingSkill = false;
+        updatedPlayer.skillChargeStartTime = undefined;
+
+        // Consume Mana
+        updatedPlayer.mana -= manaCost;
+        updatedPlayer.skillCooldownRemaining = character.skill.cooldown;
+
+        // Calculate Stats
+        const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
+        // Damage: 1.25x to 3.75x of Attack Damage
+        const damageScale = 1.25 + (2.5 * chargeRatio);
+        const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * damageScale;
+
+        // Knockback: 90 to 220
+        const knockback = 90 + (130 * chargeRatio);
+
+        // Status: Slow -25% 4s (Base)
+        // If >= 50% charge: Slow -40% 5s
+        let slowAmount = 0.25;
+        let slowDuration = 4000;
+        if (chargeRatio >= 0.5) {
+          slowAmount = 0.40;
+          slowDuration = 5000;
+        }
+
+        // Stun: None base, 1s if 100% charge
+        let stunDuration = 0;
+        if (chargeRatio >= 1.0) {
+          stunDuration = 1000;
+        }
+
+        const attackDirection = updatedPlayer.facingRight ? 1 : -1;
+
+        const projectile = createProjectile(
+          'electric-orb',
+          player.id,
+          updatedPlayer.x + PLAYER_SIZE / 2,
+          updatedPlayer.y + PLAYER_SIZE / 2,
+          attackDirection * 850,
+          0,
+          baseDamage
+        );
+
+        projectile.knockback = knockback;
+        projectile.slowAmount = slowAmount;
+        projectile.slowDuration = slowDuration;
+        projectile.stunDuration = stunDuration;
+        projectile.chargeLevel = chargeRatio; // For visuals
+
+        // Scale projectile size based on charge?
+        // Base size 33, max size 54
+        projectile.width = 33 + (21 * chargeRatio);
+        projectile.height = 33 + (21 * chargeRatio);
+        // Adjust center after resize
+        projectile.x = updatedPlayer.x + PLAYER_SIZE / 2 - projectile.width / 2;
+        projectile.y = updatedPlayer.y + PLAYER_SIZE / 2 - projectile.height / 2;
+
+        newProjectiles.push(projectile);
+      }
+    }
+
     // Ultimate
-    if (ultimateKey && updatedPlayer.mana >= 100) {
+    // Block if Silenced
+    if (ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced) {
       updatedPlayer.mana = 0;
       updatedPlayer.isUsingUltimate = true;
 
@@ -1133,22 +1468,9 @@ export const useGameEngine = (
         case 'ninja':
           updatedPlayer.isInvisible = true;
           updatedPlayer.invisibleDuration = 4000;
-          updatedPlayer.damageBoost = 0.50;
-          updatedPlayer.speedBoost = 0.60;
-          updatedPlayer.dodgesRemaining = 2;
-
-          // Spawn Clone
-          const clone: Player = {
-            ...createInitialPlayer(player.id, character),
-            x: updatedPlayer.x,
-            y: updatedPlayer.y,
-            maxHealth: character.maxHealth / 4,
-            health: character.maxHealth / 4,
-            isClone: true,
-            createdAt: now,
-            speedBoost: 0.2, // 20% faster
-          };
-          newClones.push(clone);
+          updatedPlayer.damageBoost = 0.25;
+          updatedPlayer.speedBoost = 0.40;
+          updatedPlayer.dodgesRemaining = 1;
           break;
         case 'scientist':
           newHazards.push(createHazardZone(
@@ -1161,20 +1483,9 @@ export const useGameEngine = (
           ));
           break;
         case 'hunter':
-          // Super Shotgun: 9 bullets with wider spread
-          for (let i = 0; i < 9; i++) {
-            const spreadAngle = (i - 4) * 7;
-            const radians = spreadAngle * (Math.PI / 180);
-            newProjectiles.push(createProjectile(
-              'super-bullet',
-              player.id,
-              updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 1500 * Math.cos(radians),
-              850 * Math.sin(radians),
-              baseDamage * 0.65 // Each bullet does 65% of base damage
-            ));
-          }
+          // Focused Fire: 5s buff
+          updatedPlayer.hunterFocusedDuration = 5000;
+          updatedPlayer.damageBoost = 0.15; // +15% damage
           break;
         case 'reaper':
           updatedPlayer.isInvulnerable = true;
@@ -1195,6 +1506,30 @@ export const useGameEngine = (
             baseDamage * 0.05
           );
           newProjectiles.push(blizzardStone);
+          break;
+        case 'hacker':
+          // System Override: Hack enemy
+          // Effect applied in updatePlayer (via flags) immediately?
+          // We need to set the state on the OTHER player.
+          // updatePlayer returns new state for THIS player.
+          // But we need to affect the OTHER player.
+          // We can't do it here directly for the other player struct.
+          // We should launch an invisible "hack" projectile or handle it in the game loop via a flag/event?
+          // or just cheat and use a "hack-request" that gets processed in game loop?
+
+          // Simplest way: Create a "hack-projectile" that instant hits.
+          const hackProj = createProjectile(
+            'electric-orb', // Reuse orb for visual or make invisible
+            player.id,
+            otherPlayer.x + PLAYER_SIZE / 2, // Instant hit location
+            otherPlayer.y + PLAYER_SIZE / 2,
+            0, 0, 0
+          );
+          hackProj.width = 1;
+          hackProj.height = 1;
+          hackProj.lifetime = 50;
+          (hackProj as any).isHackUltimate = true; // Flag for collision handler
+          newProjectiles.push(hackProj);
           break;
       }
 
@@ -1431,7 +1766,7 @@ export const useGameEngine = (
             // Stack bonus: each stack adds performance
             const stackFactor = (owner.archerBuffStacks || 0);
 
-            const turnRate = timeFactor >= 0.33 ? 0.05 + (0.02 * timeFactor) + (0.005 * stackFactor) : 0;
+            const turnRate = timeFactor >= 0.33 ? 0.045 + (0.015 * timeFactor) + (0.005 * stackFactor) : 0;
 
             newProj.velocityX += (targetVx - newProj.velocityX) * turnRate;
             newProj.velocityY += (targetVy - newProj.velocityY) * turnRate;
@@ -1622,7 +1957,7 @@ export const useGameEngine = (
         if (proj.type === 'bat') {
           if (isReturningToOwner) {
             // Bat on return path - can hit if hasn't hit on return yet
-            if (!proj.hasHitReturn && checkCollision(
+            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitReturn && checkCollision(
               proj.x, proj.y, proj.width, proj.height,
               playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
@@ -1647,7 +1982,7 @@ export const useGameEngine = (
             }
           } else {
             // Bat on forward path - can hit player
-            if (!proj.hasHitForward && checkCollision(
+            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitForward && checkCollision(
               proj.x, proj.y, proj.width, proj.height,
               playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
@@ -1687,7 +2022,7 @@ export const useGameEngine = (
             // Check collision with clones on forward path
             for (let i = 0; i < nextClones.length; i++) {
               const clone = nextClones[i];
-              if (clone.id !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) {
+              if (clone.id !== proj.ownerId && !clone.isEvading && !clone.isInvulnerable && checkCollision(proj.x, proj.y, proj.width, proj.height, clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) {
                 const damageRes = applyDamage(clone, proj.damage);
                 nextClones[i] = damageRes.player;
                 if (proj.isReturning && timeSinceCreated < proj.lifetime * 0.35) {
@@ -1701,7 +2036,7 @@ export const useGameEngine = (
           // Non-bat projectiles: original logic
           if (!isReturningToOwner) {
             // Check player collision first
-            const hitPlayer = checkCollision(
+            const hitPlayer = !playerTarget.isEvading && !playerTarget.isInvulnerable && checkCollision(
               proj.x, proj.y, proj.width, proj.height,
               playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
             );
@@ -1709,7 +2044,7 @@ export const useGameEngine = (
             // Find clone collision if player not hit
             let hitCloneIndex = -1;
             if (!hitPlayer) {
-              hitCloneIndex = nextClones.findIndex(c => c.id !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
+              hitCloneIndex = nextClones.findIndex(c => c.id !== proj.ownerId && !c.isEvading && !c.isInvulnerable && checkCollision(proj.x, proj.y, proj.width, proj.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
             }
 
             if (hitPlayer || hitCloneIndex !== -1) {
@@ -1746,7 +2081,13 @@ export const useGameEngine = (
                 }
               }
 
-              const damageRes = applyDamage(currentTarget, proj.damage);
+              // Apply Mark Damage Boost
+              let finalDamage = proj.damage;
+              if (currentTarget.isMarked && currentTarget.markOwnerId === proj.ownerId) {
+                finalDamage *= 1.2;
+              }
+
+              const damageRes = applyDamage(currentTarget, finalDamage);
               currentTarget = damageRes.player;
 
               // Archer Ultimate: Stacking buff on hit
@@ -1792,6 +2133,57 @@ export const useGameEngine = (
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
               }
 
+              // Net Logic: Pull + Mark
+              if (proj.type === 'net') {
+                currentTarget.isMarked = true;
+                currentTarget.markDuration = 6000;
+                currentTarget.markOwnerId = proj.ownerId;
+
+                // Pull target towards owner
+                const owner = players[proj.ownerId - 1];
+
+                // Calculate pull direction
+                let pullDirX = owner.x - currentTarget.x;
+                // Add weak vertical pull (mostly horizontal)
+                const pullDirY = (owner.y - currentTarget.y) * 0.5;
+
+                const dist = Math.sqrt(pullDirX * pullDirX + pullDirY * pullDirY);
+
+                if (dist > 20) { // Don't pull if already very close
+                  const pullForce = 1050; // Increased force
+
+                  // Use knockback velocity slots which are added to movement
+                  currentTarget.knockbackVelocityX = (pullDirX / dist) * pullForce;
+                  currentTarget.knockbackVelocityY = -300; // Tiny hop to ensure they get off ground
+
+                  // Reset regular velocity to prevent fighting against the pull
+                  currentTarget.velocityX = 0;
+                  // Don't reset velocityY entirely so gravity still works naturally after hop
+
+                  currentTarget.isGrounded = false;
+
+                  // Brief stun to preventing immediate counter-movement
+                  currentTarget.isStunned = true;
+                  currentTarget.stunDuration = 200;
+                }
+              }
+
+              // Hunter Mark Passive: Slow on hit by Hunter
+              if (currentTarget.isMarked && currentTarget.markOwnerId === proj.ownerId) {
+                // Apply 15% slow for 0.7s
+                // Stack or overwrite? Let's overwrite/extend max
+                const existingSlow = currentTarget.isSlowed ? currentTarget.slowAmount : 0;
+                if (existingSlow < 0.15) {
+                  currentTarget.isSlowed = true;
+                  currentTarget.slowAmount = 0.15;
+                  currentTarget.slowDuration = 700;
+                } else if (currentTarget.isSlowed && currentTarget.slowAmount === 0.15) {
+                  // Refresh duration if same strength
+                  currentTarget.slowDuration = 700;
+                }
+                // If already slowed more (e.g. 50%), don't reduce it.
+              }
+
               // Mage Skill: Large-fireball improvements
               if (proj.type === 'large-fireball' && players[ownerIndex].character?.id === 'mage') {
                 // 25% bonus damage if target is airborne
@@ -1819,7 +2211,7 @@ export const useGameEngine = (
               // Mage Ultimate: Apply burn effect on any attack
               if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
                 currentTarget.isBurning = true;
-                currentTarget.burnDuration = 3500; // 3.5 seconds
+                currentTarget.burnDuration = 3000; // 3 seconds
                 currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.20; // 20% of mage attack per tick
                 currentTarget.burnOwner = proj.ownerId;
                 currentTarget.lastBurnTick = now;
@@ -1883,14 +2275,41 @@ export const useGameEngine = (
                 // Initial freeze on spawn
                 if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE)) {
                   currentTarget.isFrozen = true;
-                  currentTarget.frozenDuration = 1500;
+                  currentTarget.frozenDuration = 1000;
                 }
                 hazardZones.push(blizzard);
+              }
+
+              // Hacker Position Swap
+              if ((proj as any).isSwapMissile) {
+                // Swap positions!
+                const attacker = players[proj.ownerId - 1];
+                const victim = currentTarget;
+
+                // Temp store
+                const tempX = attacker.x;
+                const tempY = attacker.y;
+
+                // Apply swap
+                // We need to update the attacker in the `players` array too.
+                players[proj.ownerId - 1].x = victim.x;
+                players[proj.ownerId - 1].y = victim.y;
+
+                currentTarget.x = tempX;
+                currentTarget.y = tempY;
+              }
+
+              // Hacker Ultimate Instant Hit
+              if ((proj as any).isHackUltimate) {
+                currentTarget.isHacked = true;
+                currentTarget.hackedDuration = 4000;
               }
 
               // Final target update
               if (hitPlayer) players[targetPlayerIndex] = currentTarget;
               else nextClones[hitCloneIndex] = currentTarget;
+
+              if ((proj as any).isHackUltimate) return false;
 
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
@@ -1991,7 +2410,7 @@ export const useGameEngine = (
         const playerTarget = players[targetIndex];
 
         // Check collision with player
-        const hitPlayer = checkCollision(
+        const hitPlayer = !playerTarget.isEvading && !playerTarget.isInvulnerable && checkCollision(
           hitbox.x, hitbox.y, hitbox.width, hitbox.height,
           playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
         );
@@ -1999,7 +2418,7 @@ export const useGameEngine = (
         // Check collision with clones
         let hitCloneIndex = -1;
         if (!hitPlayer) {
-          hitCloneIndex = nextClones.findIndex(c => c.id !== hitbox.ownerId && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
+          hitCloneIndex = nextClones.findIndex(c => c.id !== hitbox.ownerId && !c.isEvading && !c.isInvulnerable && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
         }
 
         if (hitPlayer || hitCloneIndex !== -1) {
@@ -2012,7 +2431,13 @@ export const useGameEngine = (
             if (fromFront) return true;
           }
 
-          const damageRes = applyDamage(currentTarget, hitbox.damage);
+          // Apply Mark Damage Boost
+          let finalDamage = hitbox.damage;
+          if (currentTarget.isMarked && currentTarget.markOwnerId === hitbox.ownerId) {
+            finalDamage *= 1.2;
+          }
+
+          const damageRes = applyDamage(currentTarget, finalDamage);
           currentTarget = damageRes.player;
 
           // Reaper Passive: Life steal 20%
@@ -2062,17 +2487,17 @@ export const useGameEngine = (
           if (zoneCopy.health <= 0) {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             if (checkCollision(
-              zoneCopy.x - 100, zoneCopy.y - 100, 200, 200,
+              zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 200, 200,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              players[targetIndex] = applyDamage(players[targetIndex], 30).player;
+              players[targetIndex] = applyDamage(players[targetIndex], 30, true).player;
             }
 
             explosions.push(createHazardZone(
               'electric-explosion',
               zoneCopy.ownerId,
-              zoneCopy.x - 30,
-              zoneCopy.y - 30,
+              zoneCopy.x + zoneCopy.width / 2 - 95,
+              zoneCopy.y + zoneCopy.height / 2 - 95,
               0,
               300
             ));
@@ -2084,17 +2509,17 @@ export const useGameEngine = (
           if (zoneCopy.type === 'tesla-coil') {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             if (checkCollision(
-              zoneCopy.x - 100, zoneCopy.y - 100, 200, 200,
+              zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 200, 200,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              players[targetIndex] = applyDamage(players[targetIndex], 30).player;
+              players[targetIndex] = applyDamage(players[targetIndex], 30, true).player;
             }
 
             explosions.push(createHazardZone(
               'electric-explosion',
               zoneCopy.ownerId,
-              zoneCopy.x - 30,
-              zoneCopy.y - 30,
+              zoneCopy.x + zoneCopy.width / 2 - 95,
+              zoneCopy.y + zoneCopy.height / 2 - 95,
               0,
               300
             ));
@@ -2122,7 +2547,7 @@ export const useGameEngine = (
             if (!(zoneCopy.lastAttack && now - zoneCopy.lastAttack < (zoneCopy.attackCooldown || 200))) {
               zoneCopy.lastAttack = now;
               zoneCopy.lastAttackTarget = { x: target.x, y: target.y };
-              players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
+              players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
             }
           }
         }
@@ -2135,7 +2560,7 @@ export const useGameEngine = (
             zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
             target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
           )) {
-            players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
+            players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
             players[targetIndex].rootDuration = 2000;
             players[targetIndex].isSlowed = true;
             players[targetIndex].slowAmount = 0.5;
@@ -2156,7 +2581,7 @@ export const useGameEngine = (
               target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
               // Apply damage
-              const damageRes = applyDamage(target, zoneCopy.damage);
+              const damageRes = applyDamage(target, zoneCopy.damage, true);
               players[targetIndex] = damageRes.player;
 
               // Apply freeze stack
@@ -2191,7 +2616,7 @@ export const useGameEngine = (
             );
 
             if (distance < zoneCopy.width / 2) {
-              players[targetIndex] = applyDamage(target, zoneCopy.damage).player;
+              players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
             }
           }
         } else if (zoneCopy.type !== 'tesla-coil' && zoneCopy.type !== 'bear-trap' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
@@ -2203,7 +2628,7 @@ export const useGameEngine = (
                 zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
                 players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE
               )) {
-                players[i] = applyDamage(players[i], zoneCopy.damage).player;
+                players[i] = applyDamage(players[i], zoneCopy.damage, true).player;
               }
             }
           }
@@ -2254,7 +2679,7 @@ export const useGameEngine = (
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
               const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
               const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
-              const damageRes = applyDamage(target, baseDamage * 0.25); // 25% of base damage per tick
+              const damageRes = applyDamage(target, baseDamage * 0.25, true); // 25% of base damage per tick (Area)
               players[targetIndex] = damageRes.player;
               // Life steal 20 -> 50%
               players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.5);
