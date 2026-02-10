@@ -307,7 +307,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
               <div
                 className="absolute top-1/2 -translate-y-1/2 w-8 h-2 bg-foreground/50 rounded"
                 style={{
-                  left: player.facingRight ? PLAYER_SIZE : -8,
+                  left: PLAYER_SIZE,
                   animation: 'pulse 0.2s ease-out',
                 }}
               />

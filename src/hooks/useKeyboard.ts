@@ -7,8 +7,9 @@ export interface KeyboardState {
   s: boolean;
   d: boolean;
   space: boolean;
-  q: boolean;
-  e: boolean;
+  f: boolean;
+  g: boolean;
+  h: boolean;
   // Player 2 controls
   arrowUp: boolean;
   arrowDown: boolean;
@@ -16,7 +17,7 @@ export interface KeyboardState {
   arrowRight: boolean;
   enter: boolean;
   shift: boolean;
-  slash: boolean;
+  backslash: boolean;
 }
 
 const initialState: KeyboardState = {
@@ -25,15 +26,16 @@ const initialState: KeyboardState = {
   s: false,
   d: false,
   space: false,
-  q: false,
-  e: false,
+  f: false,
+  g: false,
+  h: false,
   arrowUp: false,
   arrowDown: false,
   arrowLeft: false,
   arrowRight: false,
   enter: false,
   shift: false,
-  slash: false,
+  backslash: false,
 };
 
 export const useKeyboard = () => {
@@ -41,9 +43,14 @@ export const useKeyboard = () => {
   const [keys, setKeys] = useState<KeyboardState>(initialState);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    e.preventDefault();
+    // Prevent default for game keys to avoid scrolling/etc
+    const gameKeys = ['w', 'a', 's', 'd', ' ', 'f', 'g', 'h', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'enter', 'shift', '\\'];
+    if (gameKeys.includes(e.key.toLowerCase())) {
+      e.preventDefault();
+    }
+
     const key = e.key.toLowerCase();
-    
+
     let updated = false;
     const newState = { ...keysRef.current };
 
@@ -63,11 +70,14 @@ export const useKeyboard = () => {
       case ' ':
         if (!newState.space) { newState.space = true; updated = true; }
         break;
-      case 'q':
-        if (!newState.q) { newState.q = true; updated = true; }
+      case 'f':
+        if (!newState.f) { newState.f = true; updated = true; }
         break;
-      case 'e':
-        if (!newState.e) { newState.e = true; updated = true; }
+      case 'g':
+        if (!newState.g) { newState.g = true; updated = true; }
+        break;
+      case 'h':
+        if (!newState.h) { newState.h = true; updated = true; }
         break;
       case 'arrowup':
         if (!newState.arrowUp) { newState.arrowUp = true; updated = true; }
@@ -87,8 +97,8 @@ export const useKeyboard = () => {
       case 'shift':
         if (!newState.shift) { newState.shift = true; updated = true; }
         break;
-      case '/':
-        if (!newState.slash) { newState.slash = true; updated = true; }
+      case '\\':
+        if (!newState.backslash) { newState.backslash = true; updated = true; }
         break;
     }
 
@@ -100,7 +110,7 @@ export const useKeyboard = () => {
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
-    
+
     let updated = false;
     const newState = { ...keysRef.current };
 
@@ -120,11 +130,14 @@ export const useKeyboard = () => {
       case ' ':
         if (newState.space) { newState.space = false; updated = true; }
         break;
-      case 'q':
-        if (newState.q) { newState.q = false; updated = true; }
+      case 'f':
+        if (newState.f) { newState.f = false; updated = true; }
         break;
-      case 'e':
-        if (newState.e) { newState.e = false; updated = true; }
+      case 'g':
+        if (newState.g) { newState.g = false; updated = true; }
+        break;
+      case 'h':
+        if (newState.h) { newState.h = false; updated = true; }
         break;
       case 'arrowup':
         if (newState.arrowUp) { newState.arrowUp = false; updated = true; }
@@ -144,8 +157,8 @@ export const useKeyboard = () => {
       case 'shift':
         if (newState.shift) { newState.shift = false; updated = true; }
         break;
-      case '/':
-        if (newState.slash) { newState.slash = false; updated = true; }
+      case '\\':
+        if (newState.backslash) { newState.backslash = false; updated = true; }
         break;
     }
 

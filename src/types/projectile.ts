@@ -1,6 +1,6 @@
 // Projectile Types
 
-export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile';
+export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile' | 'hacking';
 
 export interface Projectile {
   id: string;
@@ -198,7 +198,7 @@ export const createProjectile = (
         explosionRadius: 125,
         knockback: 160,
         slowAmount: 0.4,
-        slowDuration: 4500,
+        slowDuration: 4000,
         stunDuration: 1000,
         canBeDeflected: false,
       };
@@ -277,6 +277,15 @@ export const createProjectile = (
         width: 24,
         height: 24,
         canBeDeflected: true,
+      };
+      break;
+    case 'hacking':
+      result = {
+        ...baseProjectile,
+        width: 1,
+        height: 1,
+        canBeDeflected: false,
+        lifetime: 100,
       };
       break;
     default:

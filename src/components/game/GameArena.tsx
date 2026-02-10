@@ -214,11 +214,11 @@ const GameArena = ({
       {/* Controls reminder */}
       <div className="mt-4 flex gap-8 text-sm text-muted-foreground">
         <div>
-          <span className="font-semibold text-primary">P1:</span> A/D 이동, W 점프, Space 공격, Q 스킬, E 궁극기
+          <span className="font-semibold text-primary">P1:</span> WASD 이동, F 공격, G 스킬, H 궁극기
         </div>
         {gameMode === 'multi' && (
           <div>
-            <span className="font-semibold text-destructive">P2:</span> 화살표 이동, ↑ 점프, Enter 공격, Shift 스킬, / 궁극기
+            <span className="font-semibold text-destructive">P2:</span> 화살표키 이동, Shift 평타, Enter 스킬, \ 궁극기
           </div>
         )}
         {gameMode === 'single' && (
@@ -226,9 +226,6 @@ const GameArena = ({
             <span className="font-semibold text-destructive">P2 (AI):</span> 컴퓨터 자동 조작
           </div>
         )}
-      </div>
-      <div className="mt-1 text-xs text-muted-foreground/70">
-        S/↓ 키를 누른 상태에서 플랫폼을 통과할 수 있습니다
       </div>
     </div>
   );

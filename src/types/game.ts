@@ -187,7 +187,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '명사수',
-      description: '4초간 발사하는 화살이 유도되고, 공격력이 20% 상승하고, 공격속도가 15% 상승합니다. 이 상태에서 적을 명중시킬 때마다 효과가 강화되고 지속 시간이 길어집니다. 최대 5번까지 강화 가능합니다.',
+      description: '4초간 발사하는 화살이 유도되고, 공격력이 25% 상승하고, 공격속도가 15% 상승합니다. 이 상태에서 적을 명중시킬 때마다 효과가 강화되고 지속 시간이 길어집니다. 최대 5번까지 강화 가능합니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -331,7 +331,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '얼음 마법사',
     color: '#38bdf8',
     colorClass: 'bg-sky-400',
-    maxHealth: 100,
+    maxHealth: 95,
     maxMana: 100,
     manaRegen: 6.8,
     speed: 4.8,
@@ -347,7 +347,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '눈보라',
-      description: '거대한 얼음 덩어리를 던져 특정 지역에 눈보라를 일으킵니다. 영역 내 적은 미끄러지며, 둔화 및 빙결 효과가 강화되고 넉백을 더 크게 받습니다.',
+      description: '거대한 얼음 덩어리를 던져 특정 지역에 눈보라를 일으킵니다. 영역 내 적은 미끄러지며, 둔화 및 빙결 효과가 강화되고 넉백을 더 크게 받습니다. 눈보라를 처음 발생시킬 때 범위 내 적을 0.5초간 빙결시킵니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -358,11 +358,11 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     nameKo: '해커',
     color: '#84cc16', // lime-500
     colorClass: 'bg-lime-500',
-    maxHealth: 80,
+    maxHealth: 85,
     maxMana: 100,
     manaRegen: 6.6,
     speed: 4.7,
-    attackDamage: 11,
+    attackDamage: 12,
     attackRange: 550, // Ranged character similar to others
     attackCooldown: 900, // Standard ranged cooldown
     skill: {

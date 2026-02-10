@@ -16,9 +16,11 @@ const ControlsModal = ({ open, onOpenChange }: ControlsModalProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
+
         <DialogHeader>
           <DialogTitle className="text-2xl">조작법 안내</DialogTitle>
         </DialogHeader>
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
           {/* Player 1 */}
@@ -41,15 +43,15 @@ const ControlsModal = ({ open, onOpenChange }: ControlsModalProps) => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">일반 공격</span>
-                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">Space</kbd>
+                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">F</kbd>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">스킬</span>
-                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">Q</kbd>
+                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">G</kbd>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">궁극기</span>
-                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">E</kbd>
+                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">H</kbd>
               </div>
             </CardContent>
           </Card>
@@ -74,15 +76,15 @@ const ControlsModal = ({ open, onOpenChange }: ControlsModalProps) => {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">일반 공격</span>
-                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">Enter</kbd>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">스킬</span>
                 <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">Shift</kbd>
               </div>
               <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">스킬</span>
+                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">Enter</kbd>
+              </div>
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">궁극기</span>
-                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">/</kbd>
+                <kbd className="px-3 py-1 bg-muted rounded text-sm font-mono">\</kbd>
               </div>
             </CardContent>
           </Card>

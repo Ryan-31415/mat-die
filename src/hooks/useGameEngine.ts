@@ -186,9 +186,9 @@ export const useGameEngine = (
     const ultimateChance = 0.25;
 
     const keys: KeyboardState = {
-      a: false, d: false, w: false, s: false, space: false, q: false, e: false,
+      a: false, d: false, w: false, s: false, space: false, f: false, g: false, h: false,
       arrowLeft: false, arrowRight: false, arrowUp: false, arrowDown: false,
-      enter: false, shift: false, slash: false,
+      enter: false, shift: false, backslash: false,
     };
 
     // 1. Dodging Logic (High Priority)
@@ -373,11 +373,11 @@ export const useGameEngine = (
         if (isPlayer2) {
           keys.arrowLeft = !shouldFaceRight;
           keys.arrowRight = shouldFaceRight;
-          keys.enter = true;
+          keys.shift = true;
         } else {
           keys.a = !shouldFaceRight;
           keys.d = shouldFaceRight;
-          keys.space = true;
+          keys.f = true;
         }
       }
     }
@@ -401,17 +401,17 @@ export const useGameEngine = (
         // Character specific skill logic
         if (aiPlayer.character!.id === 'ninja' && distance > 200) {
           // Use dash to close gap
-          if (isPlayer2) keys.shift = true;
-          else keys.q = true;
+          if (isPlayer2) keys.enter = true;
+          else keys.g = true;
         } else if (aiPlayer.character!.id === 'gladiator') {
           // Gladiator uses shield if threatened
           if (isThreatened || distance < 100) {
-            if (isPlayer2) keys.shift = true;
-            else keys.q = true;
+            if (isPlayer2) keys.enter = true;
+            else keys.g = true;
           }
         } else {
-          if (isPlayer2) keys.shift = true;
-          else keys.q = true;
+          if (isPlayer2) keys.enter = true;
+          else keys.g = true;
         }
       }
     }
@@ -430,8 +430,8 @@ export const useGameEngine = (
 
       // Archer, Hunter, Reaper require alignment
       if (!ultRequiresVertical || isVerticalAligned) {
-        if (isPlayer2) keys.slash = true;
-        else keys.e = true;
+        if (isPlayer2) keys.backslash = true;
+        else keys.h = true;
       }
     }
 
@@ -462,9 +462,9 @@ export const useGameEngine = (
     const moveDown = isP1 ? keys.s : keys.arrowDown; // For dropping through platforms
     const moveLeft = isP1 ? keys.a : keys.arrowLeft;
     const moveRight = isP1 ? keys.d : keys.arrowRight;
-    const attackKey = isP1 ? keys.space : keys.enter;
-    const skillKey = isP1 ? keys.q : keys.shift;
-    const ultimateKey = isP1 ? keys.e : keys.slash;
+    const attackKey = isP1 ? keys.f : keys.shift;
+    const skillKey = isP1 ? keys.g : keys.enter;
+    const ultimateKey = isP1 ? keys.h : keys.backslash;
 
     let updatedPlayer = { ...player };
 
@@ -936,9 +936,9 @@ export const useGameEngine = (
 
       const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
       let damageBoost = updatedPlayer.damageBoost;
-      // Archer Ultimate: +5% damage per stack
+      // Archer Ultimate: +7.5% damage per stack
       if (character.id === 'archer' && updatedPlayer.buffDuration > 0) {
-        damageBoost += (updatedPlayer.archerBuffStacks || 0) * 0.05;
+        damageBoost += (updatedPlayer.archerBuffStacks || 0) * 0.075;
       }
 
       // Hacker System Override: Reduce damage by 20%
@@ -981,7 +981,7 @@ export const useGameEngine = (
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
-              (isHoming ? attackDirection * 1330 : attackDirection * 1000), // Increased speed
+              (isHoming ? attackDirection * 1400 : attackDirection * 1000), // Increased speed
               -80,
               isPoisoned ? baseDamage * 1.0 : baseDamage
             ),
@@ -1445,10 +1445,10 @@ export const useGameEngine = (
           updatedPlayer.healthRegen = updatedPlayer.maxHealth * 0.04; // 4% max health per second
           break;
         case 'archer':
-          // Archer Ultimate: 4s buff, +20% damage (base), +15% attack speed (handled in cooldown)
+          // Archer Ultimate: 4s buff, +25% damage (base), +15% attack speed (handled in cooldown)
           updatedPlayer.buffDuration = 4000;
           updatedPlayer.archerBuffStacks = 0;
-          updatedPlayer.damageBoost = 0.20; // Base +20%
+          updatedPlayer.damageBoost = 0.25; // Base +25%
           break;
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
@@ -1508,18 +1508,11 @@ export const useGameEngine = (
           newProjectiles.push(blizzardStone);
           break;
         case 'hacker':
-          // System Override: Hack enemy
-          // Effect applied in updatePlayer (via flags) immediately?
-          // We need to set the state on the OTHER player.
-          // updatePlayer returns new state for THIS player.
-          // But we need to affect the OTHER player.
-          // We can't do it here directly for the other player struct.
-          // We should launch an invisible "hack" projectile or handle it in the game loop via a flag/event?
-          // or just cheat and use a "hack-request" that gets processed in game loop?
+          // Hacking
 
           // Simplest way: Create a "hack-projectile" that instant hits.
           const hackProj = createProjectile(
-            'electric-orb', // Reuse orb for visual or make invisible
+            'hacking',
             player.id,
             otherPlayer.x + PLAYER_SIZE / 2, // Instant hit location
             otherPlayer.y + PLAYER_SIZE / 2,
@@ -1575,15 +1568,16 @@ export const useGameEngine = (
         w: false,
         s: false,
         space: false,
-        q: false,
-        e: false,
+        f: false,
+        g: false,
+        h: false,
         arrowLeft: false,
         arrowRight: false,
         arrowUp: false,
         arrowDown: false,
         enter: false,
         shift: false,
-        slash: false,
+        backslash: false,
       };
 
 
@@ -1630,7 +1624,7 @@ export const useGameEngine = (
         // Clone AI
         let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now);
         // Disable skills/ultimate for clones
-        aiKeys = { ...aiKeys, q: false, e: false, shift: false, slash: false };
+        aiKeys = { ...aiKeys, g: false, h: false, enter: false, backslash: false };
 
         const cloneRes = updatePlayer(
           clone,
@@ -1771,7 +1765,7 @@ export const useGameEngine = (
             // Stack bonus: each stack adds performance
             const stackFactor = (owner.archerBuffStacks || 0);
 
-            const turnRate = timeFactor >= 0.33 ? 0.045 + (0.015 * timeFactor) + (0.005 * stackFactor) : 0;
+            const turnRate = timeFactor >= 0.33 ? 0.065 + (-0.015 * timeFactor) + (0.008 * stackFactor) : 0;
 
             newProj.velocityX += (targetVx - newProj.velocityX) * turnRate;
             newProj.velocityY += (targetVy - newProj.velocityY) * turnRate;
@@ -2102,11 +2096,11 @@ export const useGameEngine = (
                   // Add stack
                   // Ensure stack count logic
                   const currentStacks = players[ownerIndex].archerBuffStacks || 0;
-                  if (currentStacks < 4) {
+                  if (currentStacks < 5) {
                     players[ownerIndex].archerBuffStacks = currentStacks + 1;
                   }
                   // Extend duration
-                  players[ownerIndex].buffDuration += 600;
+                  players[ownerIndex].buffDuration += 650;
                 }
               }
 
@@ -2280,7 +2274,7 @@ export const useGameEngine = (
                 // Initial freeze on spawn
                 if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE)) {
                   currentTarget.isFrozen = true;
-                  currentTarget.frozenDuration = 1000;
+                  currentTarget.frozenDuration = 500;
                 }
                 hazardZones.push(blizzard);
               }

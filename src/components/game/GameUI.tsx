@@ -112,11 +112,11 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
       <div className="space-y-1 mb-2">
         <div className="flex justify-between text-xs">
           <span>체력</span>
-          <span>{Math.ceil(player.health)} / {player.maxHealth}</span>
+          <span>{Math.floor(player.health)} / {player.maxHealth}</span>
         </div>
         <div className="h-3 bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-red-500 transition-all duration-200"
+            className="h-full bg-red-500 transition-all duration-100"
             style={{ width: `${healthPercent}%` }}
           />
         </div>
@@ -126,11 +126,11 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
       <div className="space-y-1 mb-2">
         <div className="flex justify-between text-xs">
           <span>마나</span>
-          <span>{Math.ceil(player.mana)} / {player.maxMana}</span>
+          <span>{Math.floor(player.mana)} / {player.maxMana}</span>
         </div>
         <div className="h-3 bg-muted rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-500 transition-all duration-200"
+            className="h-full bg-blue-500"
             style={{ width: `${manaPercent}%` }}
           />
         </div>
@@ -153,7 +153,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           <div className="text-xs mb-1">궁극기 (100%)</div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-100 ${player.mana >= 100 ? 'bg-amber-500' : 'bg-amber-500/50'
+              className={`h-full transition-all duration-100 ${Math.floor(player.mana) >= 100 ? 'bg-amber-500' : 'bg-amber-500/50'
                 }`}
               style={{ width: `${manaPercent}%` }}
             />
