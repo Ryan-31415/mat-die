@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Character, ARENA, PLAYER_SIZE } from '@/types/game';
+import { MapId, MAPS } from '@/types/map';
 import { useGameEngine } from '@/hooks/useGameEngine';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import PlayerRenderer from './PlayerRenderer';
@@ -7,6 +8,7 @@ import ProjectileRenderer from './ProjectileRenderer';
 import HazardRenderer from './HazardRenderer';
 import PlatformRenderer from './PlatformRenderer';
 import GameUI from './GameUI';
+import MapEffectsRenderer from './MapEffectsRenderer';
 
 interface GameArenaProps {
   player1Character: Character;
@@ -22,9 +24,8 @@ interface GameArenaProps {
   gameMode: 'single' | 'multi';
   isOvertime: boolean;
   roundsCompleted: number;
+  mapId: MapId;
 }
-
-
 
 const GameArena = ({
   player1Character,
@@ -36,7 +37,9 @@ const GameArena = ({
   gameMode,
   isOvertime,
   roundsCompleted,
+  mapId,
 }: GameArenaProps) => {
+  const map = MAPS[mapId];
   const { keysRef } = useKeyboard();
   const { gameState, setKeysRef, resetRound, togglePause } = useGameEngine(
     player1Character,
@@ -45,7 +48,8 @@ const GameArena = ({
     onRoundEnd,
     gameMode,
     isOvertime,
-    roundsCompleted + 1
+    roundsCompleted + 1,
+    mapId
   );
 
   const [frozenRoundNumber, setFrozenRoundNumber] = useState(roundsCompleted + 1);
@@ -60,23 +64,15 @@ const GameArena = ({
     setKeysRef(keysRef);
   }, [setKeysRef, keysRef]);
 
-  // Auto-reset round when roundsCompleted changes (meaning a round just ended)
   const prevRoundsRef = useRef(roundsCompleted);
 
   useEffect(() => {
-    // Check if roundsCompleted changed or if it's the start of overtime
     if (roundsCompleted !== prevRoundsRef.current || isOvertime) {
       prevRoundsRef.current = roundsCompleted;
-
-      // Check if match is not over yet
       const winsNeeded = Math.ceil(settings.maxRounds / 2);
       const matchOver = scores[0] >= winsNeeded || scores[1] >= winsNeeded;
 
-      // If it's a draw and we just finished all rounds, it goes to overtime in useGameState, 
-      // which doesn't set matchWinner yet.
-
       if (!matchOver) {
-        // Delay the reset to show the round end overlay
         const timer = setTimeout(() => {
           resetRound();
         }, 2000);
@@ -85,11 +81,8 @@ const GameArena = ({
     }
   }, [roundsCompleted, scores, settings.maxRounds, resetRound, isOvertime]);
 
-  const isBlizzardActive = gameState.hazardZones.some(zone => zone.type === 'blizzard');
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-muted p-4">
-      {/* Game UI */}
       <GameUI
         players={gameState.players}
         currentRound={roundsCompleted + 1}
@@ -104,10 +97,11 @@ const GameArena = ({
 
       {/* Arena */}
       <div
-        className="relative border-4 border-primary/50 rounded-lg overflow-hidden bg-gradient-to-b from-muted/50 to-muted"
+        className={`relative border-4 border-primary/50 rounded-lg overflow-hidden bg-gradient-to-b ${map.bgGradient}`}
         style={{
           width: ARENA.width,
           height: ARENA.height,
+          ...map.arenaStyle,
         }}
       >
         {/* Arena boundary markers */}
@@ -125,16 +119,38 @@ const GameArena = ({
 
         {/* Ground line */}
         <div
-          className="absolute left-0 right-0 h-1 bg-primary/30"
-          style={{ bottom: ARENA.padding }}
+          className="absolute left-0 right-0 h-1"
+          style={{
+            bottom: ARENA.padding,
+            background: map.groundStyle?.background || undefined,
+            boxShadow: map.groundStyle?.boxShadow as string || undefined,
+            ...(map.hasLavaFloor ? {
+              height: '20px',
+              bottom: 0,
+              background: map.groundStyle?.background,
+              boxShadow: map.groundStyle?.boxShadow as string,
+              animation: 'pulse 1s infinite',
+            } : {}),
+          }}
+        />
+
+        {/* Map environment effects */}
+        <MapEffectsRenderer
+          mapId={mapId}
+          players={gameState.players}
+          isRoundActive={gameState.isRoundActive}
+          sandstormActive={gameState.sandstormActive}
+          sandstormDirection={gameState.sandstormDirection}
+          lightningStrikes={gameState.lightningStrikes}
+          soulZones={gameState.soulZones}
+          vineShields={gameState.vineShields}
+          fallingLeaves={gameState.fallingLeaves}
         />
 
         {/* Platforms */}
         {gameState.platforms.map(platform => (
-          <PlatformRenderer key={platform.id} platform={platform} />
+          <PlatformRenderer key={platform.id} platform={platform} mapId={mapId} />
         ))}
-
-
 
         {/* Hazard zones */}
         {gameState.hazardZones.map(zone => (
@@ -146,29 +162,9 @@ const GameArena = ({
           <ProjectileRenderer key={projectile.id} projectile={projectile} />
         ))}
 
-        {/* Attack hitboxes (Hidden) */}
-        {/* {gameState.attackHitboxes.map(hitbox => (
-          <div
-            key={hitbox.id}
-            className="absolute bg-primary/20 rounded"
-            style={{
-              left: hitbox.x,
-              top: hitbox.y,
-              width: hitbox.width,
-              height: hitbox.height,
-            }}
-          />
-        ))} */}
-
         {/* Players */}
-        <PlayerRenderer
-          player={gameState.players[0]}
-          character={player1Character}
-        />
-        <PlayerRenderer
-          player={gameState.players[1]}
-          character={player2Character}
-        />
+        <PlayerRenderer player={gameState.players[0]} character={player1Character} />
+        <PlayerRenderer player={gameState.players[1]} character={player2Character} />
 
         {/* Clones */}
         {gameState.clones.map((clone, index) => (
@@ -203,9 +199,7 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-4xl font-bold mb-4">일시 정지</h2>
-              <p className="text-muted-foreground">
-                아무 키나 눌러 계속하기
-              </p>
+              <p className="text-muted-foreground">아무 키나 눌러 계속하기</p>
             </div>
           </div>
         )}

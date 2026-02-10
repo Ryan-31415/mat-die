@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MainMenu from '@/components/game/MainMenu';
 import CharacterSelect from '@/components/game/CharacterSelect';
+import MapSelect from '@/components/game/MapSelect';
 import GameArena from '@/components/game/GameArena';
 import ResultScreen from '@/components/game/ResultScreen';
 import SettingsModal from '@/components/game/SettingsModal';
@@ -19,8 +20,11 @@ const Index = () => {
     gameMode,
     isOvertime,
     roundsCompleted,
+    selectedMap,
     startGame,
     confirmCharacterSelection,
+    confirmMapSelection,
+    goBackToCharacterSelect,
     endRound,
     returnToMenu,
     rematch,
@@ -47,6 +51,13 @@ const Index = () => {
         />
       )}
 
+      {screen === 'map-select' && (
+        <MapSelect
+          onConfirm={confirmMapSelection}
+          onBack={goBackToCharacterSelect}
+        />
+      )}
+
       {screen === 'game' && player1Character && player2Character && (
         <GameArena
           player1Character={player1Character}
@@ -58,6 +69,7 @@ const Index = () => {
           gameMode={gameMode}
           isOvertime={isOvertime}
           roundsCompleted={roundsCompleted}
+          mapId={selectedMap}
         />
       )}
 

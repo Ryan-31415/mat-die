@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
 import { Projectile, HazardZone, AttackHitbox, createProjectile, createHazardZone, createAttackHitbox } from '@/types/projectile';
 import { Platform, PLATFORMS, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
+import { MapId, MAPS } from '@/types/map';
 import { KeyboardState } from './useKeyboard';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
@@ -18,6 +19,42 @@ interface GameEngineState {
   isPaused: boolean;
   platforms: Platform[];
   isOvertime: boolean;
+  // Map environment state
+  sandstormActive: boolean;
+  sandstormDirection: 'left' | 'right';
+  sandstormTimer: number;
+  nextSandstormTime: number;
+  lightningStrikes: Array<{
+    id: string;
+    x: number;
+    targetPlayerId: 1 | 2;
+    warningStart: number;
+    struck: boolean;
+  }>;
+  nextLightningTime: number;
+  soulZones: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    createdAt: number;
+    duration: number;
+  }>;
+  nextSoulZoneTime: number;
+  vineShields: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    createdAt: number;
+    duration: number;
+    hp: number;
+  }>;
+  nextVineTime: number;
+  lastLavaDamage: [number, number];
+  fallingLeaves: Array<{ id: string; x: number; y: number; vx: number; vy: number; rotation: number }>;
 }
 
 export const useGameEngine = (
@@ -27,9 +64,13 @@ export const useGameEngine = (
   onRoundEnd: (winner: 1 | 2 | 'draw') => void,
   gameMode: 'single' | 'multi' = 'multi',
   isOvertimeProp: boolean = false,
-  roundNumber: number = 1
+  roundNumber: number = 1,
+  mapId: MapId = 'default'
 ) => {
-  const [gameState, setGameState] = useState<GameEngineState>(() => ({
+  const map = MAPS[mapId];
+  const now0 = Date.now();
+
+  const createInitialEngineState = (): GameEngineState => ({
     players: [
       createInitialPlayer(1, player1Character),
       createInitialPlayer(2, player2Character),
@@ -42,9 +83,24 @@ export const useGameEngine = (
     isRoundActive: true,
     roundWinner: null,
     isPaused: false,
-    platforms: PLATFORMS,
+    platforms: map.platforms,
     isOvertime: isOvertimeProp,
-  }));
+    // Map environment state
+    sandstormActive: false,
+    sandstormDirection: 'right',
+    sandstormTimer: 0,
+    nextSandstormTime: Date.now() + 8000 + Math.random() * 7000,
+    lightningStrikes: [],
+    nextLightningTime: Date.now() + 6000 + Math.random() * 6000,
+    soulZones: [],
+    nextSoulZoneTime: Date.now() + 10000 + Math.random() * 8000,
+    vineShields: [],
+    nextVineTime: Date.now() + 7000 + Math.random() * 8000,
+    lastLavaDamage: [0, 0],
+    fallingLeaves: [],
+  });
+
+  const [gameState, setGameState] = useState<GameEngineState>(createInitialEngineState);
 
   const gameStateRef = useRef(gameState);
   const keysRefHolder = useRef<React.MutableRefObject<KeyboardState> | null>(null);
@@ -2692,6 +2748,192 @@ export const useGameEngine = (
         }
       }
 
+      // ============ MAP ENVIRONMENTAL EFFECTS ============
+      let { sandstormActive, sandstormDirection, sandstormTimer, nextSandstormTime,
+            lightningStrikes, nextLightningTime, soulZones, nextSoulZoneTime,
+            vineShields, nextVineTime, lastLavaDamage, fallingLeaves } = prev;
+
+      // --- WASTELAND: Sandstorm ---
+      if (mapId === 'wasteland') {
+        if (sandstormActive) {
+          sandstormTimer -= deltaTime;
+          if (sandstormTimer <= 0) {
+            sandstormActive = false;
+            nextSandstormTime = now + 10000 + Math.random() * 10000;
+          } else {
+            // Apply 1 damage per second to both players
+            for (let i = 0; i < 2; i++) {
+              if (now % 1000 < deltaTime) {
+                players[i] = applyDamage(players[i], 1, true).player;
+              }
+              // Push players in sandstorm direction
+              const pushForce = sandstormDirection === 'right' ? 60 : -60;
+              players[i].knockbackVelocityX += pushForce * (deltaTime / 1000);
+            }
+          }
+        } else if (now >= nextSandstormTime) {
+          sandstormActive = true;
+          sandstormDirection = Math.random() > 0.5 ? 'right' : 'left';
+          sandstormTimer = 5000;
+        }
+      }
+
+      // --- GRAVEYARD: Lightning ---
+      if (mapId === 'graveyard') {
+        // Spawn lightning
+        if (now >= nextLightningTime) {
+          // Higher position = higher chance of being target
+          const p1Height = ARENA.height - players[0].y;
+          const p2Height = ARENA.height - players[1].y;
+          const totalWeight = p1Height * p1Height + p2Height * p2Height;
+          const targetPlayer: 1 | 2 = Math.random() < (p1Height * p1Height / totalWeight) ? 1 : 2;
+          const target = players[targetPlayer - 1];
+
+          lightningStrikes = [...lightningStrikes, {
+            id: `lightning-${now}-${Math.random()}`,
+            x: target.x + PLAYER_SIZE / 2,
+            targetPlayerId: targetPlayer,
+            warningStart: now,
+            struck: false,
+          }];
+          nextLightningTime = now + 5000 + Math.random() * 8000;
+        }
+
+        // Process lightning strikes
+        lightningStrikes = lightningStrikes.map(strike => {
+          const elapsed = now - strike.warningStart;
+          if (elapsed >= 1500 && !strike.struck) {
+            // Strike!
+            const strikeX = strike.x;
+            for (let i = 0; i < 2; i++) {
+              const px = players[i].x + PLAYER_SIZE / 2;
+              if (Math.abs(px - strikeX) < 40) {
+                players[i] = applyDamage(players[i], 20, true).player;
+                players[i].isStunned = true;
+                players[i].stunDuration = 500;
+                players[i].isSlowed = true;
+                players[i].slowAmount = 0.2;
+                players[i].slowDuration = 3000;
+              }
+            }
+            return { ...strike, struck: true };
+          }
+          return strike;
+        }).filter(s => now - s.warningStart < 2000);
+
+        // Soul zone spawning
+        if (now >= nextSoulZoneTime) {
+          soulZones = [...soulZones, {
+            id: `soul-${now}`,
+            x: 100 + Math.random() * (ARENA.width - 250),
+            y: 200 + Math.random() * 200,
+            width: 80,
+            height: 80,
+            createdAt: now,
+            duration: 8000,
+          }];
+          nextSoulZoneTime = now + 12000 + Math.random() * 10000;
+        }
+
+        // Process soul zones
+        soulZones = soulZones.filter(zone => {
+          if (now - zone.createdAt > zone.duration) return false;
+          for (let i = 0; i < 2; i++) {
+            if (checkCollision(zone.x, zone.y, zone.width, zone.height,
+              players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE)) {
+              // 1% max hp per second
+              if (now % 1000 < deltaTime) {
+                players[i].health = Math.min(players[i].maxHealth,
+                  players[i].health + players[i].maxHealth * 0.01);
+              }
+              // Mana regen boost handled implicitly via speed multiplier effect
+              // We'll boost mana directly
+              const bonusMana = players[i].character!.manaRegen * 0.75 * (deltaTime / 1000);
+              players[i].mana = Math.min(players[i].maxMana, players[i].mana + bonusMana);
+            }
+          }
+          return true;
+        });
+      }
+
+      // --- JUNGLE: Vine shields ---
+      if (mapId === 'jungle') {
+        if (now >= nextVineTime) {
+          const vineX = 50 + Math.random() * (ARENA.width - 100);
+          vineShields = [...vineShields, {
+            id: `vine-${now}`,
+            x: vineX,
+            y: 50 + Math.random() * 200,
+            width: 15,
+            height: 60,
+            createdAt: now,
+            duration: 12000,
+            hp: 1,
+          }];
+          nextVineTime = now + 8000 + Math.random() * 10000;
+        }
+
+        // Check vine-projectile collision
+        vineShields = vineShields.filter(vine => {
+          if (now - vine.createdAt > vine.duration) return false;
+          if (vine.hp <= 0) return false;
+          const hit = projectiles.findIndex(p =>
+            checkCollision(vine.x, vine.y, vine.width, vine.height, p.x, p.y, p.width, p.height)
+          );
+          if (hit >= 0) {
+            projectiles.splice(hit, 1);
+            vine.hp--;
+            // Trigger falling leaves
+            for (let l = 0; l < 4; l++) {
+              fallingLeaves = [...fallingLeaves, {
+                id: `leaf-${now}-${l}`,
+                x: vine.x + Math.random() * vine.width,
+                y: vine.y,
+                vx: (Math.random() - 0.5) * 60,
+                vy: 30 + Math.random() * 40,
+                rotation: Math.random() * 360,
+              }];
+            }
+            return false;
+          }
+          return true;
+        });
+
+        // Update falling leaves
+        fallingLeaves = fallingLeaves.map(leaf => ({
+          ...leaf,
+          x: leaf.x + leaf.vx * (deltaTime / 1000),
+          y: leaf.y + leaf.vy * (deltaTime / 1000),
+          rotation: leaf.rotation + 90 * (deltaTime / 1000),
+        })).filter(leaf => leaf.y < ARENA.height);
+      }
+
+      // --- VOLCANO: Lava floor damage ---
+      if (mapId === 'volcano') {
+        const newLastLavaDamage: [number, number] = [...lastLavaDamage];
+        for (let i = 0; i < 2; i++) {
+          const playerBottom = players[i].y + PLAYER_SIZE;
+          if (playerBottom >= ARENA.height - ARENA.padding) {
+            if (now - newLastLavaDamage[i] >= 500) { // Prevent rapid re-triggering
+              let lavaDamage = 30;
+              if (players[i].isBurning) lavaDamage *= 1.33;
+              players[i] = applyDamage(players[i], lavaDamage, true).player;
+              // Bounce up
+              players[i].velocityY = -600;
+              players[i].y = ARENA.height - ARENA.padding - PLAYER_SIZE - 5;
+              // Apply burn
+              players[i].isBurning = true;
+              players[i].burnDuration = 5000;
+              players[i].burnDamagePerTick = 6;
+              players[i].burnOwner = null;
+              players[i].lastBurnTick = now;
+              newLastLavaDamage[i] = now;
+            }
+          }
+        }
+        lastLavaDamage = newLastLavaDamage;
+      }
+
       // Check win conditions
       let roundWinner: 1 | 2 | 'draw' | null = null;
       if (players[0].health <= 0 && players[1].health <= 0) roundWinner = 'draw';
@@ -2712,6 +2954,12 @@ export const useGameEngine = (
         roundTimeRemaining: newTimeRemaining,
         isRoundActive: !roundWinner,
         roundWinner,
+        sandstormActive, sandstormDirection, sandstormTimer, nextSandstormTime,
+        lightningStrikes, nextLightningTime,
+        soulZones, nextSoulZoneTime,
+        vineShields, nextVineTime,
+        lastLavaDamage,
+        fallingLeaves,
       };
     });
   }, [roundTimeLimit, gameMode, updatePlayer]);
@@ -2735,22 +2983,7 @@ export const useGameEngine = (
     roundStartTimeRef.current = Date.now();
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
-    setGameState(prev => ({
-      players: [
-        createInitialPlayer(1, player1Character),
-        createInitialPlayer(2, player2Character),
-      ],
-      clones: [],
-      projectiles: [],
-      hazardZones: [],
-      attackHitboxes: [],
-      roundTimeRemaining: isOvertimeProp ? 30 : (roundTimeLimit === 0 ? 999 : roundTimeLimit),
-      isRoundActive: true,
-      roundWinner: null,
-      isPaused: false,
-      platforms: PLATFORMS,
-      isOvertime: isOvertimeProp,
-    }));
+    setGameState(createInitialEngineState());
   }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp]);
 
   const togglePause = useCallback(() => {
