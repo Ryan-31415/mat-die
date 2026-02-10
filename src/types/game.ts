@@ -372,7 +372,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       cooldown: 5000,
     },
     ultimate: {
-      name: '해킹',
+      name: '시스템 오버라이드',
       description: '4초간 상대방을 해킹하여 공격력을 20% 감소시키고 이동 조작을 반전시킵니다.',
       manaCost: 100,
       cooldown: 0,
