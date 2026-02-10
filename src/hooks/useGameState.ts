@@ -5,6 +5,7 @@ import {
   DEFAULT_SETTINGS,
   Character,
 } from '@/types/game';
+import { MapId } from '@/types/map';
 
 export const useGameState = () => {
   const [screen, setScreen] = useState<GameScreen>('menu');
@@ -16,6 +17,7 @@ export const useGameState = () => {
   const [gameMode, setGameMode] = useState<'single' | 'multi'>('multi');
   const [isOvertime, setIsOvertime] = useState(false);
   const [roundsCompleted, setRoundsCompleted] = useState(0);
+  const [selectedMap, setSelectedMap] = useState<MapId>('default');
 
   const goToScreen = useCallback((newScreen: GameScreen) => {
     setScreen(newScreen);
@@ -48,7 +50,16 @@ export const useGameState = () => {
     setPlayer2Character(p2);
     setIsOvertime(false);
     setRoundsCompleted(0);
+    goToScreen('map-select');
+  }, [goToScreen]);
+
+  const confirmMapSelection = useCallback((mapId: MapId) => {
+    setSelectedMap(mapId);
     goToScreen('game');
+  }, [goToScreen]);
+
+  const goBackToCharacterSelect = useCallback(() => {
+    goToScreen('character-select');
   }, [goToScreen]);
 
   const endRound = useCallback(
@@ -122,10 +133,13 @@ export const useGameState = () => {
     gameMode,
     isOvertime,
     roundsCompleted,
+    selectedMap,
     goToScreen,
     startGame,
     selectCharacter,
     confirmCharacterSelection,
+    confirmMapSelection,
+    goBackToCharacterSelect,
     endRound,
     returnToMenu,
     rematch,

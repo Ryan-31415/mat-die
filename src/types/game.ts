@@ -1,6 +1,6 @@
 // Game Types and Interfaces
 
-export type GameScreen = 'menu' | 'character-select' | 'game' | 'result';
+export type GameScreen = 'menu' | 'character-select' | 'map-select' | 'game' | 'result';
 
 export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage' | 'hacker';
 
