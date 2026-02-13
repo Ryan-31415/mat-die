@@ -70,35 +70,55 @@ export const useGameEngine = (
   const map = MAPS[mapId];
   const now0 = Date.now();
 
-  const createInitialEngineState = (): GameEngineState => ({
-    players: [
+  const createInitialEngineState = (): GameEngineState => {
+    const players: [Player, Player] = [
       createInitialPlayer(1, player1Character),
       createInitialPlayer(2, player2Character),
-    ],
-    clones: [],
-    projectiles: [],
-    hazardZones: [],
-    attackHitboxes: [],
-    roundTimeRemaining: isOvertimeProp ? 30 : (roundTimeLimit === 0 ? 999 : roundTimeLimit),
-    isRoundActive: true,
-    roundWinner: null,
-    isPaused: false,
-    platforms: map.platforms,
-    isOvertime: isOvertimeProp,
-    // Map environment state
-    sandstormActive: false,
-    sandstormDirection: 'right',
-    sandstormTimer: 0,
-    nextSandstormTime: Date.now() + 8000 + Math.random() * 7000,
-    lightningStrikes: [],
-    nextLightningTime: Date.now() + 6000 + Math.random() * 6000,
-    soulZones: [],
-    nextSoulZoneTime: Date.now() + 10000 + Math.random() * 8000,
-    vineShields: [],
-    nextVineTime: Date.now() + 7000 + Math.random() * 8000,
-    lastLavaDamage: [0, 0],
-    fallingLeaves: [],
-  });
+    ];
+
+    // On volcano map, spawn players on platforms instead of the ground (which is lava)
+    if (mapId === 'volcano') {
+      const leftPlatform = map.platforms.find(p => p.id === 'platform-left');
+      const rightPlatform = map.platforms.find(p => p.id === 'platform-right');
+
+      if (leftPlatform) {
+        players[0].x = leftPlatform.x + (leftPlatform.width / 2) - (PLAYER_SIZE / 2);
+        players[0].y = leftPlatform.y - PLAYER_SIZE;
+      }
+
+      if (rightPlatform) {
+        players[1].x = rightPlatform.x + (rightPlatform.width / 2) - (PLAYER_SIZE / 2);
+        players[1].y = rightPlatform.y - PLAYER_SIZE;
+      }
+    }
+
+    return {
+      players,
+      clones: [],
+      projectiles: [],
+      hazardZones: [],
+      attackHitboxes: [],
+      roundTimeRemaining: isOvertimeProp ? 30 : (roundTimeLimit === 0 ? 999 : roundTimeLimit),
+      isRoundActive: true,
+      roundWinner: null,
+      isPaused: false,
+      platforms: map.platforms,
+      isOvertime: isOvertimeProp,
+      // Map environment state
+      sandstormActive: false,
+      sandstormDirection: 'right',
+      sandstormTimer: 0,
+      nextSandstormTime: Date.now() + 8000 + Math.random() * 7000,
+      lightningStrikes: [],
+      nextLightningTime: Date.now() + 6000 + Math.random() * 6000,
+      soulZones: [],
+      nextSoulZoneTime: Date.now() + 10000 + Math.random() * 8000,
+      vineShields: [],
+      nextVineTime: Date.now() + 7000 + Math.random() * 8000,
+      lastLavaDamage: [0, 0],
+      fallingLeaves: [],
+    };
+  };
 
   const [gameState, setGameState] = useState<GameEngineState>(createInitialEngineState);
 
@@ -228,7 +248,17 @@ export const useGameEngine = (
   };
 
   // AI decision making for single-player mode
-  const getAIKeys = (aiPlayer: Player, opponent: Player, projectiles: Projectile[], hazardZones: HazardZone[], platforms: Platform[], isOvertime: boolean, now: number): KeyboardState => {
+  const getAIKeys = (
+    aiPlayer: Player,
+    opponent: Player,
+    projectiles: Projectile[],
+    hazardZones: HazardZone[],
+    platforms: Platform[],
+    isOvertime: boolean,
+    now: number,
+    mapId: MapId = 'default',
+    lightningStrikes: GameEngineState['lightningStrikes'] = []
+  ): KeyboardState => {
     const distX = opponent.x - aiPlayer.x;
     const distY = opponent.y - aiPlayer.y;
     const distance = Math.sqrt(distX * distX + distY * distY);
@@ -272,45 +302,22 @@ export const useGameEngine = (
         Math.abs(hazardCenterY - playerCenterY) < (h.height / 2 + PLAYER_SIZE / 2 + 20);
     });
 
-    const isThreatened = threateningProjectiles.length > 0 || isHazardThreat;
+    // 1.1 Map-specific hazards
+    const isLavaThreat = mapId === 'volcano' && aiPlayer.y > 340;
 
-    if (isThreatened) {
-      if (aiPlayer.isGrounded) {
-        if (Math.random() < 0.7) {
-          if (isPlayer2) keys.arrowUp = true;
-          else keys.w = true;
-        }
+    // Melee-specific Volcano logic: Don't chase if target is too low (near/in lava)
+    const isOpponentInLavaDanger = mapId === 'volcano' && opponent.y > 380;
+    const shouldAvoidChasing = canMelee && (isOpponentInLavaDanger || (mapId === 'volcano' && opponent.y > aiPlayer.y + 100));
 
-        // Move away from the nearest threat
-        let escapeDirection = 0; // -1 for left, 1 for right
+    // Lightning threat detection
+    const activeLightning = lightningStrikes.filter(s => !s.struck && now - s.warningStart < 1500);
+    const nearestLightning = activeLightning
+      .filter(s => Math.abs(aiPlayer.x + PLAYER_SIZE / 2 - s.x) < 80)
+      .sort((a, b) => Math.abs(aiPlayer.x + PLAYER_SIZE / 2 - a.x) - Math.abs(aiPlayer.x + PLAYER_SIZE / 2 - b.x))[0];
 
-        if (isHazardThreat) {
-          // Find the nearest hazard and move away from it
-          const nearestHazard = hazardZones
-            .filter(h => h.ownerId !== aiPlayer.id)
-            .sort((a, b) => {
-              const distA = Math.sqrt(Math.pow(a.x - aiPlayer.x, 2) + Math.pow(a.y - aiPlayer.y, 2));
-              const distB = Math.sqrt(Math.pow(b.x - aiPlayer.x, 2) + Math.pow(b.y - aiPlayer.y, 2));
-              return distA - distB;
-            })[0];
+    const isLightningThreat = !!nearestLightning;
 
-          if (nearestHazard) {
-            escapeDirection = aiPlayer.x + PLAYER_SIZE / 2 > nearestHazard.x + nearestHazard.width / 2 ? 1 : -1;
-          }
-        } else if (threateningProjectiles.length > 0) {
-          // Move away from the average projectile direction or just move sideways
-          escapeDirection = distX > 0 ? -1 : 1;
-        }
-
-        if (escapeDirection === -1) {
-          if (isPlayer2) keys.arrowLeft = true;
-          else keys.a = true;
-        } else if (escapeDirection === 1) {
-          if (isPlayer2) keys.arrowRight = true;
-          else keys.d = true;
-        }
-      }
-    }
+    const isThreatened = threateningProjectiles.length > 0 || isHazardThreat || isLavaThreat || isLightningThreat;
 
     // 2. Movement Logic
     const preferredDistance = aiPlayer.character!.attackRange * 0.8;
@@ -331,60 +338,114 @@ export const useGameEngine = (
     let jump = false;
     let drop = false;
 
-    // Smart Navigation: Find stepping stones if target is too high
-    let targetX = opponent.x;
-    const isTargetTooHigh = distY < -180;
+    // 2.1 Threat Response (High Priority)
+    if (isThreatened) {
+      if (aiPlayer.isGrounded || isLavaThreat || isLightningThreat) {
+        if (aiPlayer.isGrounded && Math.random() < 0.7) {
+          jump = true;
+        }
 
-    if (isTargetTooHigh) {
-      // Find a platform that is between us and the target vertically
-      const steppingStone = platforms
-        .filter(p => p.y < aiPlayer.y - 20 && p.y > opponent.y - 40)
-        .sort((a, b) => {
-          // Prefer platforms closer to our current X, then by proximity to target
-          const distA = Math.abs(a.x + a.width / 2 - aiPlayer.x);
-          const distB = Math.abs(b.x + b.width / 2 - aiPlayer.x);
-          return distA - distB;
-        })[0];
+        // Move away from the nearest threat
+        let escapeDirection = 0; // -1 for left, 1 for right
 
-      if (steppingStone) {
-        targetX = steppingStone.x + steppingStone.width / 2 - PLAYER_SIZE / 2;
+        if (isLightningThreat && nearestLightning) {
+          // Move away from lightning strike center
+          escapeDirection = aiPlayer.x + PLAYER_SIZE / 2 > nearestLightning.x ? 1 : -1;
+        } else if (isHazardThreat) {
+          // Find the nearest hazard and move away from it
+          const nearestHazard = hazardZones
+            .filter(h => h.ownerId !== aiPlayer.id)
+            .sort((a, b) => {
+              const distA = Math.sqrt(Math.pow(a.x - aiPlayer.x, 2) + Math.pow(a.y - aiPlayer.y, 2));
+              const distB = Math.sqrt(Math.pow(b.x - aiPlayer.x, 2) + Math.pow(b.y - aiPlayer.y, 2));
+              return distA - distB;
+            })[0];
+
+          if (nearestHazard) {
+            escapeDirection = aiPlayer.x + PLAYER_SIZE / 2 > nearestHazard.x + nearestHazard.width / 2 ? 1 : -1;
+          }
+        } else if (isLavaThreat) {
+          // Prioritize moving towards the center or a platform
+          const nearestPlatform = platforms
+            .filter(p => p.y < 420 && p.id !== 'ground')
+            .sort((a, b) => Math.abs(a.x + a.width / 2 - aiPlayer.x) - Math.abs(b.x + b.width / 2 - aiPlayer.x))[0];
+
+          if (nearestPlatform) {
+            escapeDirection = (aiPlayer.x + PLAYER_SIZE / 2 < nearestPlatform.x + nearestPlatform.width / 2) ? 1 : -1;
+          } else {
+            escapeDirection = aiPlayer.x + PLAYER_SIZE / 2 > ARENA.width / 2 ? -1 : 1;
+          }
+        } else if (threateningProjectiles.length > 0) {
+          // Move away from the average projectile direction or just move sideways
+          escapeDirection = distX > 0 ? -1 : 1;
+        }
+
+        if (escapeDirection === -1) moveLeft = true;
+        else if (escapeDirection === 1) moveRight = true;
       }
     }
 
-    const relativeTargetX = targetX - aiPlayer.x;
-
-    // Movement logic with larger deadzones
-    const isCornered = (atLeftEdge && distX > 0 && distX < 250) || (atRightEdge && distX < 0 && distX > -250);
-
-    if (atLeftEdge) {
-      moveRight = true;
-      // Only jump to escape if grounded or can double jump, and not already very high
-      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump) && aiPlayer.y > 300) {
-        jump = true;
-      }
-    } else if (atRightEdge) {
-      moveLeft = true;
-      if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump) && aiPlayer.y > 300) {
-        jump = true;
+    else if (shouldAvoidChasing) {
+      // Melee character safety: If target is in lava, stay on platform
+      const myPlatform = platforms.find(p => p.y >= aiPlayer.y && p.y <= aiPlayer.y + PLAYER_SIZE + 20 && aiPlayer.x + PLAYER_SIZE > p.x && aiPlayer.x < p.x + p.width);
+      if (myPlatform) {
+        const platformCenter = myPlatform.x + myPlatform.width / 2;
+        if (aiPlayer.x + PLAYER_SIZE / 2 < platformCenter - 30) moveRight = true;
+        else if (aiPlayer.x + PLAYER_SIZE / 2 > platformCenter + 30) moveLeft = true;
       }
     } else {
-      if (distance > preferredDistance + 100 || isTargetTooHigh) {
-        // Chase or move to stepping stone
-        if (relativeTargetX > 40) moveRight = true;
-        else if (relativeTargetX < -40) moveLeft = true;
-      } else if (distance < preferredDistance - 100) {
-        // Kite away ONLY if not currently attacking or preparing to attack
-        if (aiPlayer.attackCooldownRemaining > 300) {
-          if (distX > 0) moveLeft = true;
-          else moveRight = true;
+      // 2.2 Standard Navigation
+      // Smart Navigation: Find stepping stones if target is too high
+      let targetX = opponent.x;
+      const isTargetTooHigh = distY < -180;
+
+      if (isTargetTooHigh) {
+        // Find a platform that is between us and the target vertically
+        const steppingStone = platforms
+          .filter(p => p.y < aiPlayer.y - 20 && p.y > opponent.y - 40)
+          .sort((a, b) => {
+            // Prefer platforms closer to our current X, then by proximity to target
+            const distA = Math.abs(a.x + a.width / 2 - aiPlayer.x);
+            const distB = Math.abs(b.x + b.width / 2 - aiPlayer.x);
+            return distA - distB;
+          })[0];
+
+        if (steppingStone) {
+          targetX = steppingStone.x + steppingStone.width / 2 - PLAYER_SIZE / 2;
         }
       }
-    }
 
-    // Vertical Pursuit Logic
-    // Only pursue vertically if we are "chasing" or trying to align for an attack
-    // And not currently dodging a threat
-    if (!isThreatened) {
+      const relativeTargetX = targetX - aiPlayer.x;
+
+      // Movement logic with larger deadzones
+      const isCornered = (atLeftEdge && distX > 0 && distX < 250) || (atRightEdge && distX < 0 && distX > -250);
+
+      if (atLeftEdge) {
+        moveRight = true;
+        // Only jump to escape if grounded or can double jump, and not already very high
+        if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump) && aiPlayer.y > 300) {
+          jump = true;
+        }
+      } else if (atRightEdge) {
+        moveLeft = true;
+        if (isCornered && !canMelee && (aiPlayer.isGrounded || aiPlayer.canDoubleJump) && aiPlayer.y > 300) {
+          jump = true;
+        }
+      } else {
+        if (distance > preferredDistance + 50 || isTargetTooHigh) {
+          // Chase or move to stepping stone
+          if (relativeTargetX > 40) moveRight = true;
+          else if (relativeTargetX < -40) moveLeft = true;
+        } else if (distance < preferredDistance - 50) {
+          // Kite away ONLY if not currently attacking or preparing to attack
+          if (aiPlayer.attackCooldownRemaining > 300) {
+            if (distX > 0) moveLeft = true;
+            else moveRight = true;
+          }
+        }
+      }
+
+      // Vertical Pursuit Logic
       if (distY < -80) { // Target is significantly above
         // Jump if grounded
         if (aiPlayer.isGrounded || (aiPlayer.canDoubleJump && !aiPlayer.isJumping)) {
@@ -394,7 +455,7 @@ export const useGameEngine = (
             jump = true;
           }
         }
-      } else if (distY > 80) { // Target is significantly below
+      } else if (distY > 80 && !isOpponentInLavaDanger) { // Target is significantly below and NOT in danger
         // Drop down (crouch/move down)
         drop = true;
       }
@@ -406,11 +467,21 @@ export const useGameEngine = (
       keys.arrowRight = moveRight;
       if (jump) keys.arrowUp = true;
       if (drop) keys.arrowDown = true;
+
+      // If threatened by lava, force jump if grounded or falling near bottom
+      if (isLavaThreat && (aiPlayer.isGrounded || aiPlayer.y > 380)) {
+        keys.arrowUp = true;
+      }
     } else {
       keys.a = moveLeft;
       keys.d = moveRight;
       if (jump) keys.w = true;
       if (drop) keys.s = true;
+
+      // If threatened by lava, force jump if grounded or falling near bottom
+      if (isLavaThreat && (aiPlayer.isGrounded || aiPlayer.y > 380)) {
+        keys.w = true;
+      }
     }
 
     // 3. Attacking logic & Direction Correction
@@ -1638,7 +1709,7 @@ export const useGameEngine = (
 
 
       // Get player 2 keys from AI or keyboard
-      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now) : p1Keys;
+      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now, mapId, prev.lightningStrikes) : p1Keys;
 
       // Update players
       const p1Result = updatePlayer(
@@ -1678,7 +1749,7 @@ export const useGameEngine = (
         const target = prev.players[clone.id === 1 ? 1 : 0];
 
         // Clone AI
-        let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now);
+        let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now, mapId, prev.lightningStrikes);
         // Disable skills/ultimate for clones
         aiKeys = { ...aiKeys, g: false, h: false, enter: false, backslash: false };
 
@@ -1977,7 +2048,7 @@ export const useGameEngine = (
         }
 
         // Check collision with Tesla Coils
-        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
+        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !(proj as any).isHackUltimate && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
 
@@ -2750,8 +2821,8 @@ export const useGameEngine = (
 
       // ============ MAP ENVIRONMENTAL EFFECTS ============
       let { sandstormActive, sandstormDirection, sandstormTimer, nextSandstormTime,
-            lightningStrikes, nextLightningTime, soulZones, nextSoulZoneTime,
-            vineShields, nextVineTime, lastLavaDamage, fallingLeaves } = prev;
+        lightningStrikes, nextLightningTime, soulZones, nextSoulZoneTime,
+        vineShields, nextVineTime, lastLavaDamage, fallingLeaves } = prev;
 
       // --- WASTELAND: Sandstorm ---
       if (mapId === 'wasteland') {
@@ -2761,14 +2832,22 @@ export const useGameEngine = (
             sandstormActive = false;
             nextSandstormTime = now + 10000 + Math.random() * 10000;
           } else {
-            // Apply 1 damage per second to both players
+            // Apply 1 damage per 1.5 seconds to both players (reduced frequency)
             for (let i = 0; i < 2; i++) {
-              if (now % 1000 < deltaTime) {
+              if (now % 1500 < deltaTime) {
                 players[i] = applyDamage(players[i], 1, true).player;
               }
-              // Push players in sandstorm direction
-              const pushForce = sandstormDirection === 'right' ? 60 : -60;
-              players[i].knockbackVelocityX += pushForce * (deltaTime / 1000);
+              // Push players in sandstorm direction - stronger and gusty
+              const gustFactor = 1 + Math.sin(now / 500) * 0.5; // Gusts every ~3 seconds
+              const basePushForce = sandstormDirection === 'right' ? 120 : -120;
+              const totalPush = basePushForce * gustFactor * (deltaTime / 1000);
+
+              players[i].knockbackVelocityX += totalPush * 10; // Multiply by 10 to make it impactful on KVX decay
+
+              // Add minor vertical jitter if grounded to simulate sand hitting
+              if (players[i].isGrounded && Math.random() < 0.1) {
+                players[i].y -= 1;
+              }
             }
           }
         } else if (now >= nextSandstormTime) {
@@ -2827,10 +2906,10 @@ export const useGameEngine = (
             id: `soul-${now}`,
             x: 100 + Math.random() * (ARENA.width - 250),
             y: 200 + Math.random() * 200,
-            width: 80,
-            height: 80,
+            width: 200,
+            height: 200,
             createdAt: now,
-            duration: 8000,
+            duration: 6000,
           }];
           nextSoulZoneTime = now + 12000 + Math.random() * 10000;
         }
@@ -2848,7 +2927,7 @@ export const useGameEngine = (
               }
               // Mana regen boost handled implicitly via speed multiplier effect
               // We'll boost mana directly
-              const bonusMana = players[i].character!.manaRegen * 0.75 * (deltaTime / 1000);
+              const bonusMana = players[i].character!.manaRegen * 0.5 * (deltaTime / 1000);
               players[i].mana = Math.min(players[i].maxMana, players[i].mana + bonusMana);
             }
           }
@@ -2915,16 +2994,16 @@ export const useGameEngine = (
           const playerBottom = players[i].y + PLAYER_SIZE;
           if (playerBottom >= ARENA.height - ARENA.padding) {
             if (now - newLastLavaDamage[i] >= 500) { // Prevent rapid re-triggering
-              let lavaDamage = 30;
-              if (players[i].isBurning) lavaDamage *= 1.33;
+              let lavaDamage = 15;
+              if (players[i].isBurning) lavaDamage *= 1.25;
               players[i] = applyDamage(players[i], lavaDamage, true).player;
               // Bounce up
-              players[i].velocityY = -600;
+              players[i].velocityY = -1000;
               players[i].y = ARENA.height - ARENA.padding - PLAYER_SIZE - 5;
               // Apply burn
               players[i].isBurning = true;
-              players[i].burnDuration = 5000;
-              players[i].burnDamagePerTick = 6;
+              players[i].burnDuration = 4000;
+              players[i].burnDamagePerTick = 3;
               players[i].burnOwner = null;
               players[i].lastBurnTick = now;
               newLastLavaDamage[i] = now;
@@ -2984,7 +3063,7 @@ export const useGameEngine = (
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
     setGameState(createInitialEngineState());
-  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp]);
+  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId]);
 
   const togglePause = useCallback(() => {
     setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));

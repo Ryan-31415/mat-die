@@ -56,45 +56,84 @@ const MapEffectsRenderer = ({
   if (mapId === 'wasteland') {
     return (
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {/* Ambient dust - always present but stronger when active */}
+        <div
+          className="absolute inset-0 transition-opacity duration-1000"
+          style={{
+            backgroundColor: 'rgba(180, 140, 80, 0.05)',
+            opacity: sandstormActive ? 1 : 0.4
+          }}
+        />
+
         {sandstormActive && (
           <>
-            {/* Sand overlay */}
+            {/* Wind lines */}
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 opacity-40"
               style={{
-                background: `linear-gradient(${sandstormDirection === 'right' ? '90deg' : '270deg'}, 
-                  rgba(180, 140, 60, 0.3), rgba(200, 160, 80, 0.15), transparent)`,
-                animation: 'pulse 0.5s infinite',
+                background: `repeating-linear-gradient(${sandstormDirection === 'right' ? '90deg' : '270deg'}, 
+                  transparent 0, transparent 40px, rgba(200, 170, 100, 0.2) 41px, transparent 44px)`,
+                animation: `sandScroll${sandstormDirection === 'right' ? 'R' : 'L'} 1s linear infinite`,
               }}
             />
-            {/* Sand particles */}
-            {Array.from({ length: 20 }).map((_, i) => (
+
+            {/* Intense sand cloud overlay */}
+            <div
+              className={`absolute inset-0 transition-all duration-1000 ${sandstormActive ? 'opacity-100' : 'opacity-0'}`}
+              style={{
+                background: `linear-gradient(${sandstormDirection === 'right' ? '90deg' : '270deg'}, 
+                  rgba(180, 140, 60, 0.4), rgba(200, 160, 80, 0.2), rgba(180, 140, 60, 0.4))`,
+                mixBlendMode: 'overlay',
+              }}
+            />
+
+            {/* Sand particles - increased count */}
+            {Array.from({ length: 40 }).map((_, i) => (
               <div
                 key={`sand-${i}`}
                 className="absolute rounded-full"
                 style={{
-                  width: 2 + Math.random() * 3,
-                  height: 2 + Math.random() * 3,
-                  background: `rgba(${180 + Math.random() * 40}, ${140 + Math.random() * 30}, ${60 + Math.random() * 20}, ${0.4 + Math.random() * 0.4})`,
+                  width: 2 + Math.random() * 4,
+                  height: 1 + Math.random() * 2,
+                  background: `rgba(${200 + Math.random() * 55}, ${160 + Math.random() * 40}, ${100 + Math.random() * 40}, ${0.5 + Math.random() * 0.5})`,
                   left: `${Math.random() * 100}%`,
                   top: `${Math.random() * 100}%`,
-                  animation: `sandParticle${sandstormDirection === 'right' ? 'R' : 'L'} ${0.5 + Math.random() * 1}s linear infinite`,
+                  boxShadow: '0 0 4px rgba(180, 140, 80, 0.4)',
+                  animation: `sandParticle${sandstormDirection === 'right' ? 'R' : 'L'} ${0.3 + Math.random() * 0.7}s linear infinite`,
                   animationDelay: `${Math.random() * 1}s`,
                 }}
               />
             ))}
+
+            {/* Direction Indicator Icon */}
+            <div className={`absolute top-24 ${sandstormDirection === 'right' ? 'left-8' : 'right-8'} animate-bounce bg-amber-600/60 p-2 rounded-full border border-amber-400/50 shadow-lg`}>
+              <span className="text-2xl">{sandstormDirection === 'right' ? '➡️' : '⬅️'}</span>
+            </div>
+            <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-amber-900/40 px-4 py-1 rounded-full border border-amber-500/30 backdrop-blur-sm">
+              <span className="text-amber-200 font-bold text-sm tracking-widest uppercase">Sandstorm Active</span>
+            </div>
           </>
         )}
         <style>{`
           @keyframes sandParticleR {
-            from { transform: translateX(-100px); opacity: 0; }
-            50% { opacity: 1; }
-            to { transform: translateX(800px); opacity: 0; }
+            from { transform: translateX(-200px) rotate(0deg); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            to { transform: translateX(1000px) rotate(360deg); opacity: 0; }
           }
           @keyframes sandParticleL {
-            from { transform: translateX(900px); opacity: 0; }
-            50% { opacity: 1; }
-            to { transform: translateX(0px); opacity: 0; }
+            from { transform: translateX(1000px) rotate(0deg); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            to { transform: translateX(-200px) rotate(-360deg); opacity: 0; }
+          }
+          @keyframes sandScrollR {
+            from { background-position-x: 0; }
+            to { background-position-x: 100px; }
+          }
+          @keyframes sandScrollL {
+            from { background-position-x: 0; }
+            to { background-position-x: -100px; }
           }
         `}</style>
       </div>
