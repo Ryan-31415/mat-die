@@ -202,7 +202,7 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-4xl font-bold mb-4">일시 정지</h2>
-              <p className="text-muted-foreground">아무 키나 눌러 계속하기</p>
+              <p className="text-muted-foreground">일시 정지 버튼을 다시 눌러 계속하기</p>
             </div>
           </div>
         )}

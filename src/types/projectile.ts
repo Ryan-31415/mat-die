@@ -38,6 +38,39 @@ export interface Projectile {
   chargeLevel?: number; // 0-1 (or >1 for overcharge visuals)
 }
 
+export const checkProjectileCollision = (
+  projectile: Pick<Projectile, 'x' | 'y' | 'width' | 'height'>,
+  previousPosition: { x: number; y: number },
+  target: { x: number; y: number; width: number; height: number }
+): boolean => {
+  const minX = target.x - projectile.width;
+  const maxX = target.x + target.width;
+  const minY = target.y - projectile.height;
+  const maxY = target.y + target.height;
+  const deltaX = projectile.x - previousPosition.x;
+  const deltaY = projectile.y - previousPosition.y;
+  let entryTime = 0;
+  let exitTime = 1;
+
+  for (const [start, delta, min, max] of [
+    [previousPosition.x, deltaX, minX, maxX],
+    [previousPosition.y, deltaY, minY, maxY],
+  ]) {
+    if (delta === 0) {
+      if (start < min || start > max) return false;
+      continue;
+    }
+
+    const firstIntersection = (min - start) / delta;
+    const secondIntersection = (max - start) / delta;
+    entryTime = Math.max(entryTime, Math.min(firstIntersection, secondIntersection));
+    exitTime = Math.min(exitTime, Math.max(firstIntersection, secondIntersection));
+    if (entryTime > exitTime) return false;
+  }
+
+  return entryTime <= 1 && exitTime >= 0;
+};
+
 export interface HazardZone {
   id: string;
   type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring' | 'packet-block-zone';

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
-import { Projectile, HazardZone, AttackHitbox, createProjectile, createHazardZone, createAttackHitbox } from '@/types/projectile';
+import { Projectile, HazardZone, AttackHitbox, createProjectile, createHazardZone, createAttackHitbox, checkProjectileCollision } from '@/types/projectile';
 import { Platform, PLATFORMS, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
 import { MapId, MAPS } from '@/types/map';
 import { KeyboardState } from './useKeyboard';
@@ -1773,6 +1773,9 @@ export const useGameEngine = (
       nextClones.push(...p1Result.newClones, ...p2Result.newClones);
 
       let projectiles = [...prev.projectiles, ...p1Result.newProjectiles, ...p2Result.newProjectiles, ...cloneProjectiles];
+      const projectileStartPositions = new Map(
+        projectiles.map(projectile => [projectile.id, { x: projectile.x, y: projectile.y }])
+      );
       let attackHitboxes = [...prev.attackHitboxes, ...p1Result.newHitboxes, ...p2Result.newHitboxes, ...cloneHitboxes];
 
       // Handle Replacements
@@ -1948,10 +1951,11 @@ export const useGameEngine = (
       projectiles = projectiles.filter(proj => {
         // Check lifetime
         if (now - proj.createdAt > proj.lifetime) return false;
+        const previousPosition = projectileStartPositions.get(proj.id) ?? { x: proj.x, y: proj.y };
 
         // Check projectile-platform collision
         for (const platform of prev.platforms) {
-          if (checkCollision(proj.x, proj.y, proj.width, proj.height, platform.x, platform.y, platform.width, platform.height)) {
+          if (checkProjectileCollision(proj, previousPosition, platform)) {
             if (proj.type === 'flask') {
               const pool = createHazardZone(
                 'toxic-pool',
@@ -2021,11 +2025,61 @@ export const useGameEngine = (
           return false;
         }
 
-        // Check bounds
-        if (proj.x < 0 || proj.x > ARENA.width || proj.y > ARENA.height) {
-          if (proj.y > ARENA.height - ARENA.padding) {
-            // Explode on ground
-            if (proj.isExplosive && proj.createsFirePool) {
+        // Defer removing out-of-bounds projectiles until edge-crossing player hits are checked.
+        const isOutOfBounds =
+          proj.x + proj.width < 0 ||
+          proj.x > ARENA.width ||
+          proj.y + proj.height < 0 ||
+          proj.y > ARENA.height;
+        if (isOutOfBounds) {
+          const targetPlayer = players[proj.ownerId === 1 ? 1 : 0];
+          const hitsPlayer = !targetPlayer.isEvading &&
+            !targetPlayer.isInvulnerable &&
+            checkProjectileCollision(proj, previousPosition, {
+              x: targetPlayer.x,
+              y: targetPlayer.y,
+              width: PLAYER_SIZE,
+              height: PLAYER_SIZE,
+            });
+          const hitsClone = nextClones.some(clone =>
+            clone.id !== proj.ownerId &&
+            !clone.isEvading &&
+            !clone.isInvulnerable &&
+            checkProjectileCollision(proj, previousPosition, {
+              x: clone.x,
+              y: clone.y,
+              width: PLAYER_SIZE,
+              height: PLAYER_SIZE,
+            })
+          );
+
+          if (!hitsPlayer && !hitsClone) {
+            const impactX = proj.x + proj.width / 2;
+            const impactY = proj.y + proj.height / 2;
+
+            if (proj.type === 'blizzard-stone') {
+              const blizzard = createHazardZone(
+                'blizzard',
+                proj.ownerId,
+                0,
+                0,
+                proj.damage,
+                5000
+              );
+              blizzard.x = impactX - blizzard.width / 2;
+              blizzard.y = impactY - blizzard.height / 2;
+
+              const opponent = players[proj.ownerId === 1 ? 1 : 0];
+              if (checkCollision(
+                blizzard.x, blizzard.y, blizzard.width, blizzard.height,
+                opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE
+              )) {
+                opponent.isFrozen = true;
+                opponent.frozenDuration = 1500;
+              }
+
+              hazardZones.push(blizzard);
+            } else if (proj.isExplosive && proj.createsFirePool) {
               const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
               const isToxic = proj.type === 'flask';
               const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.01;
@@ -2036,15 +2090,12 @@ export const useGameEngine = (
                 damage,
                 proj.firePoolDuration
               );
-              pool.y = ARENA.height - ARENA.padding - pool.width / 2; // Fixed to use width/height of pool
-              // proj.x is top-left; center pool on projectile
-              pool.x = proj.x + proj.width / 2 - pool.width / 2;
+              pool.x = impactX - pool.width / 2;
+              pool.y = impactY - pool.height / 2;
               hazardZones.push(pool);
             }
-
-
+            return false;
           }
-          return false;
         }
 
         // Check collision with Tesla Coils
@@ -2083,9 +2134,10 @@ export const useGameEngine = (
         if (proj.type === 'bat') {
           if (isReturningToOwner) {
             // Bat on return path - can hit if hasn't hit on return yet
-            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitReturn && checkCollision(
-              proj.x, proj.y, proj.width, proj.height,
-              playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
+            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitReturn && checkProjectileCollision(
+              proj,
+              previousPosition,
+              { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
             )) {
               // Apply damage on return path
               const damageRes = applyDamage(playerTarget, proj.damage);
@@ -2108,9 +2160,10 @@ export const useGameEngine = (
             }
           } else {
             // Bat on forward path - can hit player
-            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitForward && checkCollision(
-              proj.x, proj.y, proj.width, proj.height,
-              playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
+            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitForward && checkProjectileCollision(
+              proj,
+              previousPosition,
+              { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
             )) {
               if (playerTarget.isShielding) {
                 const fromFront = (proj.ownerId === 1 && !playerTarget.facingRight) ||
@@ -2148,7 +2201,11 @@ export const useGameEngine = (
             // Check collision with clones on forward path
             for (let i = 0; i < nextClones.length; i++) {
               const clone = nextClones[i];
-              if (clone.id !== proj.ownerId && !clone.isEvading && !clone.isInvulnerable && checkCollision(proj.x, proj.y, proj.width, proj.height, clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) {
+              if (clone.id !== proj.ownerId && !clone.isEvading && !clone.isInvulnerable && checkProjectileCollision(
+                proj,
+                previousPosition,
+                { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
+              )) {
                 const damageRes = applyDamage(clone, proj.damage);
                 nextClones[i] = damageRes.player;
                 if (proj.isReturning && timeSinceCreated < proj.lifetime * 0.35) {
@@ -2162,15 +2219,25 @@ export const useGameEngine = (
           // Non-bat projectiles: original logic
           if (!isReturningToOwner) {
             // Check player collision first
-            const hitPlayer = !playerTarget.isEvading && !playerTarget.isInvulnerable && checkCollision(
-              proj.x, proj.y, proj.width, proj.height,
-              playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE
+            const hitPlayer = !playerTarget.isEvading && !playerTarget.isInvulnerable && checkProjectileCollision(
+              proj,
+              previousPosition,
+              { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
             );
 
             // Find clone collision if player not hit
             let hitCloneIndex = -1;
             if (!hitPlayer) {
-              hitCloneIndex = nextClones.findIndex(c => c.id !== proj.ownerId && !c.isEvading && !c.isInvulnerable && checkCollision(proj.x, proj.y, proj.width, proj.height, c.x, c.y, PLAYER_SIZE, PLAYER_SIZE));
+              hitCloneIndex = nextClones.findIndex(c =>
+                c.id !== proj.ownerId &&
+                !c.isEvading &&
+                !c.isInvulnerable &&
+                checkProjectileCollision(
+                  proj,
+                  previousPosition,
+                  { x: c.x, y: c.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
+                )
+              );
             }
 
             if (hitPlayer || hitCloneIndex !== -1) {
