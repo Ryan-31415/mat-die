@@ -144,15 +144,9 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
 
   const handleConfirmSelection = () => {
     if (currentPlayer === 1 && player1Character) {
-      if (gameMode === 'single') {
-        // AI가 자동으로 선택됨
-        const aiCharacter = getRandomCharacter();
-        onConfirm(player1Character, aiCharacter);
-      } else {
-        setCurrentPlayer(2);
-      }
-    } else if (currentPlayer === 2 && player2Character) {
-      onConfirm(player1Character!, player2Character);
+      setCurrentPlayer(2);
+    } else if (currentPlayer === 2 && player1Character && player2Character) {
+      onConfirm(player1Character, player2Character);
     }
   };
 
@@ -200,7 +194,9 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
           </div>
           <p className="text-muted-foreground mt-4">
             {gameMode === 'single'
-              ? '플레이어 1의 캐릭터를 선택하세요'
+              ? currentPlayer === 1
+                ? '플레이어의 캐릭터를 선택하세요'
+                : '대전할 AI 캐릭터를 선택하세요'
               : `플레이어 ${currentPlayer}의 캐릭터를 선택하세요`}
           </p>
         </div>
@@ -251,7 +247,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
           >
             {gameMode === 'single'
               ? currentPlayer === 1
-                ? '게임 시작'
+                ? 'AI 캐릭터 선택'
                 : '게임 시작'
               : currentPlayer === 1
                 ? 'P1 선택 완료'
