@@ -212,7 +212,7 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 1.0;
+      damageMultiplier = 1.15;
       isBreakingFreeze = false;
     }
 
@@ -665,7 +665,7 @@ export const useGameEngine = (
     if (otherPlayer.character?.id === 'ice-mage') {
       if (updatedPlayer.freezeGauge >= 5) {
         updatedPlayer.isFrozen = true;
-        let freezeDur = 1000;
+        let freezeDur = 1200;
 
         // Ice Mage Blizzard: Increased freeze duration
         const inBlizzard = hazardZones.some(z =>
@@ -678,7 +678,7 @@ export const useGameEngine = (
 
         updatedPlayer.frozenDuration = freezeDur;
         updatedPlayer.freezeGauge = 0;
-      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 3000) {
+      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 3500) {
         if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1500) {
           updatedPlayer.freezeGauge = Math.max(0, updatedPlayer.freezeGauge - 1);
           updatedPlayer.lastFreezeGaugeDecay = now;
@@ -2191,9 +2191,9 @@ export const useGameEngine = (
               }
 
               // Check if this projectile has recently hit this target (for penetrating projectiles)
-              // Allow re-hit after 100ms
+              // Allow re-hit after 100ms (50ms for large snowballs)
               const lastHit = proj.lastHitTime[currentTarget.id] || 0;
-              if (now - lastHit < 100) {
+              if (now - lastHit < (proj.type === "large-snowball" ? 50 : 100)) {
                 return true;
               }
 
