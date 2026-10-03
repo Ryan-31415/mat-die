@@ -64,46 +64,37 @@ export const useGameState = () => {
 
   const endRound = useCallback(
     (winner: 1 | 2 | 'draw') => {
+      const newScores: [number, number] = [...scores];
+      if (winner !== 'draw') {
+        newScores[winner - 1]++;
+      }
+
+      setScores(newScores);
+
       if (isOvertime) {
-        if (winner !== 'draw') {
-          setScores(prev => {
-            const newScores: [number, number] = [...prev];
-            newScores[winner - 1]++;
-            return newScores;
-          });
-        }
         setMatchWinner(winner);
-        setTimeout(() => goToScreen('result'), 0);
+        goToScreen('result');
         return;
       }
 
-      setScores(prevScores => {
-        const newScores: [number, number] = [...prevScores];
-        if (winner !== 'draw') {
-          newScores[winner - 1]++;
+      const newRoundsCompleted = roundsCompleted + 1;
+      setRoundsCompleted(newRoundsCompleted);
+
+      const winsNeeded = Math.ceil(settings.maxRounds / 2);
+
+      if (winner !== 'draw' && newScores[winner - 1] >= winsNeeded) {
+        setMatchWinner(winner);
+        goToScreen('result');
+      } else if (newRoundsCompleted >= settings.maxRounds) {
+        if (newScores[0] === newScores[1]) {
+          setIsOvertime(true);
+        } else {
+          setMatchWinner(newScores[0] > newScores[1] ? 1 : 2);
+          goToScreen('result');
         }
-
-        const newRoundsCompleted = roundsCompleted + 1;
-        setRoundsCompleted(newRoundsCompleted);
-
-        const winsNeeded = Math.ceil(settings.maxRounds / 2);
-
-        if (winner !== 'draw' && newScores[winner - 1] >= winsNeeded) {
-          setMatchWinner(winner);
-          setTimeout(() => goToScreen('result'), 0);
-        } else if (newRoundsCompleted >= settings.maxRounds) {
-          if (newScores[0] === newScores[1]) {
-            setIsOvertime(true);
-          } else {
-            setMatchWinner(newScores[0] > newScores[1] ? 1 : 2);
-            setTimeout(() => goToScreen('result'), 0);
-          }
-        }
-
-        return newScores;
-      });
+      }
     },
-    [settings.maxRounds, roundsCompleted, isOvertime, goToScreen]
+    [scores, settings.maxRounds, roundsCompleted, isOvertime, goToScreen]
   );
 
   const returnToMenu = useCallback(() => {

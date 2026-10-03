@@ -53,6 +53,9 @@ const GameArena = ({
   );
 
   const [frozenRoundNumber, setFrozenRoundNumber] = useState(roundsCompleted + 1);
+  const displayedRoundNumber = gameState.roundWinner
+    ? frozenRoundNumber
+    : roundsCompleted + 1;
 
   useEffect(() => {
     if (!gameState.roundWinner) {
@@ -85,7 +88,7 @@ const GameArena = ({
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-background to-muted p-4">
       <GameUI
         players={gameState.players}
-        currentRound={roundsCompleted + 1}
+        currentRound={displayedRoundNumber}
         maxRounds={settings.maxRounds}
         scores={scores}
         timeRemaining={gameState.roundTimeRemaining}
@@ -180,7 +183,7 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center animate-scale-in">
               <h2 className="text-4xl font-bold mb-2">
-                {isOvertime ? '연장전 종료!' : `라운드 ${roundsCompleted + 1} 종료!`}
+                {isOvertime ? '연장전 종료!' : `라운드 ${frozenRoundNumber} 종료!`}
               </h2>
               <p className="text-2xl text-primary font-bold">
                 {gameState.roundWinner === 'draw' ? (isOvertime ? '경기 종료 (무승부)' : '무승부!') : `플레이어 ${gameState.roundWinner} 승리!`}
