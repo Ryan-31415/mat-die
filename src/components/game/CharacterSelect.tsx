@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Character, CHARACTERS, CharacterType } from '@/types/game';
-import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake, Terminal } from 'lucide-react';
+import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake, Terminal, Sparkles } from 'lucide-react';
 
 interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
@@ -83,10 +83,18 @@ const CharacterCard = ({
         {/* Passive */}
         {character.passive && (
           <div className="bg-muted/50 rounded-md p-2">
-            <p className="text-xs font-medium text-muted-foreground">패시브</p>
+            <p className="text-xs font-medium text-emerald-600">패시브</p>
             <p className="text-xs">{character.passive}</p>
           </div>
         )}
+
+        {/* Basic Attack */}
+        <div className="bg-muted/50 rounded-md p-2">
+          <p className="text-xs font-medium text-orange-600">일반 공격</p>
+          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+            {character.attackDescription}
+          </p>
+        </div>
 
         {/* Skill */}
         <div className="bg-muted/50 rounded-md p-2">
@@ -167,7 +175,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-2">캐릭터 선택</h1>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
             <div
               className={`px-4 py-2 rounded-lg transition-all ${currentPlayer === 1
                 ? 'bg-blue-500 text-primary-foreground'
@@ -227,7 +235,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-4">
           <Button variant="outline" size="lg" onClick={handleBack}>
             {currentPlayer === 2 ? 'P1 다시 선택' : '메뉴로 돌아가기'}
           </Button>
@@ -257,19 +265,19 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
 
         {/* Selected Character Preview */}
         {currentSelection && (
-          <div className="mt-8 p-6 bg-card rounded-xl border shadow-lg max-w-2xl mx-auto">
-            <div className="flex items-start gap-6">
+          <div className="mt-8 p-4 sm:p-6 bg-card rounded-xl border shadow-lg max-w-2xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
               <div
                 className="w-20 h-20 rounded-xl flex items-center justify-center text-primary-foreground shrink-0"
                 style={{ backgroundColor: currentSelection.color }}
               >
                 {characterIcons[currentSelection.id]}
               </div>
-              <div className="flex-1">
+              <div className="w-full min-w-0 flex-1">
                 <h2 className="text-2xl font-bold">{currentSelection.nameKo}</h2>
                 <p className="text-muted-foreground">{currentSelection.name}</p>
 
-                <div className="grid grid-cols-4 gap-4 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mt-4">
                   <div className="text-center p-2 bg-muted rounded-lg">
                     <p className="text-xs text-muted-foreground">체력</p>
                     <p className="font-bold text-red-500">{currentSelection.maxHealth}</p>
@@ -289,19 +297,35 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
                 </div>
 
                 <div className="mt-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 shrink-0 text-blue-500" />
-                    <span className="text-sm font-medium">스킬:</span>
-                    <span className="text-sm text-muted-foreground">
-                      {currentSelection.skill.description}
-                    </span>
+                  {currentSelection.passive && (
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-emerald-600" />
+                      <p className="min-w-0 text-sm text-muted-foreground break-words">
+                        <span className="font-medium text-foreground">패시브: </span>
+                        {currentSelection.passive}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex items-start gap-2">
+                    <Sword className="w-4 h-4 mt-0.5 shrink-0 text-orange-500" />
+                    <p className="min-w-0 text-sm text-muted-foreground break-words">
+                      <span className="font-medium text-foreground">일반 공격: </span>
+                      {currentSelection.attackDescription}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 shrink-0 text-purple-500" />
-                    <span className="text-sm font-medium">궁극기:</span>
-                    <span className="text-sm text-muted-foreground">
+                  <div className="flex items-start gap-2">
+                    <Shield className="w-4 h-4 mt-0.5 shrink-0 text-blue-500" />
+                    <p className="min-w-0 text-sm text-muted-foreground break-words">
+                      <span className="font-medium text-foreground">스킬: </span>
+                      {currentSelection.skill.description}
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Zap className="w-4 h-4 mt-0.5 shrink-0 text-purple-500" />
+                    <p className="min-w-0 text-sm text-muted-foreground break-words">
+                      <span className="font-medium text-foreground">궁극기: </span>
                       {currentSelection.ultimate.description}
-                    </span>
+                    </p>
                   </div>
                 </div>
               </div>

@@ -26,6 +26,7 @@ export interface Character {
   attackDamage: number;
   attackRange: number;
   attackCooldown: number;
+  attackDescription: string;
   skill: CharacterAbility;
   ultimate: CharacterAbility;
   passive?: string;
@@ -152,6 +153,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 15,
     attackRange: 80,
     attackCooldown: 850,
+    attackDescription: '전방으로 검을 휘둘러 근접한 적을 공격합니다.',
     skill: {
       name: '방어',
       description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
@@ -178,6 +180,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 16,
     attackRange: 600,
     attackCooldown: 600,
+    attackDescription: '전방으로 화살을 발사합니다. 화살은 포물선을 그리며 날아갑니다.',
     passive: '장거리 공격 시 데미지가 15% 상승합니다.',
     skill: {
       name: '독화살',
@@ -205,9 +208,10 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 20,
     attackRange: 600,
     attackCooldown: 1000,
+    attackDescription: '전방으로 파이어볼을 발사합니다. 파이어볼은 직선으로 날아갑니다.',
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 커다란 파이어볼은 체공 중인 적에게 30%의 추가 피해를 입힙니다. 명중 시 작은 파이어볼 5개가 추가적으로 투하됩니다.',
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 커다란 파이어볼은 체공 중인 적에게 30%의 추가 피해를 입힙니다. 명중 지점에는 4초간 지속되는 피해를 입히는 화염 영역이 생성되며, 적에게 적중 시 작은 파이어볼 5개가 추가적으로 투하됩니다.',
       manaCost: 40,
       cooldown: 4000,
     },
@@ -232,7 +236,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 17,
     attackRange: 85,
     attackCooldown: 1000,
-    passive: '일반 공격의 카타나로 적의 투사체를 반사할 수 있습니다.',
+    attackDescription: '전방으로 카타나를 휘둘러 근접한 적을 공격합니다. 일반 공격을 통해 적의 투사체를 반사할 수 있습니다.',
     skill: {
       name: '돌진',
       description: '전방으로 빠르게 돌진합니다.',
@@ -257,8 +261,9 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.7,
     speed: 5.0,
     attackDamage: 14,
-    attackRange: 500, // Increased range (still shorter than Archer's 600)
+    attackRange: 500,
     attackCooldown: 1000,
+    attackDescription: '전방으로 느리게 날아가는 플라스크를 던집니다. 플라스크가 깨지면 3.2초간 지속되며 0.1초마다 공격력의 10%의 피해를 입히는 독성 지대를 생성합니다.',
     skill: {
       name: '전자총',
       description: '스킬 버튼을 길게 눌러 에너지를 충전합니다. 충전 시간에 비례해 전기 구체의 화력이 증가합니다. 완충 시 피격된 적을 기절시킵니다. 과충전하면 자폭으로 데미지를 받습니다.',
@@ -283,8 +288,9 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.4,
     speed: 4.6,
     attackDamage: 15,
-    attackRange: 200,
+    attackRange: 150,
     attackCooldown: 1100,
+    attackDescription: '전방으로 짧은 거리를 날아가는 산탄 5발을 발사합니다. 탄환 당 공격력의 30%의 피해를 입힙니다.',
     skill: {
       name: '그물 투척',
       description: '투척형 그물을 던져 적중 시 적을 플레이어 쪽으로 약간 끌어오고, 6초간 표식을 부여합니다. 표식 대상은 사냥꾼에게 받는 피해가 20% 증가하며, 피격 시 1초간 이동속도가 20% 감소합니다.',
@@ -311,6 +317,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 17,
     attackRange: 110,
     attackCooldown: 1100,
+    attackDescription: '전방으로 낫을 휘둘러 가까운 적을 공격합니다. 흡혈 효과로 체력을 회복합니다.',
     passive: '흡혈: 가한 데미지의 20%를 체력으로 회복합니다.',
     skill: {
       name: '박쥐',
@@ -338,6 +345,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 18,
     attackRange: 600,
     attackCooldown: 900,
+    attackDescription: '전방으로 눈덩이를 발사합니다. 적중 시 결빙 효과를 1개 추가합니다.',
     passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.2초간 빙결 상태가 되어 행동할 수 없게 되고, 공격을 받으면 15%의 추가 피해를 받습니다. 4초간 피격당하지 않으면 결빙 게이지는 천천히 감소합니다.',
     skill: {
       name: '눈사태',
@@ -365,6 +373,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDamage: 13,
     attackRange: 600, // Ranged character similar to others
     attackCooldown: 750,
+    attackDescription: '전방으로 디지털 투사체를 발사합니다.',
     skill: {
       name: '사이버 공간',
       description: '전방에 5초간 지속되는 사각형 영역을 설치합니다. 영역에 닿은 적은 스킬/궁극기 사용이 봉인됩니다. 해커가 이 영역 안에서 적을 공격하면 데미지가 25% 증가하고 적과 위치를 바꿉니다.',
