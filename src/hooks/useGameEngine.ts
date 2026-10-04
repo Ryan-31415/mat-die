@@ -767,18 +767,27 @@ export const useGameEngine = (
 
     // Packet Block Zone Effect (Continuous Silence while inside)
     // Check if player is inside an ENEMY packet-block-zone
-    const inPacketBlock = hazardZones.some(z =>
-      z.type === 'packet-block-zone' &&
-      z.ownerId !== updatedPlayer.id &&
-      checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
-    );
+    const updatePacketBlockStatus = () => {
+      const inPacketBlock = hazardZones.some(z =>
+        z.type === 'packet-block-zone' &&
+        z.ownerId !== updatedPlayer.id &&
+        checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
+      );
 
-    if (inPacketBlock) {
-      updatedPlayer.isSilenced = true;
-      updatedPlayer.silenceDuration = 100; // Persist for small amount after leaving
-    } else if (updatedPlayer.silenceDuration <= 0) {
-      updatedPlayer.isSilenced = false;
-    }
+      if (inPacketBlock) {
+        updatedPlayer.isSilenced = true;
+        updatedPlayer.silenceDuration = 100; // Persist for small amount after leaving
+      } else if (updatedPlayer.silenceDuration <= 0) {
+        updatedPlayer.isSilenced = false;
+      }
+
+      // Clear the entire charge before regeneration, movement or skill release.
+      if (character.id === 'scientist' && updatedPlayer.isSilenced) {
+        updatedPlayer.isChargingSkill = false;
+        updatedPlayer.skillChargeStartTime = undefined;
+      }
+    };
+    updatePacketBlockStatus();
 
     // Burn damage (from Mage ultimate)
     if (updatedPlayer.isBurning && updatedPlayer.burnDuration > 0) {
@@ -862,6 +871,7 @@ export const useGameEngine = (
       }
       stunnedNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, stunnedNewY));
       updatedPlayer.y = stunnedNewY;
+      updatePacketBlockStatus();
       return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newClones, newShieldTick };
     }
 
@@ -1044,6 +1054,8 @@ export const useGameEngine = (
     }
 
     updatedPlayer.y = newY;
+    // Movement can enter a zone on the same tick that the skill key is released.
+    updatePacketBlockStatus();
 
     // Basic Attack
     if (attackKey && updatedPlayer.attackCooldownRemaining <= 0) {
@@ -1379,7 +1391,7 @@ export const useGameEngine = (
       const manaCost = character.skill.manaCost;
 
       // Start Charging
-      if (skillKey && !updatedPlayer.isChargingSkill && updatedPlayer.skillCooldownRemaining <= 0 && updatedPlayer.mana >= manaCost) {
+      if (skillKey && !updatedPlayer.isSilenced && !updatedPlayer.isChargingSkill && updatedPlayer.skillCooldownRemaining <= 0 && updatedPlayer.mana >= manaCost) {
         updatedPlayer.isChargingSkill = true;
         updatedPlayer.skillChargeStartTime = now;
       }

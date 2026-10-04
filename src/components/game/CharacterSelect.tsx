@@ -290,14 +290,14 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
 
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-blue-500" />
+                    <Shield className="w-4 h-4 shrink-0 text-blue-500" />
                     <span className="text-sm font-medium">스킬:</span>
                     <span className="text-sm text-muted-foreground">
                       {currentSelection.skill.description}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-purple-500" />
+                    <Zap className="w-4 h-4 shrink-0 text-purple-500" />
                     <span className="text-sm font-medium">궁극기:</span>
                     <span className="text-sm text-muted-foreground">
                       {currentSelection.ultimate.description}
