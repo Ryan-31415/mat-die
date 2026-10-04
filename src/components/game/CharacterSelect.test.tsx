@@ -22,7 +22,7 @@ describe('CharacterSelect in single-player mode', () => {
     expect(onConfirm).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(CHARACTERS.archer.nameKo));
-    fireEvent.click(screen.getByRole('button', { name: '게임 시작' }));
+    fireEvent.click(screen.getByRole('button', { name: '맵 선택' }));
 
     expect(onConfirm).toHaveBeenCalledWith(CHARACTERS.gladiator, CHARACTERS.archer);
   });
