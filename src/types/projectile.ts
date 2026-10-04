@@ -215,7 +215,7 @@ export const createProjectile = (
         width: 18,
         height: 18,
         hasGravity: true,
-        gravity: 200,
+        gravity: 240,
         isExplosive: true,
         explosionRadius: 35,
         createsFirePool: true,
@@ -279,7 +279,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 33,
         height: 33,
-        knockback: 140,
+        knockback: 150,
         lifetime: 1400,
         canBeDeflected: true,
       };
@@ -296,8 +296,8 @@ export const createProjectile = (
     case 'net':
       result = {
         ...baseProjectile,
-        width: 40,
-        height: 40,
+        width: 56,
+        height: 56,
         hasGravity: true,
         gravity: 300,
         lifetime: 3500,
@@ -393,7 +393,7 @@ export const createHazardZone = (
       ...base,
       width: 180, // fire ring diameter
       height: 180,
-      tickRate: 500, // 0.5 second tick
+      tickRate: 200, // 0.2 second tick
     };
   }
 

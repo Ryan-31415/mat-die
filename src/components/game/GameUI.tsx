@@ -44,7 +44,7 @@ const GameUI = ({
         <div className="text-center">
           <div className="text-lg font-bold">
             {isOvertime ? (
-              <span className="text-destructive animate-pulse">연장전</span>
+              <span className="text-destructive animate-pulse">연장전 (데미지 2배)</span>
             ) : (
               `라운드 ${currentRound} / ${maxRounds}`
             )}

@@ -673,13 +673,13 @@ export const useGameEngine = (
           checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
         );
         if (inBlizzard) {
-          freezeDur *= 1.25;
+          freezeDur *= 1.5;
         }
 
         updatedPlayer.frozenDuration = freezeDur;
         updatedPlayer.freezeGauge = 0;
-      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 3500) {
-        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1500) {
+      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 4000) {
+        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 2000) {
           updatedPlayer.freezeGauge = Math.max(0, updatedPlayer.freezeGauge - 1);
           updatedPlayer.lastFreezeGaugeDecay = now;
         }
@@ -805,7 +805,7 @@ export const useGameEngine = (
     // Mana regeneration
     // Scientist only regenerates mana when NOT charging
     const isCharging = character.id === 'scientist' && updatedPlayer.isChargingSkill;
-    const manaRegen = isCharging ? 0 : (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.6 : 1.0);
+    const manaRegen = isCharging ? 0 : (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.67 : 1.0);
     updatedPlayer.mana = Math.min(updatedPlayer.maxMana, updatedPlayer.mana + manaRegen);
 
     // Cooldown reduction
@@ -1125,7 +1125,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 750,
+            attackDirection * 780,
             0,
             baseDamage
           ));
@@ -1148,8 +1148,8 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 490,
-            -120,
+            attackDirection * 580,
+            -130,
             baseDamage * 0.4
           ));
           break;
@@ -1157,7 +1157,7 @@ export const useGameEngine = (
           // Shotgun: 5 bullets (or 9 if Focused Fire) with spread
           const isFocused = (updatedPlayer.hunterFocusedDuration || 0) > 0;
           const bulletCount = isFocused ? 7 : 5;
-          const spreadFactor = isFocused ? 0.35 : 1.0; // Tighter spread if focused
+          const spreadFactor = isFocused ? 0.33 : 1.0; // Tighter spread if focused
           const speedMultiplier = isFocused ? 1.2 : 1.0; // Faster bullets if focused
           const damageMultiplier = isFocused ? 1.0 : 1.0; // Increased damage if focused, Not used but kept for future use
 
@@ -1173,7 +1173,7 @@ export const useGameEngine = (
               updatedPlayer.y + PLAYER_SIZE / 2,
               attackDirection * 1250 * speedMultiplier * Math.cos(radians),
               850 * Math.sin(radians),
-              baseDamage * 0.4 * damageMultiplier // Each bullet does 40% of base damage
+              baseDamage * 0.3 * damageMultiplier // Each bullet does 30% of base damage
             ));
           }
           break;
@@ -1194,7 +1194,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 680, // Direct fire
+            attackDirection * 700, // Direct fire
             0,
             baseDamage
           ));
@@ -1266,14 +1266,14 @@ export const useGameEngine = (
               otherPlayer.x + PLAYER_SIZE / 2,
               0,
               0,
-              675,
+              700,
               baseDamage * 1.75
             );
             newProjectiles.push(largeFireball);
             break;
           case 'ninja':
             updatedPlayer.isDashing = true;
-            const dashDistance = 270; // Increased range
+            const dashDistance = 280;
             const dashX = updatedPlayer.x + (attackDirection * dashDistance);
             updatedPlayer.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, dashX));
             setTimeout(() => {
@@ -1306,7 +1306,7 @@ export const useGameEngine = (
               updatedPlayer.y + PLAYER_SIZE / 2, // Center vertically
               attackDirection * 550,
               0,
-              baseDamage * 0.8,
+              baseDamage * 0.75,
             );
             // Clamp bat top-left inside arena so it doesn't immediately trigger bounds
             bat.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - bat.width, bat.x));
@@ -1331,9 +1331,9 @@ export const useGameEngine = (
                     player.id,
                     currentPlayer.x + PLAYER_SIZE / 2,
                     currentPlayer.y + PLAYER_SIZE / 2 + (i - 1) * projGap - projGap * 0.5, // Offset each snowball vertically
-                    (currentPlayer.facingRight ? 1 : -1) * 900,
+                    (currentPlayer.facingRight ? 1 : -1) * 920,
                     0,
-                    baseDamage * 0.2
+                    baseDamage * 0.15 // can does multy-hit. so damage is low.
                   );
                   return {
                     ...prev,
@@ -1392,7 +1392,7 @@ export const useGameEngine = (
           updatedPlayer.skillChargeStartTime = undefined;
         } else {
           const chargeDuration = now - (updatedPlayer.skillChargeStartTime || now);
-          const fullChargeTime = 1750;
+          const fullChargeTime = 1500;
           const overchargeTime = fullChargeTime + 3000; // 3 seconds after full charge
 
           // Overcharge Self-Destruct
@@ -1412,11 +1412,11 @@ export const useGameEngine = (
             // If survived, apply status effects
             if (updatedPlayer.health > 0) {
               updatedPlayer.isStunned = true;
-              updatedPlayer.stunDuration = 1250;
+              updatedPlayer.stunDuration = 1750;
 
               updatedPlayer.isSlowed = true;
-              updatedPlayer.slowAmount = 0.5;
-              updatedPlayer.slowDuration = 6500;
+              updatedPlayer.slowAmount = 0.4;
+              updatedPlayer.slowDuration = 6000;
 
               // Knockback backwards
               const facingDir = updatedPlayer.facingRight ? 1 : -1;
@@ -1426,8 +1426,8 @@ export const useGameEngine = (
             }
 
             // Area Damage to enemies
-            // 3.75x Damage, Slow 40% 5s, Knockback 220
-            const explosionDamage = baseDamage * 3.75;
+            // 4x Damage, Slow 30% 5s, Knockback 220
+            const explosionDamage = baseDamage * 4;
             const explosion = createHazardZone(
               'electric-explosion',
               player.id,
@@ -1499,26 +1499,26 @@ export const useGameEngine = (
 
         // Calculate Stats
         const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
-        // Damage: 1.25x to 3.75x of Attack Damage
-        const damageScale = 1.25 + (2.5 * chargeRatio);
+        // Damage: 1.5x to 4x of Attack Damage
+        const damageScale = 1.5 + (2.5 * chargeRatio);
         const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * damageScale;
 
         // Knockback: 90 to 220
         const knockback = 90 + (130 * chargeRatio);
 
-        // Status: Slow -25% 4s (Base)
-        // If >= 50% charge: Slow -40% 5s
-        let slowAmount = 0.25;
+        // Status: Slow -20% 4s (Base)
+        // If >= 50% charge: Slow -30% 5s
+        let slowAmount = 0.2;
         let slowDuration = 4000;
         if (chargeRatio >= 0.5) {
-          slowAmount = 0.40;
+          slowAmount = 0.3;
           slowDuration = 5000;
         }
 
-        // Stun: None base, 1s if 100% charge
+        // Stun: None base, 1.5s if 100% charge
         let stunDuration = 0;
         if (chargeRatio >= 1.0) {
-          stunDuration = 1000;
+          stunDuration = 1500;
         }
 
         const attackDirection = updatedPlayer.facingRight ? 1 : -1;
@@ -1564,12 +1564,12 @@ export const useGameEngine = (
       switch (character.id) {
         case 'gladiator':
           // enrage - boosts damage, speed, and damage reduction
-          updatedPlayer.damageBoost = 0.35;
-          updatedPlayer.speedBoost = 0.30;
-          updatedPlayer.damageReduction = 0.25;
+          updatedPlayer.damageBoost = 0.33;
+          updatedPlayer.speedBoost = 0.25;
+          updatedPlayer.damageReduction = 0.20;
           updatedPlayer.buffDuration = 5000;
           updatedPlayer.regenDuration = 5000;
-          updatedPlayer.healthRegen = updatedPlayer.maxHealth * 0.04; // 4% max health per second
+          updatedPlayer.healthRegen = updatedPlayer.maxHealth * 0.03; // 3% max health per second
           break;
         case 'archer':
           // Archer Ultimate: 4s buff, +25% damage (base), +15% attack speed (handled in cooldown)
@@ -1580,14 +1580,14 @@ export const useGameEngine = (
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
           updatedPlayer.mageUltimateDuration = 5000;
-          updatedPlayer.damageBoost = 0.3; // 30% damage increase
+          updatedPlayer.damageBoost = 0.4; // 40% damage increase
           // Create fire ring hazard zone centered on mage
           newHazards.push(createHazardZone(
             'fire-ring',
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2 - 90, // Center on player
             updatedPlayer.y + PLAYER_SIZE / 2 - 90,
-            baseDamage * 0.15, // 15% of attack damage per tick
+            baseDamage * 0.2, // 20% of attack damage per tick (100%/s)
             5000 // 5 seconds duration
           ));
           break;
@@ -1595,8 +1595,8 @@ export const useGameEngine = (
         case 'ninja':
           updatedPlayer.isInvisible = true;
           updatedPlayer.invisibleDuration = 4000;
-          updatedPlayer.damageBoost = 0.25;
-          updatedPlayer.speedBoost = 0.40;
+          updatedPlayer.damageBoost = 0.20;
+          updatedPlayer.speedBoost = 0.50;
           updatedPlayer.dodgesRemaining = 1;
           break;
         case 'scientist':
@@ -1605,20 +1605,20 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x,
             updatedPlayer.y,
-            baseDamage * 0.15,
+            baseDamage * 0.2,
             30000
           ));
           break;
         case 'hunter':
           // Focused Fire: 5s buff
           updatedPlayer.hunterFocusedDuration = 5000;
-          updatedPlayer.damageBoost = 0.15; // +15% damage
+          updatedPlayer.damageBoost = 0.0; // +0% damage
           break;
         case 'reaper':
           updatedPlayer.isInvulnerable = true;
           updatedPlayer.isFlying = true;
-          updatedPlayer.invulnerableDuration = 2500;
-          updatedPlayer.speedBoost = 0.7;
+          updatedPlayer.invulnerableDuration = 3000;
+          updatedPlayer.speedBoost = 0.75;
           updatedPlayer.trailPositions = [];
           break;
         case 'ice-mage':
@@ -1630,7 +1630,7 @@ export const useGameEngine = (
             updatedPlayer.y,
             attackDirection * 600, // Throw forward
             -100, // High arc
-            baseDamage * 0.05
+            baseDamage * 0.08
           );
           newProjectiles.push(blizzardStone);
           break;
@@ -2008,7 +2008,7 @@ export const useGameEngine = (
             proj.ownerId,
             0, 0,
             proj.damage,
-            5000 // 5 seconds duration
+            6000 // 6 seconds duration
           );
           blizzard.x = proj.x + proj.width / 2 - blizzard.width / 2;
           blizzard.y = ARENA.height - ARENA.padding - blizzard.height / 2; // On ground
@@ -2363,16 +2363,16 @@ export const useGameEngine = (
 
               // Hunter Mark Passive: Slow on hit by Hunter
               if (currentTarget.isMarked && currentTarget.markOwnerId === proj.ownerId) {
-                // Apply 15% slow for 0.7s
+                // Apply 20% slow for 1s
                 // Stack or overwrite? Let's overwrite/extend max
                 const existingSlow = currentTarget.isSlowed ? currentTarget.slowAmount : 0;
-                if (existingSlow < 0.15) {
+                if (existingSlow < 0.20) {
                   currentTarget.isSlowed = true;
-                  currentTarget.slowAmount = 0.15;
-                  currentTarget.slowDuration = 700;
+                  currentTarget.slowAmount = 0.20;
+                  currentTarget.slowDuration = 1000;
                 } else if (currentTarget.isSlowed && currentTarget.slowAmount === 0.15) {
                   // Refresh duration if same strength
-                  currentTarget.slowDuration = 700;
+                  currentTarget.slowDuration = 1000;
                 }
                 // If already slowed more (e.g. 50%), don't reduce it.
               }
@@ -2395,7 +2395,7 @@ export const useGameEngine = (
                     0, // Start from top
                     0,
                     750,
-                    proj.damage * 0.25 // Adjusted damage for 5 meteors
+                    proj.damage * 0.3 // Adjusted damage for 5 meteors
                   );
                   newlySpawnedProjectiles.push(meteorProj);
                 }
@@ -2547,10 +2547,10 @@ export const useGameEngine = (
               proj.x, proj.y, proj.width, proj.height,
               owner.x, owner.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              // For bat: heal base 50% of damage + bonus from hits
+              // For bat: heal base 75% of damage + bonus from hits
               if (proj.type === 'bat') {
                 const baseHeal = 0;
-                const bonusHeal = (proj.damageAccumulated || 0) * 0.5;
+                const bonusHeal = (proj.damageAccumulated || 0) * 0.75;
                 const totalHeal = baseHeal + bonusHeal;
                 if (totalHeal > 0) {
                   players[proj.ownerId - 1].health = Math.min(
@@ -2560,7 +2560,7 @@ export const useGameEngine = (
                 }
               } else {
                 // Other returning projectiles: heal only from accumulated damage
-                const healAmount = (proj.damageAccumulated || 0) * 0.5;
+                const healAmount = (proj.damageAccumulated || 0) * 0.75;
                 if (healAmount > 0) {
                   players[proj.ownerId - 1].health = Math.min(
                     players[proj.ownerId - 1].maxHealth,

@@ -183,12 +183,12 @@ const GameArena = ({
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
             <div className="text-center animate-scale-in">
               <h2 className="text-4xl font-bold mb-2">
-                {isOvertime ? '연장전 종료!' : `라운드 ${frozenRoundNumber} 종료!`}
+                {gameState.isOvertime ? '연장전 종료!' : `라운드 ${frozenRoundNumber} 종료!`}
               </h2>
               <p className="text-2xl text-primary font-bold">
-                {gameState.roundWinner === 'draw' ? (isOvertime ? '경기 종료 (무승부)' : '무승부!') : `플레이어 ${gameState.roundWinner} 승리!`}
+                {gameState.roundWinner === 'draw' ? (gameState.isOvertime ? '경기 종료 (무승부)' : '무승부!') : `플레이어 ${gameState.roundWinner} 승리!`}
               </p>
-              {gameState.roundWinner === 'draw' && (
+              {gameState.roundWinner === 'draw' && !gameState.isOvertime && (
                 <p className="text-xl text-destructive mt-2 animate-pulse">
                   곧 연장전이 시작됩니다!
                 </p>
