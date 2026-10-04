@@ -38,11 +38,11 @@ export interface Projectile {
   chargeLevel?: number; // 0-1 (or >1 for overcharge visuals)
 }
 
-export const checkProjectileCollision = (
+export const getProjectileCollisionTime = (
   projectile: Pick<Projectile, 'x' | 'y' | 'width' | 'height'>,
   previousPosition: { x: number; y: number },
   target: { x: number; y: number; width: number; height: number }
-): boolean => {
+): number | null => {
   const minX = target.x - projectile.width;
   const maxX = target.x + target.width;
   const minY = target.y - projectile.height;
@@ -57,7 +57,7 @@ export const checkProjectileCollision = (
     [previousPosition.y, deltaY, minY, maxY],
   ]) {
     if (delta === 0) {
-      if (start < min || start > max) return false;
+      if (start < min || start > max) return null;
       continue;
     }
 
@@ -65,11 +65,43 @@ export const checkProjectileCollision = (
     const secondIntersection = (max - start) / delta;
     entryTime = Math.max(entryTime, Math.min(firstIntersection, secondIntersection));
     exitTime = Math.min(exitTime, Math.max(firstIntersection, secondIntersection));
-    if (entryTime > exitTime) return false;
+    if (entryTime > exitTime) return null;
   }
 
-  return entryTime <= 1 && exitTime >= 0;
+  return entryTime <= 1 && exitTime >= 0 ? entryTime : null;
 };
+
+export const checkProjectileCollision = (
+  projectile: Pick<Projectile, 'x' | 'y' | 'width' | 'height'>,
+  previousPosition: { x: number; y: number },
+  target: { x: number; y: number; width: number; height: number }
+): boolean => getProjectileCollisionTime(projectile, previousPosition, target) !== null;
+
+// Visual only: explosions never apply additional damage or status effects.
+export interface ExplosionEffect {
+  id: string;
+  type: ProjectileType;
+  x: number;
+  y: number;
+  radius: number;
+  createdAt: number;
+  duration: number;
+}
+
+export const createExplosionEffect = (
+  projectile: Projectile,
+  x: number,
+  y: number,
+  now: number
+): ExplosionEffect => ({
+  id: `explosion-${projectile.id}-${now}`,
+  type: projectile.type,
+  x,
+  y,
+  radius: Math.max(projectile.explosionRadius, projectile.width / 2, projectile.height / 2),
+  createdAt: now,
+  duration: 400,
+});
 
 export interface HazardZone {
   id: string;

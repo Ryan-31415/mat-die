@@ -101,6 +101,26 @@ All colors MUST be HSL.
 }
 
 /* Custom Animations */
+@keyframes explosion-flash {
+  0% { transform: scale(0.15); opacity: 1; }
+  35% { transform: scale(0.7); opacity: 0.9; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes explosion-ring {
+  0% { transform: scale(0.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+@keyframes explosion-spark {
+  0% { transform: translate(-50%, -50%) translateY(0) scaleY(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) translateY(-40px) scaleY(0.3); opacity: 0; }
+}
+
+.explosion-flash { animation: explosion-flash 400ms ease-out forwards; }
+.explosion-ring { animation: explosion-ring 400ms ease-out forwards; }
+.explosion-spark { animation: explosion-spark 400ms ease-out forwards; }
+
 @keyframes sword-swing {
   0% {
     transform: translate(-10px, -15px) rotate(-110deg);

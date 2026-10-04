@@ -5,6 +5,7 @@ import { useGameEngine } from '@/hooks/useGameEngine';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import PlayerRenderer from './PlayerRenderer';
 import ProjectileRenderer from './ProjectileRenderer';
+import ExplosionRenderer from './ExplosionRenderer';
 import HazardRenderer from './HazardRenderer';
 import PlatformRenderer from './PlatformRenderer';
 import GameUI from './GameUI';
@@ -176,6 +177,11 @@ const GameArena = ({
             player={clone}
             character={clone.character!}
           />
+        ))}
+
+        {/* Projectile impact effects */}
+        {gameState.explosionEffects.map(effect => (
+          <ExplosionRenderer key={effect.id} effect={effect} isPaused={gameState.isPaused} />
         ))}
 
         {/* Round winner overlay */}

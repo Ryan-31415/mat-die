@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
-import { Projectile, HazardZone, AttackHitbox, createProjectile, createHazardZone, createAttackHitbox, checkProjectileCollision } from '@/types/projectile';
+import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, createProjectile, createHazardZone, createAttackHitbox, checkProjectileCollision, getProjectileCollisionTime, createExplosionEffect } from '@/types/projectile';
 import { Platform, PLATFORMS, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
 import { MapId, MAPS } from '@/types/map';
 import { KeyboardState } from './useKeyboard';
@@ -11,6 +11,7 @@ interface GameEngineState {
   players: [Player, Player];
   clones: Player[];
   projectiles: Projectile[];
+  explosionEffects: ExplosionEffect[];
   hazardZones: HazardZone[];
   attackHitboxes: AttackHitbox[];
   roundTimeRemaining: number;
@@ -96,6 +97,7 @@ export const useGameEngine = (
       players,
       clones: [],
       projectiles: [],
+      explosionEffects: [],
       hazardZones: [],
       attackHitboxes: [],
       roundTimeRemaining: isOvertimeProp ? 30 : (roundTimeLimit === 0 ? 999 : roundTimeLimit),
@@ -1958,6 +1960,25 @@ export const useGameEngine = (
       });
 
       const newlySpawnedProjectiles: Projectile[] = [];
+      const explosionEffects = prev.explosionEffects.filter(effect => now - effect.createdAt < effect.duration);
+      const emitExplosion = (
+        proj: Projectile,
+        target?: { x: number; y: number; width: number; height: number }
+      ) => {
+        if (!proj.isExplosive) return;
+        const start = projectileStartPositions.get(proj.id) ?? proj;
+        const hitTime = target ? getProjectileCollisionTime(proj, start, target) ?? 1 : 1;
+        const centerX = start.x + (proj.x - start.x) * hitTime + proj.width / 2;
+        const centerY = start.y + (proj.y - start.y) * hitTime + proj.height / 2;
+        // Clamp to the struck surface, including hits that cross it within a tick.
+        const bounds = target ?? { x: 0, y: 0, width: ARENA.width, height: ARENA.height - ARENA.padding };
+        explosionEffects.push(createExplosionEffect(
+          proj,
+          Math.max(bounds.x, Math.min(centerX, bounds.x + bounds.width)),
+          Math.max(bounds.y, Math.min(centerY, bounds.y + bounds.height)),
+          now
+        ));
+      };
 
       // Check projectile collisions
       projectiles = projectiles.filter(proj => {
@@ -1969,6 +1990,7 @@ export const useGameEngine = (
         for (const platform of prev.platforms) {
           if (checkProjectileCollision(proj, previousPosition, platform)) {
             if (proj.type === 'flask') {
+              emitExplosion(proj, platform);
               const pool = createHazardZone(
                 'toxic-pool',
                 proj.ownerId,
@@ -1987,6 +2009,7 @@ export const useGameEngine = (
 
             // For now, only projectiles with gravity are blocked by platforms (except meteors)
             if (proj.hasGravity && proj.type !== 'meteor' && !proj.isHoming) {
+              emitExplosion(proj, platform);
               if (proj.type === 'blizzard-stone') {
                 const blizzard = createHazardZone(
                   'blizzard',
@@ -2066,6 +2089,7 @@ export const useGameEngine = (
           );
 
           if (!hitsPlayer && !hitsClone) {
+            emitExplosion(proj);
             const impactX = proj.x + proj.width / 2;
             const impactY = proj.y + proj.height / 2;
 
@@ -2113,6 +2137,7 @@ export const useGameEngine = (
         // Check collision with Tesla Coils
         const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !(proj as any).isHackUltimate && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
+          emitExplosion(proj, hitCoil);
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
 
           if (proj.createsFirePool) {
@@ -2265,6 +2290,7 @@ export const useGameEngine = (
                     proj.ownerId = currentTarget.id as 1 | 2;
                     return true;
                   }
+                  emitExplosion(proj, { x: target.x, y: target.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
                   return false;
                 }
               }
@@ -2275,6 +2301,8 @@ export const useGameEngine = (
               if (now - lastHit < (proj.type === "large-snowball" ? 50 : 100)) {
                 return true;
               }
+
+              emitExplosion(proj, { x: target.x, y: target.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
 
               // Archer Passive: Long range shot (> 325ms) deals 15% bonus damage
               if (players[proj.ownerId - 1].character?.id === 'archer' && now - proj.createdAt > 360) {
@@ -3036,6 +3064,7 @@ export const useGameEngine = (
             checkCollision(vine.x, vine.y, vine.width, vine.height, p.x, p.y, p.width, p.height)
           );
           if (hit >= 0) {
+            emitExplosion(projectiles[hit], vine);
             projectiles.splice(hit, 1);
             vine.hp--;
             // Trigger falling leaves
@@ -3104,6 +3133,7 @@ export const useGameEngine = (
         players,
         clones: nextClones,
         projectiles,
+        explosionEffects,
         hazardZones,
         attackHitboxes,
         roundTimeRemaining: newTimeRemaining,
