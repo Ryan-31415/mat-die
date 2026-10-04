@@ -157,7 +157,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '방어',
       description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
-      manaCost: 15, // per 0.5 seconds
+      manaCost: 3, // per 0.1 seconds
       cooldown: 0,
     },
     ultimate: {
@@ -217,7 +217,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '각성',
-      description: '5초간 공격력이 33%, 마나 재생력이 50% 상승하며, 모든 공격이 3초간 발화 효과를 부여하여 추가 데미지를 가합니다. 또한 주변에 화염 고리가 형성되어 근접한 적에게 피해를 입힙니다.',
+      description: '5초간 공격력이 30%, 마나 재생력이 50% 상승하며, 모든 공격이 3초간 발화 효과를 부여하여 추가 데미지를 가합니다. 또한 주변에 화염 고리가 형성되어 주위의 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -327,7 +327,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '유체화',
-      description: '3초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기의 흡혈 패시브는 50% 증가되어 적용됩니다.',
+      description: '3초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기 사용 중 흡혈 패시브의 효과는 가한 데미지의 50%로 증가되어 적용됩니다.',
       manaCost: 100,
       cooldown: 0,
     },

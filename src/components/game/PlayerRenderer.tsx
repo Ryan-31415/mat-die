@@ -155,13 +155,22 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
 
           {/* Dash trail for ninja */}
           {player.isDashing && (
-            <div
-              className="absolute top-0 left-0 w-full h-full rounded-lg opacity-50"
-              style={{
-                backgroundColor: character.color,
-                transform: `translateX(${player.facingRight ? -20 : 20}px)`
-              }}
-            />
+            <>
+              {[34, 20, 8].map((offset, index) => (
+                <div
+                  key={`ninja-dash-afterimage-${offset}`}
+                  className="absolute inset-0 rounded-lg pointer-events-none"
+                  style={{
+                    background: `linear-gradient(90deg, ${character.color} 0%, ${character.color}cc 55%, ${character.color}00 100%)`,
+                    border: `1px solid ${character.color}99`,
+                    boxShadow: `0 0 ${12 - index * 2}px ${character.color}88`,
+                    opacity: 0.12 + index * 0.07,
+                    filter: `blur(${2 - index * 0.5}px)`,
+                    transform: `translateX(-${offset}px) scaleX(${1.08 - index * 0.03})`,
+                  }}
+                />
+              ))}
+            </>
           )}
         </div>
 

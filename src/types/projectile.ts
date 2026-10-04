@@ -273,7 +273,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 10,
         height: 8,
-        lifetime: 305,
+        lifetime: 240,
         knockback: 10,
       };
       break;
@@ -282,7 +282,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 10,
         height: 8,
-        lifetime: 305,
+        lifetime: 240,
         knockback: 15,
       };
       break;
@@ -328,10 +328,10 @@ export const createProjectile = (
     case 'net':
       result = {
         ...baseProjectile,
-        width: 56,
-        height: 56,
+        width: 48,
+        height: 48,
         hasGravity: true,
-        gravity: 300,
+        gravity: 360,
         lifetime: 3500,
         canBeDeflected: false,
       };
@@ -425,7 +425,7 @@ export const createHazardZone = (
       ...base,
       width: 180, // fire ring diameter
       height: 180,
-      tickRate: 200, // 0.2 second tick
+      tickRate: 100, // 0.1 second tick
     };
   }
 

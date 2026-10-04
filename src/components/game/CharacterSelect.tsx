@@ -256,10 +256,10 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
             {gameMode === 'single'
               ? currentPlayer === 1
                 ? 'AI 캐릭터 선택'
-                : '게임 시작'
+                : '맵 선택'
               : currentPlayer === 1
                 ? 'P1 선택 완료'
-                : '게임 시작'}
+                : '맵 선택'}
           </Button>
         </div>
 

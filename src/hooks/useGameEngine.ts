@@ -882,8 +882,8 @@ export const useGameEngine = (
       if (updatedPlayer.mana >= 5) {
         updatedPlayer.isShielding = true;
         newShieldTick += deltaTime;
-        if (newShieldTick >= 500) {
-          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 20); // Increased mana cost
+        if (newShieldTick >= 100) {
+          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 3); // Increased mana cost
           newShieldTick = 0;
         }
       } else {
@@ -1162,7 +1162,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 600,
+            attackDirection * 640,
             -105,
             baseDamage
           ));
@@ -1172,7 +1172,7 @@ export const useGameEngine = (
           const isFocused = (updatedPlayer.hunterFocusedDuration || 0) > 0;
           const bulletCount = isFocused ? 7 : 5;
           const spreadFactor = isFocused ? 0.33 : 1.0; // Tighter spread if focused
-          const speedMultiplier = isFocused ? 1.2 : 1.0; // Faster bullets if focused
+          const speedMultiplier = isFocused ? 1.25 : 1.0; // Faster bullets if focused
           const damageMultiplier = isFocused ? 1.0 : 1.0; // Increased damage if focused, Not used but kept for future use
 
           for (let i = 0; i < bulletCount; i++) {
@@ -1181,12 +1181,12 @@ export const useGameEngine = (
             const radians = spreadAngle * (Math.PI / 180);
 
             newProjectiles.push(createProjectile(
-              isFocused ? 'super-bullet' : 'bullet',
+              isFocused ? 'bullet' : 'bullet',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
               attackDirection * 1250 * speedMultiplier * Math.cos(radians),
-              850 * Math.sin(radians),
+              875 * Math.sin(radians),
               baseDamage * 0.3 * damageMultiplier // Each bullet does 30% of base damage
             ));
           }
@@ -1281,7 +1281,7 @@ export const useGameEngine = (
               0,
               0,
               750,
-              baseDamage * 2
+              baseDamage * 1.75
             );
             newProjectiles.push(largeFireball);
             break;
@@ -1304,9 +1304,9 @@ export const useGameEngine = (
               'net',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2,
+              updatedPlayer.y,
               attackDirection * 750,
-              -125,
+              -115,
               baseDamage * 0.2 // Low damage, utility focus
             ));
             break;
@@ -1459,23 +1459,7 @@ export const useGameEngine = (
 
             newHazards.push(explosion);
 
-            // We need to apply this immediately to the other player? 
-            // Hazard zones are processed in next tick usually, but instant explosion might need immediate handling if we want it "instant".
-            // For now, let's use a short duration hazard or a projectile that explodes instantly.
-            // Actually hazard zone logic handles damage over time. For instant burst, maybe projectile is better? 
-            // Or just check collision right here.
-
             if (checkCollision(explosion.x, explosion.y, explosion.width, explosion.height, otherPlayer.x, otherPlayer.y, PLAYER_SIZE, PLAYER_SIZE)) {
-              // Apply effects to opponent directly here or let hazard handle it?
-              // Hazard logic in game loop applies damage based on tickRate. 
-              // Let's create a special projectile "explosion" that lasts 1 frame?
-              // Or simply stick to hazard but ensure it ticks once. 
-              // The current hazard logic checks tickRate. If we set tickRate to 0 or small, it should tick.
-              // Re-using 'electric-orb' logic but stationary might be easier visually.
-
-              // Let's use a "System" where we manually apply damage to other player for instant effects?
-              // No, sticking to patterns is better. 
-              // Let's use a large projectile that explodes immediately.
               const explosionProj = createProjectile(
                 'electric-orb',
                 player.id,
@@ -1594,14 +1578,14 @@ export const useGameEngine = (
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
           updatedPlayer.mageUltimateDuration = 5000;
-          updatedPlayer.damageBoost = 0.33; // 33% damage increase
+          updatedPlayer.damageBoost = 0.30; // 30% damage increase
           // Create fire ring hazard zone centered on mage
           newHazards.push(createHazardZone(
             'fire-ring',
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2 - 90, // Center on player
             updatedPlayer.y + PLAYER_SIZE / 2 - 90,
-            character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * 0.15, // 15% of buffed attack damage per tick
+            character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * 0.07, // 7% of buffed attack damage per tick (70% per a second)
             5000 // 5 seconds duration
           ));
           break;
@@ -1644,7 +1628,7 @@ export const useGameEngine = (
             updatedPlayer.y,
             attackDirection * 600, // Throw forward
             -100, // High arc
-            baseDamage * 0.08
+            baseDamage * 0.05
           );
           newProjectiles.push(blizzardStone);
           break;
@@ -2383,7 +2367,7 @@ export const useGameEngine = (
                 const dist = Math.sqrt(pullDirX * pullDirX + pullDirY * pullDirY);
 
                 if (dist > 20) { // Don't pull if already very close
-                  const pullForce = 1050; // Increased force
+                  const pullForce = 1200;
 
                   // Use knockback velocity slots which are added to movement
                   currentTarget.knockbackVelocityX = (pullDirX / dist) * pullForce;
@@ -2427,7 +2411,7 @@ export const useGameEngine = (
                 }
                 // Spawn 5 meteors at hit location with random offsets
                 for (let i = 0; i < 5; i++) {
-                  const xOffset = 0 + (i - 2) * 33;
+                  const xOffset = 0 + (i - 2) * 40;
                   const meteorProj = createProjectile(
                     'meteor',
                     proj.ownerId,
@@ -2843,9 +2827,18 @@ export const useGameEngine = (
             const ringCenterY = zoneCopy.y + zoneCopy.height / 2;
             const nearestX = Math.max(target.x, Math.min(ringCenterX, target.x + PLAYER_SIZE));
             const nearestY = Math.max(target.y, Math.min(ringCenterY, target.y + PLAYER_SIZE));
-            const distance = Math.hypot(ringCenterX - nearestX, ringCenterY - nearestY);
+            const nearestDistance = Math.hypot(ringCenterX - nearestX, ringCenterY - nearestY);
+            const farthestDistance = Math.max(
+              Math.hypot(ringCenterX - target.x, ringCenterY - target.y),
+              Math.hypot(ringCenterX - (target.x + PLAYER_SIZE), ringCenterY - target.y),
+              Math.hypot(ringCenterX - target.x, ringCenterY - (target.y + PLAYER_SIZE)),
+              Math.hypot(ringCenterX - (target.x + PLAYER_SIZE), ringCenterY - (target.y + PLAYER_SIZE))
+            );
+            const outerRadius = zoneCopy.width / 2;
+            const innerRadius = outerRadius - 6; // Match the visible fire-ring border thickness.
 
-            if (distance <= zoneCopy.width / 2) {
+            // Damage only when the player rectangle overlaps the ring itself, not its interior.
+            if (nearestDistance <= outerRadius && farthestDistance >= innerRadius) {
               players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
             }
           }
@@ -3100,10 +3093,10 @@ export const useGameEngine = (
           if (playerBottom >= ARENA.height - ARENA.padding) {
             if (now - newLastLavaDamage[i] >= 500) { // Prevent rapid re-triggering
               let lavaDamage = 15;
-              if (players[i].isBurning) lavaDamage *= 1.25;
+              if (players[i].isBurning) lavaDamage *= 1.2;
               players[i] = applyDamage(players[i], lavaDamage, true).player;
               // Bounce up
-              players[i].velocityY = -1000;
+              players[i].velocityY = -900;
               players[i].y = ARENA.height - ARENA.padding - PLAYER_SIZE - 5;
               // Apply burn
               players[i].isBurning = true;
@@ -3111,6 +3104,7 @@ export const useGameEngine = (
               players[i].burnDamagePerTick = 3;
               players[i].burnOwner = null;
               players[i].lastBurnTick = now;
+              players[i].isFrozen = false;
               newLastLavaDamage[i] = now;
             }
           }
