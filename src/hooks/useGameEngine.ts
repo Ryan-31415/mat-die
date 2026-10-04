@@ -783,8 +783,8 @@ export const useGameEngine = (
     // Burn damage (from Mage ultimate)
     if (updatedPlayer.isBurning && updatedPlayer.burnDuration > 0) {
       updatedPlayer.burnDuration -= deltaTime;
-      // Apply burn damage every 500ms
-      if (now - updatedPlayer.lastBurnTick >= 500) {
+      // Apply burn damage every 250ms
+      if (now - updatedPlayer.lastBurnTick >= 250) {
         updatedPlayer.health = Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick);
         updatedPlayer.lastBurnTick = now;
       }
@@ -1148,9 +1148,9 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2,
             updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 580,
-            -130,
-            baseDamage * 0.4
+            attackDirection * 600,
+            -105,
+            baseDamage
           ));
           break;
         case 'hunter':
@@ -1266,8 +1266,8 @@ export const useGameEngine = (
               otherPlayer.x + PLAYER_SIZE / 2,
               0,
               0,
-              700,
-              baseDamage * 1.75
+              750,
+              baseDamage * 2
             );
             newProjectiles.push(largeFireball);
             break;
@@ -1401,10 +1401,10 @@ export const useGameEngine = (
             updatedPlayer.skillChargeStartTime = undefined;
             updatedPlayer.skillCooldownRemaining = character.skill.cooldown;
 
-            // Self Damage: 6x Attack Damage
+            // Self Damage: 3.25x Attack Damage
             const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
             const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
-            const selfDamage = baseDamage * 6;
+            const selfDamage = baseDamage * 3.25;
 
             // Apply Self Damage
             const selfDamageResult = applyDamage(updatedPlayer, selfDamage);
@@ -1426,7 +1426,7 @@ export const useGameEngine = (
             }
 
             // Area Damage to enemies
-            // 4x Damage, Slow 30% 5s, Knockback 220
+            // 2.5x Damage, Slow 30% 5s, Knockback 220
             const explosionDamage = baseDamage * 4;
             const explosion = createHazardZone(
               'electric-explosion',
@@ -1499,12 +1499,12 @@ export const useGameEngine = (
 
         // Calculate Stats
         const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
-        // Damage: 1.5x to 4x of Attack Damage
-        const damageScale = 1.5 + (2.5 * chargeRatio);
+        // Damage: 1.25x to 2.5x of Attack Damage
+        const damageScale = 1.25 + (1.25 * chargeRatio);
         const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * damageScale;
 
-        // Knockback: 90 to 220
-        const knockback = 90 + (130 * chargeRatio);
+        // Knockback: 100 to 220
+        const knockback = 100 + (120 * chargeRatio);
 
         // Status: Slow -20% 4s (Base)
         // If >= 50% charge: Slow -30% 5s
@@ -1540,9 +1540,9 @@ export const useGameEngine = (
         projectile.chargeLevel = chargeRatio; // For visuals
 
         // Scale projectile size based on charge?
-        // Base size 33, max size 54
-        projectile.width = 33 + (21 * chargeRatio);
-        projectile.height = 33 + (21 * chargeRatio);
+        // Base size 33, max size 52
+        projectile.width = 33 + (19 * chargeRatio);
+        projectile.height = 33 + (19 * chargeRatio);
         // Adjust center after resize
         projectile.x = updatedPlayer.x + PLAYER_SIZE / 2 - projectile.width / 2;
         projectile.y = updatedPlayer.y + PLAYER_SIZE / 2 - projectile.height / 2;
@@ -1580,14 +1580,14 @@ export const useGameEngine = (
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
           updatedPlayer.mageUltimateDuration = 5000;
-          updatedPlayer.damageBoost = 0.4; // 40% damage increase
+          updatedPlayer.damageBoost = 0.33; // 33% damage increase
           // Create fire ring hazard zone centered on mage
           newHazards.push(createHazardZone(
             'fire-ring',
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2 - 90, // Center on player
             updatedPlayer.y + PLAYER_SIZE / 2 - 90,
-            baseDamage * 0.2, // 20% of attack damage per tick (100%/s)
+            character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * 0.15, // 15% of buffed attack damage per tick
             5000 // 5 seconds duration
           ));
           break;
@@ -1961,7 +1961,7 @@ export const useGameEngine = (
                 'toxic-pool',
                 proj.ownerId,
                 0, 0,
-                proj.damage * 0.2,
+                proj.damage * 0.1,
                 proj.firePoolDuration
               );
 
@@ -2082,7 +2082,7 @@ export const useGameEngine = (
             } else if (proj.isExplosive && proj.createsFirePool) {
               const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
               const isToxic = proj.type === 'flask';
-              const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.01;
+              const damage = isToxic ? proj.damage * 0.1 : proj.damage * 0.03;
               const pool = createHazardZone(
                 poolType,
                 proj.ownerId,
@@ -2106,7 +2106,7 @@ export const useGameEngine = (
           if (proj.createsFirePool) {
             const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
             const isToxic = proj.type === 'flask';
-            const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.01;
+            const damage = isToxic ? proj.damage * 0.1 : proj.damage * 0.03;
             const pool = createHazardZone(
               poolType,
               proj.ownerId,
@@ -2379,15 +2379,15 @@ export const useGameEngine = (
 
               // Mage Skill: Large-fireball improvements
               if (proj.type === 'large-fireball' && players[ownerIndex].character?.id === 'mage') {
-                // 25% bonus damage if target is airborne
+                // 30% bonus damage if target is airborne
                 if (!currentTarget.isGrounded) {
-                  const bonusDamage = proj.damage * 0; // Remaining former logic. but not used.
+                  const bonusDamage = proj.damage * 0.30; // Remaining former logic. but not used.
                   const bonusRes = applyDamage(currentTarget, bonusDamage);
                   currentTarget = bonusRes.player;
                 }
                 // Spawn 5 meteors at hit location with random offsets
                 for (let i = 0; i < 5; i++) {
-                  const xOffset = 0 + (i - 2) * 35;
+                  const xOffset = 0 + (i - 2) * 33;
                   const meteorProj = createProjectile(
                     'meteor',
                     proj.ownerId,
@@ -2507,7 +2507,7 @@ export const useGameEngine = (
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
                 const isToxic = proj.type === 'flask';
-                const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.02;
+                const damage = isToxic ? proj.damage * 0.1 : proj.damage * 0.03;
                 const pool = createHazardZone(
                   poolType,
                   proj.ownerId,
@@ -2646,8 +2646,8 @@ export const useGameEngine = (
           // Mage Ultimate: Apply burn effect on melee attacks
           if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
             currentTarget.isBurning = true;
-            currentTarget.burnDuration = 3500; // 3.5 seconds
-            currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.20;
+            currentTarget.burnDuration = 3000; // 3.0 seconds
+            currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.075;
             currentTarget.burnOwner = hitbox.ownerId;
             currentTarget.lastBurnTick = now;
           }
@@ -2801,14 +2801,11 @@ export const useGameEngine = (
             // Check if target is within circular fire ring range
             const ringCenterX = zoneCopy.x + zoneCopy.width / 2;
             const ringCenterY = zoneCopy.y + zoneCopy.height / 2;
-            const targetCenterX = target.x + PLAYER_SIZE / 2;
-            const targetCenterY = target.y + PLAYER_SIZE / 2;
-            const distance = Math.sqrt(
-              Math.pow(ringCenterX - targetCenterX, 2) +
-              Math.pow(ringCenterY - targetCenterY, 2)
-            );
+            const nearestX = Math.max(target.x, Math.min(ringCenterX, target.x + PLAYER_SIZE));
+            const nearestY = Math.max(target.y, Math.min(ringCenterY, target.y + PLAYER_SIZE));
+            const distance = Math.hypot(ringCenterX - nearestX, ringCenterY - nearestY);
 
-            if (distance < zoneCopy.width / 2) {
+            if (distance <= zoneCopy.width / 2) {
               players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
             }
           }

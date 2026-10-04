@@ -205,7 +205,7 @@ export const createProjectile = (
         height: 20,
         hasGravity: false,
         isExplosive: true,
-        explosionRadius: 55,
+        explosionRadius: 40,
         canBeDeflected: false,
       };
       break;
@@ -215,11 +215,11 @@ export const createProjectile = (
         width: 18,
         height: 18,
         hasGravity: true,
-        gravity: 240,
+        gravity: 220,
         isExplosive: true,
-        explosionRadius: 35,
+        explosionRadius: 42,
         createsFirePool: true,
-        firePoolDuration: 3000,
+        firePoolDuration: 3200,
       };
       break;
     case 'electric-orb':
@@ -348,8 +348,8 @@ export const createHazardZone = (
     ownerId,
     x,
     y,
-    width: type === 'toxic-pool' ? 125 : 190,
-    height: type === 'toxic-pool' ? 125 : 190,
+    width: type === 'toxic-pool' ? 140 : 200,
+    height: type === 'toxic-pool' ? 140 : 200,
     damage,
     tickRate: 100, // Increased frequency (5x), damage per tick adjusted in useGameEngine
     lastTick: Date.now(),

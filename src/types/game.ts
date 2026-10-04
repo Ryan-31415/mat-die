@@ -207,13 +207,13 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1000,
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 시 파이어볼 5개가 추가적으로 투하됩니다.',
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 커다란 파이어볼은 체공 중인 적에게 30%의 추가 피해를 입힙니다. 명중 시 작은 파이어볼 5개가 추가적으로 투하됩니다.',
       manaCost: 40,
       cooldown: 4000,
     },
     ultimate: {
       name: '각성',
-      description: '5초간 공격력이 40%, 마나 재생력이 67% 상승하며, 모든 공격이 4초간 발화 효과를 부여합니다. 주변에 화염 고리가 형성되어 적에게 피해를 입힙니다.',
+      description: '5초간 공격력이 33%, 마나 재생력이 50% 상승하며, 모든 공격이 3초간 발화 효과를 부여하여 추가 데미지를 가합니다. 또한 주변에 화염 고리가 형성되어 근접한 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -234,13 +234,13 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackCooldown: 1000,
     passive: '일반 공격의 카타나로 적의 투사체를 반사할 수 있습니다.',
     skill: {
-      name: '질풍 돌진',
-      description: '전방으로 돌진.',
+      name: '돌진',
+      description: '전방으로 빠르게 돌진합니다.',
       manaCost: 30,
       cooldown: 1500,
     },
     ultimate: {
-      name: '그림자 은신',
+      name: '은신술',
       description: '4초간 은신해서 이동속도가 50% 상승하고, 공격력이 20% 상승합니다. 은신 시 1회 한정으로 공격을 회피 가능합니다.',
       manaCost: 100,
       cooldown: 0,
@@ -258,7 +258,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     speed: 5.0,
     attackDamage: 14,
     attackRange: 500, // Increased range (still shorter than Archer's 600)
-    attackCooldown: 900,
+    attackCooldown: 1000,
     skill: {
       name: '전자총',
       description: '스킬 버튼을 길게 눌러 에너지를 충전합니다. 충전 시간에 비례해 전기 구체의 화력이 증가합니다. 완충 시 피격된 적을 기절시킵니다. 과충전하면 자폭으로 데미지를 받습니다.',
