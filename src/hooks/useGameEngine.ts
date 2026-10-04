@@ -218,8 +218,8 @@ export const useGameEngine = (
     let isBreakingFreeze = false;
 
     if (player.isFrozen) {
-      damageMultiplier = 1.15;
-      isBreakingFreeze = false;
+      damageMultiplier = 1.25;
+      isBreakingFreeze = true;
     }
 
     const actualDamage = damage * damageMultiplier * (1 - player.damageReduction);
@@ -353,7 +353,7 @@ export const useGameEngine = (
     if (otherPlayer.character?.id === 'ice-mage') {
       if (updatedPlayer.freezeGauge >= 5) {
         updatedPlayer.isFrozen = true;
-        let freezeDur = 1200;
+        let freezeDur = 1000;
 
         // Ice Mage Blizzard: Increased freeze duration
         const inBlizzard = hazardZones.some(z =>
@@ -571,7 +571,7 @@ export const useGameEngine = (
         updatedPlayer.isShielding = true;
         newShieldTick += deltaTime;
         if (newShieldTick >= 100) {
-          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 3); // Increased mana cost
+          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 2);
           newShieldTick = 0;
         }
       } else {
@@ -1663,7 +1663,7 @@ export const useGameEngine = (
                   proj.ownerId,
                   0, 0,
                   proj.damage,
-                  5000
+                  6000
                 );
                 blizzard.x = proj.x + proj.width / 2 - blizzard.width / 2;
                 blizzard.y = platform.y - blizzard.height / 2; // On top of platform
@@ -1673,7 +1673,7 @@ export const useGameEngine = (
                 const opponent = players[opponentId - 1];
                 if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE)) {
                   players[opponentId - 1].isFrozen = true;
-                  players[opponentId - 1].frozenDuration = 1500;
+                  players[opponentId - 1].frozenDuration = 750;
                 }
 
                 hazardZones.push(blizzard);
@@ -1700,7 +1700,7 @@ export const useGameEngine = (
           const opponent = players[opponentId - 1];
           if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE)) {
             players[opponentId - 1].isFrozen = true;
-            players[opponentId - 1].frozenDuration = 1500;
+            players[opponentId - 1].frozenDuration = 750;
           }
 
           hazardZones.push(blizzard);
@@ -1747,7 +1747,7 @@ export const useGameEngine = (
                 0,
                 0,
                 proj.damage,
-                5000
+                6000
               );
               blizzard.x = impactX - blizzard.width / 2;
               blizzard.y = impactY - blizzard.height / 2;
@@ -1758,7 +1758,7 @@ export const useGameEngine = (
                 opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE
               )) {
                 opponent.isFrozen = true;
-                opponent.frozenDuration = 1500;
+                opponent.frozenDuration = 750;  // Freezes enemy on impact
               }
 
               hazardZones.push(blizzard);
@@ -1988,7 +1988,6 @@ export const useGameEngine = (
               }
 
               // Reaper Passive: Life steal 20%
-
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
                 players[ownerIndex].health = Math.min(
@@ -2078,7 +2077,7 @@ export const useGameEngine = (
               if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
                 currentTarget.isBurning = true;
                 currentTarget.burnDuration = 3000; // 3 seconds
-                currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.20; // 20% of mage attack per tick
+                currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.10; // 10% of mage attack per tick (40% per second)
                 currentTarget.burnOwner = proj.ownerId;
                 currentTarget.lastBurnTick = now;
               }
@@ -2111,7 +2110,6 @@ export const useGameEngine = (
               if (proj.knockback > 0) {
                 const knockbackDir = proj.velocityX > 0 ? 1 : -1;
                 // Apply smooth knockback force instead of instant teleport
-                // Apply smooth knockback force instead of instant teleport
                 let kbForce = proj.knockback * 10;
 
                 // Ice Mage Blizzard: Increased knockback
@@ -2133,7 +2131,7 @@ export const useGameEngine = (
                   proj.ownerId,
                   0, 0,
                   proj.damage,
-                  5000 // 5 seconds duration
+                  6000 // 6 seconds duration
                 );
                 blizzard.x = proj.x + proj.width / 2 - blizzard.width / 2;
                 blizzard.y = proj.y + proj.height / 2 - blizzard.height / 2; // Centered on impact
@@ -2141,7 +2139,7 @@ export const useGameEngine = (
                 // Initial freeze on spawn
                 if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE)) {
                   currentTarget.isFrozen = true;
-                  currentTarget.frozenDuration = 500;
+                  currentTarget.frozenDuration = 750;
                 }
                 hazardZones.push(blizzard);
               }
@@ -2749,8 +2747,8 @@ export const useGameEngine = (
               players[i].y = ARENA.height - ARENA.padding - PLAYER_SIZE - 5;
               // Apply burn
               players[i].isBurning = true;
-              players[i].burnDuration = 4000;
-              players[i].burnDamagePerTick = 3;
+              players[i].burnDuration = 3000;
+              players[i].burnDamagePerTick = 2;
               players[i].burnOwner = null;
               players[i].lastBurnTick = now;
               players[i].isFrozen = false;

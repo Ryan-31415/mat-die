@@ -159,7 +159,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '방어',
       description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
-      manaCost: 3, // per 0.1 seconds
+      manaCost: 2, // per 0.1 seconds
       cooldown: 0,
     },
     ultimate: {
@@ -192,7 +192,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '속사',
-      description: '전방으로 총 10도(조준 방향 기준 ±5도)의 탄퍼짐 내에서 화살 8발을 0.08초 간격으로 속사합니다.',
+      description: '화살 8발을 전방으로 속사합니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -207,7 +207,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 7.2,
     speed: 5.0,
-    attackDamage: 20,
+    attackDamage: 18,
     attackRange: 600,
     attackCooldown: 1000,
     attackDescription: '전방으로 파이어볼을 발사합니다. 파이어볼은 직선으로 날아갑니다.',
@@ -233,21 +233,22 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     colorClass: 'bg-slate-800',
     maxHealth: 125,
     maxMana: 100,
-    manaRegen: 6.5,
+    manaRegen: 6.6,
     speed: 5.5, // slightly faster base speed
-    attackDamage: 17,
+    attackDamage: 16,
     attackRange: 85,
     attackCooldown: 1000,
-    attackDescription: '전방으로 카타나를 휘둘러 근접한 적을 공격합니다. 일반 공격을 통해 적의 투사체를 반사할 수 있습니다.',
+    passive: '일반 공격을 통해 적의 투사체를 반사할 수 있습니다.',
+    attackDescription: '전방으로 카타나를 휘둘러 근접한 적을 공격합니다.',
     skill: {
       name: '돌진',
       description: '전방으로 빠르게 돌진합니다.',
-      manaCost: 30,
+      manaCost: 25,
       cooldown: 1500,
     },
     ultimate: {
       name: '은신술',
-      description: '4초간 은신해서 이동속도가 50% 상승하고, 공격력이 20% 상승합니다. 은신 시 1회 한정으로 공격을 회피 가능합니다.',
+      description: '5초간 은신해서 이동속도가 50% 상승하고, 공격력이 30% 상승합니다. 은신 시 2회 한정으로 공격을 회피해서 피해를 안 받을 수 있습니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -316,7 +317,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 6.9,
     speed: 5.2,
-    attackDamage: 17,
+    attackDamage: 15,
     attackRange: 110,
     attackCooldown: 1100,
     attackDescription: '전방으로 낫을 휘둘러 가까운 적을 공격합니다. 흡혈 효과로 체력을 회복합니다.',
@@ -344,11 +345,11 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     maxMana: 100,
     manaRegen: 7.2,
     speed: 4.8,
-    attackDamage: 18,
+    attackDamage: 16,
     attackRange: 600,
-    attackCooldown: 900,
+    attackCooldown: 1000,
     attackDescription: '전방으로 눈덩이를 발사합니다. 적중 시 결빙 효과를 1개 추가합니다.',
-    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1.2초간 빙결 상태가 되어 행동할 수 없게 되고, 공격을 받으면 15%의 추가 피해를 받습니다. 4초간 피격당하지 않으면 결빙 게이지는 천천히 감소합니다.',
+    passive: '공격으로 상대방에게 결빙 효과를 입힙니다. 결빙 효과 1개당 이동속도가 10% 감소됩니다. 결빙 효과가 5개 중첩되면 1초간 빙결 상태가 되어 행동할 수 없게 되고, 공격을 받으면 20%의 추가 피해를 받고 빙결 상태가 해제됩니다. 4초간 피격당하지 않으면 결빙 게이지는 천천히 감소합니다.',
     skill: {
       name: '눈사태',
       description: '대형 눈덩이를 일렬로 발사해 피해를 입히고 밀쳐냅니다.',
@@ -357,7 +358,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '눈보라',
-      description: '거대한 얼음 덩어리를 던져 특정 지역에 6초간 눈보라를 일으킵니다. 영역 내 적은 미끄러지며, 둔화 및 빙결 효과가 강화됩니다. 눈보라를 처음 발생시킬 때 범위 내 적을 0.5초간 빙결시킵니다.',
+      description: '거대한 얼음 덩어리를 던져 특정 지역에 6초간 눈보라를 일으킵니다. 눈보라를 처음 발생시킬 때 범위 내 적을 0.75초간 빙결시킵니다. 영역 내 적은 미끄러지며, 둔화 및 빙결 효과가 강화됩니다.',
       manaCost: 100,
       cooldown: 0,
     },
