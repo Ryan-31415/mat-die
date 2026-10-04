@@ -255,7 +255,7 @@ export function getAIKeys(
   if (facingTarget && targetVulnerable && player.attackCooldownRemaining <= 0) {
     if (melee(id)) attack = Math.abs(dx) < character.attackRange + PLAYER_SIZE - 6 && Math.abs(dy) < PLAYER_SIZE - 4;
     else if (!targetShieldFacingUs) {
-      if (id === 'archer') attack = canHit(player.buffDuration > 0 ? 1400 : 1000, -80, 190);
+      if (id === 'archer') attack = canHit(1000, -80, 190);
       else if (id === 'scientist') attack = canHit(640, -105, 220);
       else if (id === 'hunter') attack = canHit(1250, 0, 0, 35, player.hunterFocusedDuration ? 350 : 275);
       else attack = canHit(id === 'mage' ? 780 : id === 'hacker' ? 800 : 700);
@@ -269,7 +269,7 @@ export function getAIKeys(
   if (canCast && player.mana >= character.ultimate.manaCost && !player.isChargingSkill && targetVulnerable) {
     switch (id) {
       case 'gladiator': ultimate = player.buffDuration <= 0 && (distance < 240 || (lowHealth && threatened)); break;
-      case 'archer': ultimate = player.buffDuration <= 0 && Math.abs(dy) < 100 && distance < 650; break;
+      case 'archer': ultimate = !(player.archerBurstRemaining > 0) && facingTarget && !targetShieldFacingUs && canHit(1000, -80, 190, 65, 650); break;
       case 'mage': ultimate = player.mageUltimateDuration <= 0 && distance < 420; break;
       case 'ninja': ultimate = !player.isInvisible && (distance < 350 || threatened); break;
       case 'scientist': ultimate = distance < 200 && !hazards.some(z => z.ownerId === player.id && z.type === 'tesla-coil' && now - z.createdAt < z.duration); break;

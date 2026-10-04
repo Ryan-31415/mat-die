@@ -257,3 +257,96 @@ describe('scientist charging in hacker zones', () => {
     expect(scientist().skillCooldownRemaining).toBe(0);
   });
 });
+
+
+describe('archer rapid-fire ultimate', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-05T00:00:00Z'));
+  });
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+  function setup(id: 1 | 2 = 1) {
+    const keys = { current: emptyKeys() };
+    const { result } = renderHook(() => useGameEngine(
+      CHARACTERS[id === 1 ? 'archer' : 'gladiator'],
+      CHARACTERS[id === 2 ? 'archer' : 'gladiator'], 60, vi.fn()
+    ));
+    act(() => result.current.setKeysRef(keys));
+    const player = () => result.current.gameState.players[id - 1];
+    const step = (ms = 16) => act(() => { vi.advanceTimersByTime(ms); });
+    const cast = () => { keys.current[id === 1 ? 'h' : 'backslash'] = true; step(); };
+    return { keys, result, player, step, cast };
+  }
+
+  it.each([1, 2] as const)('fires exactly eight sequential arrows in a ten-degree cone for player %s', id => {
+    const { keys, result, player, step, cast } = setup(id);
+    player().poisonArrowsRemaining = 3;
+    const direction = id === 1 ? 1 : -1;
+    const shots = [];
+    keys.current[id === 1 ? 'f' : 'shift'] = true;
+    cast();
+    keys.current[id === 1 ? 'f' : 'shift'] = false;
+    expect(result.current.gameState.projectiles).toHaveLength(1);
+    expect(player().archerBurstRemaining).toBe(7);
+    expect(player().mana).toBe(0);
+    // Capture each shot immediately to inspect launch velocities and avoid target collisions.
+    const capture = () => {
+      shots.push(...result.current.gameState.projectiles);
+      result.current.gameState.projectiles.length = 0;
+    };
+    capture();
+    step(32);
+    expect(result.current.gameState.projectiles).toHaveLength(0);
+    for (let i = 0; i < 45; i++) { step(); capture(); }
+    expect(shots).toHaveLength(8);
+    expect(player().archerBurstRemaining).toBe(0);
+    expect(player().poisonArrowsRemaining).toBe(3);
+    expect(player().buffDuration).toBe(0);
+    expect(player().damageBoost).toBe(0);
+    for (const shot of shots) {
+      expect(shot.type).toBe('arrow');
+      expect(shot.damage).toBe(CHARACTERS.archer.attackDamage);
+      expect(shot.velocityX * direction).toBeGreaterThan(0);
+      const angle = Math.atan2(shot.velocityY - shot.gravity * 0.016, Math.abs(shot.velocityX));
+      expect(Math.abs(angle - Math.atan2(-80, 1000))).toBeLessThanOrEqual(5 * Math.PI / 180 + 0.0001);
+    }
+    for (let i = 1; i < shots.length; i++) {
+      expect(shots[i].createdAt - shots[i - 1].createdAt).toBe(80);
+    }
+    // Holding the ultimate does not add shots; ordinary poison attacks still work afterward.
+    keys.current[id === 1 ? 'f' : 'shift'] = true;
+    step();
+    expect(result.current.gameState.projectiles[0].type).toBe('poison-arrow');
+    expect(player().poisonArrowsRemaining).toBe(2);
+  });
+
+  it.each(['isSilenced', 'isStunned', 'isFrozen'] as const)('interrupts remaining shots when %s is applied', status => {
+    const { result, player, step, cast } = setup();
+    cast();
+    result.current.gameState.projectiles.length = 0;
+    player()[status] = true;
+    player().silenceDuration = 1000;
+    player().stunDuration = 1000;
+    player().frozenDuration = 1000;
+    step(700);
+    expect(result.current.gameState.projectiles).toHaveLength(0);
+    expect(player().archerBurstRemaining).toBe(0);
+  });
+
+  it('pauses the burst and clears pending shots on round reset', () => {
+    const { keys, result, player, step, cast } = setup();
+    cast();
+    act(() => result.current.togglePause());
+    step(1000);
+    expect(player().archerBurstRemaining).toBe(7);
+    act(() => result.current.togglePause());
+    step(80);
+    expect(player().archerBurstRemaining).toBe(6);
+    keys.current.h = false;
+    act(() => result.current.resetRound());
+    expect(player().archerBurstRemaining ?? 0).toBe(0);
+    step(1000);
+    expect(result.current.gameState.projectiles).toHaveLength(0);
+  });
+});

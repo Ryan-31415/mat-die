@@ -7,6 +7,9 @@ import { KeyboardState } from './useKeyboard';
 import { getAIKeys } from './gameAI';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
+const ARCHER_BURST_COUNT = 8;
+const ARCHER_BURST_INTERVAL = 80;
+const ARCHER_BURST_SPREAD = 10 * Math.PI / 180;
 
 interface GameEngineState {
   players: [Player, Player];
@@ -534,6 +537,8 @@ export const useGameEngine = (
 
     // Skip movement/actions if stunned or frozen (but gravity was already applied)
     if (updatedPlayer.isStunned || updatedPlayer.isFrozen) {
+      updatedPlayer.archerBurstRemaining = 0;
+      updatedPlayer.archerBurstCooldown = 0;
       // Apply knockback even when stunned
       let stunnedNewX = updatedPlayer.x + updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
       stunnedNewX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, stunnedNewX));
@@ -742,14 +747,20 @@ export const useGameEngine = (
     // Movement can enter a zone on the same tick that the skill key is released.
     updatePacketBlockStatus();
 
+    // Silence interrupts the remaining rapid-fire shots.
+    if (character.id === 'archer' && updatedPlayer.isSilenced) {
+      updatedPlayer.archerBurstRemaining = 0;
+      updatedPlayer.archerBurstCooldown = 0;
+    }
+    if ((updatedPlayer.archerBurstRemaining ?? 0) > 0) {
+      updatedPlayer.archerBurstCooldown = (updatedPlayer.archerBurstCooldown ?? 0) - deltaTime;
+    }
+
+    // Give a ready archer ultimate priority over a simultaneous basic attack.
+    const startingArcherBurst = character.id === 'archer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced;
     // Basic Attack
-    if (attackKey && updatedPlayer.attackCooldownRemaining <= 0) {
-      let cooldown = character.attackCooldown;
-      // Archer Ultimate: +15% Attack Speed (reduce cooldown)
-      if (character.id === 'archer' && updatedPlayer.buffDuration > 0) {
-        cooldown /= 1.15;
-      }
-      updatedPlayer.attackCooldownRemaining = cooldown;
+    if (attackKey && updatedPlayer.attackCooldownRemaining <= 0 && !(updatedPlayer.archerBurstRemaining > 0) && !startingArcherBurst) {
+      updatedPlayer.attackCooldownRemaining = character.attackCooldown;
       updatedPlayer.isAttacking = true;
 
       const attackDirection = updatedPlayer.facingRight ? 1 : -1;
@@ -760,11 +771,6 @@ export const useGameEngine = (
 
       const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
       let damageBoost = updatedPlayer.damageBoost;
-      // Archer Ultimate: +7.5% damage per stack
-      if (character.id === 'archer' && updatedPlayer.buffDuration > 0) {
-        damageBoost += (updatedPlayer.archerBuffStacks || 0) * 0.075;
-      }
-
       // Hacker System Override: Reduce damage by 20%
       if (updatedPlayer.isHacked) {
         damageBoost -= 0.20;
@@ -798,22 +804,13 @@ export const useGameEngine = (
           break;
         case 'archer': {
           const isPoisoned = updatedPlayer.poisonArrowsRemaining > 0;
-          const isHoming = updatedPlayer.buffDuration > 0;
-          newProjectiles.push({
-            ...createProjectile(
-              isPoisoned ? 'poison-arrow' : 'arrow',
-              player.id,
-              updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2,
-              (isHoming ? attackDirection * 1400 : attackDirection * 1000), // Increased speed
-              -80,
-              isPoisoned ? baseDamage * 1.0 : baseDamage
-            ),
-            isHoming: isHoming
-          });
-          if (isPoisoned) {
-            updatedPlayer.poisonArrowsRemaining--;
-          }
+          newProjectiles.push(createProjectile(
+            isPoisoned ? 'poison-arrow' : 'arrow', player.id,
+            updatedPlayer.x + PLAYER_SIZE / 2,
+            updatedPlayer.y + PLAYER_SIZE / 2,
+            attackDirection * 1000, -80, baseDamage
+          ));
+          if (isPoisoned) updatedPlayer.poisonArrowsRemaining--;
           break;
         }
         case 'mage':
@@ -1234,7 +1231,7 @@ export const useGameEngine = (
 
     // Ultimate
     // Block if Silenced
-    if (ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced) {
+    if (ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && !(updatedPlayer.archerBurstRemaining > 0)) {
       updatedPlayer.mana = 0;
       updatedPlayer.isUsingUltimate = true;
 
@@ -1253,10 +1250,9 @@ export const useGameEngine = (
           updatedPlayer.healthRegen = updatedPlayer.maxHealth * 0.03; // 3% max health per second
           break;
         case 'archer':
-          // Archer Ultimate: 4s buff, +25% damage (base), +15% attack speed (handled in cooldown)
-          updatedPlayer.buffDuration = 4000;
-          updatedPlayer.archerBuffStacks = 0;
-          updatedPlayer.damageBoost = 0.25; // Base +25%
+          updatedPlayer.archerBurstRemaining = ARCHER_BURST_COUNT;
+          updatedPlayer.archerBurstCooldown = 0;
+          updatedPlayer.archerBurstFacingRight = updatedPlayer.facingRight;
           break;
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
@@ -1342,6 +1338,28 @@ export const useGameEngine = (
           ) as [Player, Player],
         }));
       }, 500);
+    }
+
+    if (character.id === 'archer') {
+      while ((updatedPlayer.archerBurstRemaining ?? 0) > 0 && (updatedPlayer.archerBurstCooldown ?? 0) <= 0) {
+        // Keep the initial aim and sample each shot within a total ten-degree cone.
+        const direction = updatedPlayer.archerBurstFacingRight ? 1 : -1;
+        const angle = Math.atan2(-80, 1000) + (Math.random() - 0.5) * ARCHER_BURST_SPREAD;
+        const speed = Math.hypot(1000, 80);
+        const damageMultiplier = gameState.isOvertime ? 2 : 1;
+        const damageBoost = updatedPlayer.damageBoost - (updatedPlayer.isHacked ? 0.20 : 0);
+        newProjectiles.push(createProjectile(
+          'arrow', player.id,
+          updatedPlayer.x + PLAYER_SIZE / 2,
+          updatedPlayer.y + PLAYER_SIZE / 2,
+          direction * Math.cos(angle) * speed,
+          Math.sin(angle) * speed,
+          character.attackDamage * (1 + damageBoost) * damageMultiplier
+        ));
+        updatedPlayer.archerBurstRemaining = (updatedPlayer.archerBurstRemaining ?? 0) - 1;
+        updatedPlayer.archerBurstCooldown = (updatedPlayer.archerBurstCooldown ?? 0) + ARCHER_BURST_INTERVAL;
+      }
+      if (!updatedPlayer.archerBurstRemaining) updatedPlayer.archerBurstCooldown = 0;
     }
 
     return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newClones, newShieldTick };
@@ -1552,44 +1570,6 @@ export const useGameEngine = (
           }
         }
 
-        // Homing Logic for Archer Ultimate
-        if (newProj.isHoming && newProj.type === 'arrow') {
-          const owner = players[newProj.ownerId - 1];
-          const opponentId = newProj.ownerId === 1 ? 2 : 1;
-          const target = players[opponentId - 1];
-
-          // Basic Homing
-          const dx = (target.x + PLAYER_SIZE / 2) - newProj.x;
-          const dy = (target.y + PLAYER_SIZE / 2) - newProj.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist > 0) {
-            const currentSpeed = Math.sqrt(newProj.velocityX * newProj.velocityX + newProj.velocityY * newProj.velocityY);
-            const targetVx = (dx / dist) * currentSpeed;
-            const targetVy = (dy / dist) * currentSpeed;
-
-            // Turn rate increases with flight time (lifetime) and stacks
-            const flightTime = now - newProj.createdAt;
-            // Base turn rate + bonus from time + bonus from stacks
-            // Time bonus: max at 325ms
-            const timeFactor = Math.min(1, flightTime / 360);
-            // Stack bonus: each stack adds performance
-            const stackFactor = (owner.archerBuffStacks || 0);
-
-            const turnRate = timeFactor >= 0.33 ? 0.065 + (-0.015 * timeFactor) + (0.008 * stackFactor) : 0;
-
-            newProj.velocityX += (targetVx - newProj.velocityX) * turnRate;
-            newProj.velocityY += (targetVy - newProj.velocityY) * turnRate;
-
-            // Normalize speed
-            const newSpeed = Math.sqrt(newProj.velocityX * newProj.velocityX + newProj.velocityY * newProj.velocityY);
-            newProj.velocityX = (newProj.velocityX / newSpeed) * currentSpeed;
-            newProj.velocityY = (newProj.velocityY / newSpeed) * currentSpeed;
-
-            // Rotate arrow visual (if renderer supports it, usually based on velocity)
-          }
-        }
-
         newProj.x += newProj.velocityX * (deltaTime / 1000);
         newProj.y += newProj.velocityY * (deltaTime / 1000);
 
@@ -1675,7 +1655,7 @@ export const useGameEngine = (
             }
 
             // For now, only projectiles with gravity are blocked by platforms (except meteors)
-            if (proj.hasGravity && proj.type !== 'meteor' && !proj.isHoming) {
+            if (proj.hasGravity && proj.type !== 'meteor') {
               emitExplosion(proj, platform);
               if (proj.type === 'blizzard-stone') {
                 const blizzard = createHazardZone(
@@ -1990,22 +1970,8 @@ export const useGameEngine = (
               const damageRes = applyDamage(currentTarget, finalDamage);
               currentTarget = damageRes.player;
 
-              // Archer Ultimate: Stacking buff on hit
-              const ownerIndex = proj.ownerId - 1;
-              if (players[ownerIndex].character?.id === 'archer' && players[ownerIndex].buffDuration > 0) {
-                if (proj.type === 'arrow' || proj.type === 'poison-arrow') {
-                  // Add stack
-                  // Ensure stack count logic
-                  const currentStacks = players[ownerIndex].archerBuffStacks || 0;
-                  if (currentStacks < 5) {
-                    players[ownerIndex].archerBuffStacks = currentStacks + 1;
-                  }
-                  // Extend duration
-                  players[ownerIndex].buffDuration += 650;
-                }
-              }
-
               // Record hit time
+              const ownerIndex = proj.ownerId - 1;
               proj.lastHitTime[currentTarget.id] = now;
 
               // Ice Mage Passive

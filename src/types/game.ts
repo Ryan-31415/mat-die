@@ -84,7 +84,9 @@ export interface Player {
   lastUltTick?: number;
   trailPositions?: Array<{ x: number; y: number; timestamp: number }>;
   // Archer specific
-  archerBuffStacks?: number;
+  archerBurstRemaining?: number;
+  archerBurstCooldown?: number;
+  archerBurstFacingRight?: boolean;
   // Ice Mage specific
   freezeGauge: number;
   isFrozen: boolean;
@@ -189,8 +191,8 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       cooldown: 5000,
     },
     ultimate: {
-      name: '명사수',
-      description: '4초간 발사하는 화살이 유도되고, 공격력이 25% 상승하고, 공격속도가 15% 상승합니다. 이 상태에서 적을 명중시킬 때마다 효과가 강화되고 지속 시간이 길어집니다. 최대 5번까지 강화 가능합니다.',
+      name: '속사',
+      description: '전방으로 총 10도(조준 방향 기준 ±5도)의 탄퍼짐 내에서 화살 8발을 0.08초 간격으로 속사합니다.',
       manaCost: 100,
       cooldown: 0,
     },

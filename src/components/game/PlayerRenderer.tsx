@@ -14,7 +14,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isSilenced) statusEffects.push('🔇');
   if (player.isHacked) statusEffects.push('💻');
   if (player.dodgesRemaining > 0) statusEffects.push(`💨x${player.dodgesRemaining}`);
-  if (character.id !== 'archer' && player.buffDuration > 0) statusEffects.push('⬆️');
+  if (player.buffDuration > 0) statusEffects.push('⬆️');
   if (player.rootDuration > 0) statusEffects.push('🕸️');
   if (player.regenDuration > 0) statusEffects.push('♥️');
   if (player.poisonArrowsRemaining > 0) statusEffects.push(`🟢x${player.poisonArrowsRemaining}`);
@@ -23,7 +23,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isFrozen) statusEffects.push('🧊');
   if (player.isBurning) statusEffects.push('🔥');
   if (player.mageUltimateDuration > 0) statusEffects.push('🌟');
-  if (character.id === 'archer' && player.buffDuration > 0) statusEffects.push(`🏹x${player.archerBuffStacks || 0}`);
+  if (character.id === 'archer' && player.archerBurstRemaining > 0) statusEffects.push(`🏹x${player.archerBurstRemaining}`);
   if (player.isMarked) statusEffects.push('🎯');
   if (player.hunterFocusedDuration > 0) statusEffects.push('🔭');
 

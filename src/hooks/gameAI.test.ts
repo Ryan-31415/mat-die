@@ -55,8 +55,8 @@ describe('AI combat decisions', () => {
     expect(keys.shift).toBe(false);
   });
 
-  it('does not refresh unused poison arrows or active buffs', () => {
-    const keys = decide(player(2, 'archer', { mana: 100, poisonArrowsRemaining: 2, buffDuration: 2000 }), player(1, 'mage'));
+  it('does not refresh unused poison arrows or an active burst', () => {
+    const keys = decide(player(2, 'archer', { mana: 100, poisonArrowsRemaining: 2, archerBurstRemaining: 4 }), player(1, 'mage'));
     expect(keys.enter).toBe(false);
     expect(keys.backslash).toBe(false);
   });
