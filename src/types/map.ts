@@ -77,6 +77,7 @@ export const MAPS: Record<MapId, GameMap> = {
       { id: 'platform-center', x: 280, y: 290, width: 240, height: 15, type: 'one-way' },
       { id: 'platform-left-high', x: 100, y: 200, width: 140, height: 12, type: 'one-way' },
       { id: 'platform-right-high', x: 560, y: 200, width: 140, height: 12, type: 'one-way' },
+      { id: 'platform-center-high', x: 310, y: 110, width: 180, height: 12, type: 'one-way' },
     ],
     bgGradient: 'from-green-900/40 to-emerald-800/40',
     arenaStyle: { backgroundColor: 'rgba(20, 80, 40, 0.15)' },

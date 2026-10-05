@@ -30,6 +30,7 @@ interface MapEffectsRendererProps {
     width: number;
     height: number;
     hp: number;
+    destroyedAt?: number;
   }>;
   fallingLeaves?: Array<{
     id: string;
@@ -250,24 +251,58 @@ const MapEffectsRenderer = ({
           style={{ background: 'linear-gradient(to bottom, rgba(0, 80, 0, 0.5), transparent)' }}
         />
 
-        {/* Vine shields */}
-        {vineShields.filter(v => v.hp > 0).map(vine => (
-          <div
+        {/* Overhead branches connect the hanging vines to the canopy. */}
+        <svg className="absolute top-0 left-0 w-full h-12" viewBox="0 0 800 48" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M-20 2 Q120 24 250 6 T510 10 T820 0" fill="none" stroke="#203b1c" strokeWidth="15" strokeLinecap="round" />
+          <path d="M-20 0 Q120 19 250 3 T510 7 T820 -3" fill="none" stroke="#46612b" strokeWidth="5" strokeLinecap="round" />
+          {Array.from({ length: 18 }, (_, i) => (
+            <path key={i} d="M0 0 Q-18 -10 -27 3 Q-15 19 0 0 Q15 22 29 8 Q21 -8 0 0" fill={i % 2 ? '#305f2b' : '#3d7131'}
+              transform={`translate(${i * 47}, ${10 + (i % 3) * 4}) rotate(${(i % 5) * 13 - 26})`} />
+          ))}
+        </svg>
+
+        {/* Curved stems and alternating leaves stay inside each shield's bounds. */}
+        {vineShields.filter(v => v.hp > 0 || v.destroyedAt !== undefined).map(vine => (
+          <svg
             key={vine.id}
-            className="absolute"
+            className="absolute jungle-vine"
+            viewBox={`0 0 48 ${vine.height}`}
+            aria-hidden="true"
             style={{
               left: vine.x,
               top: vine.y,
               width: vine.width,
               height: vine.height,
-              background: 'linear-gradient(180deg, #2d5016, #3a6b23)',
-              borderRadius: '4px',
-              border: '2px solid #4ade80',
-              boxShadow: '0 0 8px rgba(74, 222, 128, 0.3)',
+              filter: 'drop-shadow(1px 2px 2px rgba(0, 25, 10, 0.35))',
+              transformOrigin: '50% 0%',
+              transformBox: 'fill-box',
+              animation: vine.destroyedAt !== undefined
+                ? 'vineBreak 700ms cubic-bezier(0.4, 0, 0.85, 0.35) forwards'
+                : 'vineLower 1.25s cubic-bezier(0.2, 0.72, 0.28, 1) both, vineSway 4.8s ease-in-out 1.25s infinite',
             }}
           >
-            <div className="absolute -top-1 left-1/2 -translate-x-1/2 text-xs">🌿</div>
-          </div>
+            <path
+              d={`M24 -8 C10 ${vine.height * 0.18} 38 ${vine.height * 0.3} 24 ${vine.height * 0.48} S12 ${vine.height * 0.78} 24 ${vine.height - 4}`}
+              fill="none" stroke="#294d20" strokeWidth="8" strokeLinecap="round"
+            />
+            <path
+              d={`M23 -8 C9 ${vine.height * 0.18} 37 ${vine.height * 0.3} 23 ${vine.height * 0.48} S11 ${vine.height * 0.78} 23 ${vine.height - 4}`}
+              fill="none" stroke="#6b8c3b" strokeWidth="2.5" strokeLinecap="round"
+            />
+            {Array.from({ length: Math.floor(vine.height / 30) }, (_, i) => {
+              const y = 24 + i * 29;
+              const side = i % 2 === 0 ? -1 : 1;
+              const stemX = 24 - 5 * Math.sin((y / vine.height) * Math.PI * 3);
+              const scale = 0.75 + ((i * 7 + Math.floor(vine.x)) % 5) * 0.05;
+              return (
+                <g key={i} transform={`translate(${stemX} ${y}) scale(${side * scale} ${scale}) rotate(${(i % 3) * 9 - 8})`}>
+                  <path d="M0 0 Q9 -8 22 -17 Q24 1 12 5 Q5 6 0 0" fill={i % 3 === 0 ? '#659d3d' : '#448333'} stroke="#2c5b25" strokeWidth="1" />
+                  <path d="M0 0 Q10 -3 20 -14 M9 -4 L10 -10 M13 -7 L19 -5" fill="none" stroke="#9fbe65" strokeWidth="0.8" opacity="0.65" />
+                  {i % 3 === 1 && <path d="M0 2 Q-14 6 -9 17 Q-3 23 -2 15" fill="none" stroke="#6b8c3b" strokeWidth="1.4" />}
+                </g>
+              );
+            })}
+          </svg>
         ))}
 
         {/* Falling leaves */}
@@ -285,6 +320,26 @@ const MapEffectsRenderer = ({
             🍃
           </div>
         ))}
+        <style>{`
+          @keyframes vineLower {
+            0% { transform: translateY(-34px) scaleY(0.02); opacity: 0; }
+            72% { transform: translateY(5px) scaleY(1.015); opacity: 1; }
+            88% { transform: translateY(-2px) scaleY(0.995); }
+            100% { transform: translateY(0) scaleY(1); opacity: 1; }
+          }
+          @keyframes vineSway {
+            0%, 100% { transform: rotate(-1deg); }
+            50% { transform: rotate(1.2deg); }
+          }
+          @keyframes vineBreak {
+            0% { transform: rotate(0deg) translateY(0) scaleY(1); opacity: 1; }
+            28% { transform: rotate(5deg) translateY(4px) scaleY(0.97); opacity: 1; }
+            100% { transform: rotate(20deg) translateY(34px) scaleY(0.72); opacity: 0; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .jungle-vine { animation: none !important; }
+          }
+        `}</style>
       </div>
     );
   }

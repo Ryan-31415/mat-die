@@ -56,6 +56,7 @@ interface GameEngineState {
     createdAt: number;
     duration: number;
     hp: number;
+    destroyedAt?: number;
   }>;
   nextVineTime: number;
   lastLavaDamage: [number, number];
@@ -2685,9 +2686,9 @@ export const useGameEngine = (
           vineShields = [...vineShields, {
             id: `vine-${now}`,
             x: vineX,
-            y: 50 + Math.random() * 200,
-            width: 15,
-            height: 60,
+            y: 0,
+            width: 48,
+            height: 240 + Math.random() * 100,
             createdAt: now,
             duration: 12000,
             hp: 1,
@@ -2697,15 +2698,26 @@ export const useGameEngine = (
 
         // Check vine-projectile collision
         vineShields = vineShields.filter(vine => {
-          if (now - vine.createdAt > vine.duration) return false;
+          if (vine.destroyedAt !== undefined) return now - vine.destroyedAt < 700;
+          if (now - vine.createdAt > vine.duration) {
+            vine.destroyedAt = now;
+            return true;
+          }
           if (vine.hp <= 0) return false;
           const hit = projectiles.findIndex(p =>
             checkCollision(vine.x, vine.y, vine.width, vine.height, p.x, p.y, p.width, p.height)
           );
-          if (hit >= 0) {
-            emitExplosion(projectiles[hit], vine);
-            projectiles.splice(hit, 1);
+          const hitByMelee = attackHitboxes.some(hitbox =>
+            checkCollision(vine.x, vine.y, vine.width, vine.height,
+              hitbox.x, hitbox.y, hitbox.width, hitbox.height)
+          );
+          if (hit >= 0 || hitByMelee) {
+            if (hit >= 0) {
+              emitExplosion(projectiles[hit], vine);
+              projectiles.splice(hit, 1);
+            }
             vine.hp--;
+            vine.destroyedAt = now;
             // Trigger falling leaves
             for (let l = 0; l < 4; l++) {
               fallingLeaves = [...fallingLeaves, {
@@ -2717,7 +2729,7 @@ export const useGameEngine = (
                 rotation: Math.random() * 360,
               }];
             }
-            return false;
+            return true;
           }
           return true;
         });
