@@ -213,7 +213,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackDescription: '전방으로 파이어볼을 발사합니다. 파이어볼은 직선으로 날아갑니다.',
     skill: {
       name: '대형 파이어볼',
-      description: '상대 위치에 커다란 파이어볼을 투하합니다. 커다란 파이어볼은 체공 중인 적에게 30%의 추가 피해를 입힙니다. 명중 지점에는 4초간 지속되는 피해를 입히는 화염 영역이 생성되며, 적에게 적중 시 작은 파이어볼 5개가 추가적으로 투하됩니다.',
+      description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 지점에는 4초간 지속되는 화염 영역이 생성되며, 적에게 명중 시 작은 파이어볼 5개가 추가적으로 투하됩니다.',
       manaCost: 40,
       cooldown: 4000,
     },
@@ -330,7 +330,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '유체화',
-      description: '3초간 무적 상태로 비행하며 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기 사용 중 흡혈 패시브의 효과는 가한 데미지의 50%로 증가되어 적용됩니다.',
+      description: '3초간 무적 상태로 이동 속도가 70% 상승한 상태로 비행하며, 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기 사용 중 흡혈 패시브의 효과는 가한 데미지의 50%로 증가되어 적용됩니다.',
       manaCost: 100,
       cooldown: 0,
     },

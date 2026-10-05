@@ -241,7 +241,7 @@ export const useGameEngine = (
 
     let updatedPlayer = { ...player, health: newHealth };
 
-    if (isBreakingFreeze) {
+    if (isBreakingFreeze && !isHazard) {
       updatedPlayer.isFrozen = false;
       updatedPlayer.frozenDuration = 0;
       updatedPlayer.freezeGauge = 0;
@@ -367,7 +367,7 @@ export const useGameEngine = (
         updatedPlayer.frozenDuration = freezeDur;
         updatedPlayer.freezeGauge = 0;
       } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 4000) {
-        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 2000) {
+        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1500) {
           updatedPlayer.freezeGauge = Math.max(0, updatedPlayer.freezeGauge - 1);
           updatedPlayer.lastFreezeGaugeDecay = now;
         }
@@ -1271,10 +1271,10 @@ export const useGameEngine = (
 
         case 'ninja':
           updatedPlayer.isInvisible = true;
-          updatedPlayer.invisibleDuration = 4000;
-          updatedPlayer.damageBoost = 0.20;
+          updatedPlayer.invisibleDuration = 5000;
+          updatedPlayer.damageBoost = 0.30;
           updatedPlayer.speedBoost = 0.50;
-          updatedPlayer.dodgesRemaining = 1;
+          updatedPlayer.dodgesRemaining = 2;
           break;
         case 'scientist':
           newHazards.push(createHazardZone(
@@ -1295,7 +1295,7 @@ export const useGameEngine = (
           updatedPlayer.isInvulnerable = true;
           updatedPlayer.isFlying = true;
           updatedPlayer.invulnerableDuration = 3000;
-          updatedPlayer.speedBoost = 0.75;
+          updatedPlayer.speedBoost = 0.70;
           updatedPlayer.trailPositions = [];
           break;
         case 'ice-mage':
@@ -2051,9 +2051,9 @@ export const useGameEngine = (
 
               // Mage Skill: Large-fireball improvements
               if (proj.type === 'large-fireball' && players[ownerIndex].character?.id === 'mage') {
-                // 30% bonus damage if target is airborne
+                // 0% bonus damage if target is airborne
                 if (!currentTarget.isGrounded) {
-                  const bonusDamage = proj.damage * 0.30; // Remaining former logic. but not used.
+                  const bonusDamage = proj.damage * 0.0; // Remaining former logic. but not used.
                   const bonusRes = applyDamage(currentTarget, bonusDamage);
                   currentTarget = bonusRes.player;
                 }
