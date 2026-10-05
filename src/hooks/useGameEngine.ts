@@ -2394,7 +2394,7 @@ export const useGameEngine = (
         if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined && zoneCopy.maxHealth !== undefined) {
           const selfDamageTick = zoneCopy.lastSelfDamage || zoneCopy.createdAt;
           if (now - selfDamageTick >= 500) {
-            zoneCopy.health -= zoneCopy.maxHealth * 0.02;
+            zoneCopy.health -= zoneCopy.maxHealth * 0.01;
             zoneCopy.lastSelfDamage = now;
           }
         }

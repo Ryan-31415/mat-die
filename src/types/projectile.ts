@@ -393,10 +393,10 @@ export const createHazardZone = (
       ...base,
       width: 40,
       height: 60,
-      health: 170, // Increased health
-      maxHealth: 170,
-      attackRange: 210, // Increased range (1.5x)
-      attackCooldown: 175,
+      health: 200,
+      maxHealth: 200,
+      attackRange: 220,
+      attackCooldown: 100,
       lastAttack: Date.now(),
     };
   }
