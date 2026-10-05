@@ -130,7 +130,7 @@ export function getAIKeys(
   const toward: Direction = dx >= 0 ? 1 : -1;
   const speed = moveSpeed(player);
   const lowHealth = player.health < player.maxHealth * 0.35;
-  const combatDistance = melee(id) ? character.attackRange * 0.65 : id === 'hunter' ? 150 : lowHealth ? 360 : 290;
+  const combatDistance = melee(id) ? character.attackRange * 0.65 : id === 'hunter' ? 140 : lowHealth ? 360 : 290;
   const preferred = opponent.isInvulnerable ? Math.max(300, combatDistance) : combatDistance;
   const goal = navigationGoal(player, opponent, platforms, mapId, preferred);
   const hostileZones = hazards.filter(z => z.ownerId !== player.id && now - z.createdAt <= z.duration);

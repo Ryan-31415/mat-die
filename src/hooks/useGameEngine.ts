@@ -1048,8 +1048,7 @@ export const useGameEngine = (
             );
             // Center the zone ahead of player
             zone.x = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * 150) - (zone.width / 2);
-            zone.y = ARENA.height - ARENA.padding - zone.height; // On ground? Or floating? "Install square area"
-            // Let's put it on the ground level or centered on player Y?
+            zone.y = ARENA.height - ARENA.padding - zone.height;
             // "In front" implies same Y level.
             zone.y = updatedPlayer.y + PLAYER_SIZE / 2 - zone.height / 2;
 
@@ -1294,7 +1293,7 @@ export const useGameEngine = (
         case 'reaper':
           updatedPlayer.isInvulnerable = true;
           updatedPlayer.isFlying = true;
-          updatedPlayer.invulnerableDuration = 3000;
+          updatedPlayer.invulnerableDuration = 2500;
           updatedPlayer.speedBoost = 0.70;
           updatedPlayer.trailPositions = [];
           break;
@@ -1987,9 +1986,9 @@ export const useGameEngine = (
                 }
               }
 
-              // Reaper Passive: Life steal 20%
+              // Reaper Passive: Life steal 15%
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
+                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
                   players[ownerIndex].health + damageRes.dealt * regenMultiplier
@@ -2304,10 +2303,10 @@ export const useGameEngine = (
           const damageRes = applyDamage(currentTarget, finalDamage);
           currentTarget = damageRes.player;
 
-          // Reaper Passive: Life steal 20%
+          // Reaper Passive: Life steal 15%
           const ownerIndex = hitbox.ownerId - 1;
           if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-            const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
+            const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
             players[ownerIndex].health = Math.min(
               players[ownerIndex].maxHealth,
               players[ownerIndex].health + damageRes.dealt * regenMultiplier
@@ -2549,7 +2548,7 @@ export const useGameEngine = (
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
               const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
               const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
-              const damageRes = applyDamage(target, baseDamage * 0.15, true); // 15% of base damage per tick (Area)
+              const damageRes = applyDamage(target, baseDamage * 0.10, true); // 10% of base damage per tick (Area)
               players[targetIndex] = damageRes.player;
               // Life steal 15 -> 33%
               players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.33);

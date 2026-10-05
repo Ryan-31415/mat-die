@@ -153,7 +153,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.4,
     speed: 4.8,
     attackDamage: 15,
-    attackRange: 95,
+    attackRange: 90,
     attackCooldown: 850,
     attackDescription: '전방으로 검을 휘둘러 근접한 적을 공격합니다.',
     skill: {
@@ -236,7 +236,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.6,
     speed: 5.5, // slightly faster base speed
     attackDamage: 16,
-    attackRange: 105,
+    attackRange: 95,
     attackCooldown: 1000,
     passive: '카타나로 적의 투사체를 반사할 수 있습니다.',
     attackDescription: '전방으로 카타나를 휘둘러 근접한 적을 공격합니다.',
@@ -318,7 +318,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.9,
     speed: 5.2,
     attackDamage: 15,
-    attackRange: 115,
+    attackRange: 110,
     attackCooldown: 1100,
     attackDescription: '전방으로 낫을 휘둘러 근접한 적을 공격합니다. 다른 캐릭터의 근접 공격에 비해 범위가 넓습니다.',
     passive: '가한 데미지의 15%만큼의 체력을 회복합니다.',
@@ -330,7 +330,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '유체화',
-      description: '3초간 무적 상태로 이동 속도가 70% 상승한 상태로 비행하며, 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기 사용 중 흡혈 패시브의 효과는 가한 데미지의 33%로 증가되어 적용됩니다.',
+      description: '2.5초간 무적 및 이동 속도가 70% 상승한 상태로 비행하며, 접촉한 적에게 지속 피해와 둔화를 입힙니다. 궁극기 사용 중 흡혈 패시브의 효과는 가한 데미지의 33%로 증가되어 적용됩니다.',
       manaCost: 100,
       cooldown: 0,
     },
