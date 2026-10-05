@@ -29,7 +29,7 @@ describe('AI decisions executed by the game engine', () => {
     const { result, step, unmount } = setup(character);
     const initialHealth = result.current.gameState.players[0].health;
     for (let i = 0; i < 480 && result.current.gameState.players[0].health === initialHealth; i++) step();
-    expect(result.current.gameState.players[0].health).toBeLessThan(initialHealth);
+    expect(result.current.gameState.players[0].health, JSON.stringify({ players: result.current.gameState.players.map(p => ({ x: p.x, y: p.y })), ai: result.current.gameState.aiState.controllers })).toBeLessThan(initialHealth);
     expect(result.current.gameState.players[1].health).toBe(result.current.gameState.players[1].maxHealth);
     unmount();
   });

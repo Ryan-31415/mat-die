@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { createAILearningSession } from './ai/state';
 import {
   GameScreen,
   GameSettings,
@@ -8,6 +9,7 @@ import {
 import { MapId } from '@/types/map';
 
 export const useGameState = () => {
+  const aiSessionRef = useRef(createAILearningSession());
   const [screen, setScreen] = useState<GameScreen>('menu');
   const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
   const [player1Character, setPlayer1Character] = useState<Character | null>(null);
@@ -24,6 +26,7 @@ export const useGameState = () => {
   }, []);
 
   const startGame = useCallback((mode: 'single' | 'multi') => {
+    aiSessionRef.current = createAILearningSession();
     setGameMode(mode);
     setPlayer1Character(null);
     setPlayer2Character(null);
@@ -98,6 +101,7 @@ export const useGameState = () => {
   );
 
   const returnToMenu = useCallback(() => {
+    aiSessionRef.current = createAILearningSession();
     setPlayer1Character(null);
     setPlayer2Character(null);
     setScores([0, 0]);
@@ -114,6 +118,7 @@ export const useGameState = () => {
   }, [goToScreen]);
 
   return {
+    aiSessionRef,
     screen,
     settings,
     setSettings,

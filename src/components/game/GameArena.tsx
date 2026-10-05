@@ -10,6 +10,7 @@ import HazardRenderer from './HazardRenderer';
 import PlatformRenderer from './PlatformRenderer';
 import GameUI from './GameUI';
 import MapEffectsRenderer from './MapEffectsRenderer';
+import type { AILearningSession } from '@/hooks/ai/state';
 
 interface GameArenaProps {
   player1Character: Character;
@@ -26,6 +27,7 @@ interface GameArenaProps {
   isOvertime: boolean;
   roundsCompleted: number;
   mapId: MapId;
+  aiSessionRef?: React.MutableRefObject<AILearningSession>;
 }
 
 const GameArena = ({
@@ -39,6 +41,7 @@ const GameArena = ({
   isOvertime,
   roundsCompleted,
   mapId,
+  aiSessionRef,
 }: GameArenaProps) => {
   const map = MAPS[mapId];
   const { keysRef } = useKeyboard();
@@ -50,7 +53,8 @@ const GameArena = ({
     gameMode,
     isOvertime,
     roundsCompleted + 1,
-    mapId
+    mapId,
+    aiSessionRef
   );
 
   const [frozenRoundNumber, setFrozenRoundNumber] = useState(roundsCompleted + 1);

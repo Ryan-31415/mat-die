@@ -101,6 +101,7 @@ export interface Player {
   lastBurnTick: number;
   mageUltimateDuration: number;
   isClone: boolean;
+  aiControllerId?: string;
   createdAt: number;
   // Scientist specific
   skillChargeStartTime?: number;

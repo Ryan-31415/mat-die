@@ -106,8 +106,11 @@ describe('explosive projectile impact effects', () => {
     result.current.gameState.projectiles.push(createProjectile('fireball', 1, 410, 430, 0, 0, 10));
     step();
     expect(result.current.gameState.projectiles).toHaveLength(0);
-    expect(result.current.gameState.vineShields).toHaveLength(0);
+    expect(result.current.gameState.vineShields[0].destroyedAt).toBeDefined();
+    expect(result.current.gameState.vineShields[0].hp).toBe(0);
     expect(result.current.gameState.explosionEffects).toHaveLength(1);
+    step(720);
+    expect(result.current.gameState.vineShields).toHaveLength(0);
   });
 
   it.each([
@@ -244,8 +247,10 @@ describe('scientist charging in hacker zones', () => {
     const { keys, result, step, scientist, chargeKey, enterKey } = setup();
     const zone = result.current.gameState.hazardZones[0];
     keys.current[enterKey] = true;
-    // Stop just outside the zone; the next movement tick crosses its boundary.
-    while (zone.x - (scientist().x + PLAYER_SIZE) > 3) step();
+    // Place the charged player just outside the boundary. A persistent 60Hz timer
+    // can process two ticks during a 17ms test advance, so do not infer this point
+    // from a polling loop that can already have crossed the boundary.
+    scientist().x = zone.x - PLAYER_SIZE - 2;
     expect(scientist().isSilenced).toBe(false);
     keys.current[chargeKey] = false;
     step();

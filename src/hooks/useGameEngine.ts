@@ -4,7 +4,12 @@ import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, createProjectile
 import { Platform, PLATFORMS, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
 import { MapId, MAPS } from '@/types/map';
 import { KeyboardState } from './useKeyboard';
-import { getAIKeys } from './gameAI';
+import { decideAI, emptyAIKeys, prepareAIFrame } from './gameAI';
+import { observeOpponent } from './ai/learning';
+import { createCombatDiagnostics, nextCombatDiagnostics, recordHit, type CombatDiagnostics } from './ai/diagnostics';
+import { activeVine } from './ai/world';
+import { createAIRoundState, resetAILearningObservations, type AILearningSession, type AIRoundState } from './ai/state';
+import { advanceProjectile, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, platformCollision, playerMoveSpeed, sandstormImpulse, shieldFacesX, VINE_FADE_MS } from '@/types/combatPhysics';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
 const ARCHER_BURST_COUNT = 8;
@@ -12,6 +17,8 @@ const ARCHER_BURST_INTERVAL = 80;
 const ARCHER_BURST_SPREAD = 10 * Math.PI / 180;
 
 interface GameEngineState {
+  aiState: AIRoundState;
+  diagnostics?: CombatDiagnostics;
   players: [Player, Player];
   clones: Player[];
   projectiles: Projectile[];
@@ -71,12 +78,14 @@ export const useGameEngine = (
   gameMode: 'single' | 'multi' = 'multi',
   isOvertimeProp: boolean = false,
   roundNumber: number = 1,
-  mapId: MapId = 'default'
+  mapId: MapId = 'default',
+  learningSessionRef?: React.MutableRefObject<AILearningSession>,
+  collectDiagnostics = false
 ) => {
   const map = MAPS[mapId];
   const now0 = Date.now();
 
-  const createInitialEngineState = (): GameEngineState => {
+  const createInitialEngineState = useCallback((): GameEngineState => {
     const players: [Player, Player] = [
       createInitialPlayer(1, player1Character),
       createInitialPlayer(2, player2Character),
@@ -99,6 +108,8 @@ export const useGameEngine = (
     }
 
     return {
+      aiState: createAIRoundState(learningSessionRef?.current),
+      diagnostics: collectDiagnostics ? createCombatDiagnostics() : undefined,
       players,
       clones: [],
       projectiles: [],
@@ -125,9 +136,13 @@ export const useGameEngine = (
       lastLavaDamage: [0, 0],
       fallingLeaves: [],
     };
-  };
+  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId, map, learningSessionRef, collectDiagnostics]);
 
   const [gameState, setGameState] = useState<GameEngineState>(createInitialEngineState);
+
+  useEffect(() => {
+    if (learningSessionRef) learningSessionRef.current = gameState.aiState.learning;
+  }, [gameState.aiState.learning, learningSessionRef]);
 
   const gameStateRef = useRef(gameState);
   const keysRefHolder = useRef<React.MutableRefObject<KeyboardState> | null>(null);
@@ -154,59 +169,8 @@ export const useGameEngine = (
   };
 
   // Check platform collision and return the platform player is standing on
-  const checkPlatformCollision = (
-    player: Player,
-    newY: number,
-    velocityY: number,
-    platforms: Platform[]
-  ): { y: number; isGrounded: boolean; platform: Platform | null } => {
-    const playerBottom = newY + PLAYER_SIZE;
-    const playerLeft = player.x;
-    const playerRight = player.x + PLAYER_SIZE;
-    const playerTop = newY;
-
-    for (const platform of platforms) {
-      const platformTop = platform.y;
-      const platformBottom = platform.y + platform.height;
-      const platformLeft = platform.x;
-      const platformRight = platform.x + platform.width;
-
-      // Check horizontal overlap
-      if (playerRight > platformLeft && playerLeft < platformRight) {
-        // For one-way platforms, only check if falling down onto it
-        if (platform.type === 'one-way') {
-          // Player must be falling (or standing) and was above the platform
-          if (velocityY >= 0 && player.y + PLAYER_SIZE <= platformTop + 10 && playerBottom >= platformTop) {
-            return {
-              y: platformTop - PLAYER_SIZE,
-              isGrounded: true,
-              platform,
-            };
-          }
-        } else {
-          // Solid platform - check all sides
-          // Landing on top
-          if (velocityY > 0 && player.y + PLAYER_SIZE <= platformTop && playerBottom >= platformTop) {
-            return {
-              y: platformTop - PLAYER_SIZE,
-              isGrounded: true,
-              platform,
-            };
-          }
-          // Hitting from below
-          if (velocityY < 0 && player.y >= platformBottom && playerTop < platformBottom) {
-            return {
-              y: platformBottom,
-              isGrounded: false,
-              platform: null,
-            };
-          }
-        }
-      }
-    }
-
-    return { y: newY, isGrounded: false, platform: null };
-  };
+  const checkPlatformCollision = (player: Player, newY: number, velocityY: number, platforms: Platform[]) =>
+    platformCollision(player, newY, velocityY, platforms);
 
   const applyDamage = (player: Player, damage: number, isHazard: boolean = false): { player: Player; dealt: number } => {
     // If truly invulnerable (Reaper ult), block everything
@@ -240,7 +204,7 @@ export const useGameEngine = (
 
     const newHealth = Math.max(0, player.health - actualDamage);
 
-    let updatedPlayer = { ...player, health: newHealth };
+    const updatedPlayer = { ...player, health: newHealth };
 
     if (isBreakingFreeze && !isHazard) {
       updatedPlayer.isFrozen = false;
@@ -582,27 +546,7 @@ export const useGameEngine = (
       updatedPlayer.isShielding = false;
     }
 
-    // Calculate speed
-    let speed = character.speed;
-    if (updatedPlayer.isShielding) speed *= 0.5;
-    // Scientist charging speed penalty
-    if (updatedPlayer.isChargingSkill) {
-      const chargeTime = now - (updatedPlayer.skillChargeStartTime || now);
-      const chargeRatio = Math.min(1, chargeTime / 1750);
-
-      // Base penalty: 33% slow
-      let slowFactor = 0.33;
-
-      // Reinforced penalty: 40% slow if charged >= 50%
-      if (chargeRatio >= 0.5) slowFactor = 0.40;
-
-      speed *= (1 - slowFactor);
-    }
-    if (updatedPlayer.isSlowed) speed *= (1 - updatedPlayer.slowAmount);
-    // Apply freeze gauge slow (10% per stack)
-    if (updatedPlayer.freezeGauge > 0) speed *= (1 - (updatedPlayer.freezeGauge * 0.1));
-    if (updatedPlayer.rootDuration > 0) speed = 0;
-    speed *= (1 + updatedPlayer.speedBoost);
+    const speed = playerMoveSpeed(updatedPlayer, now) / 75;
 
     // Horizontal Movement
     let dx = 0;
@@ -800,7 +744,8 @@ export const useGameEngine = (
             PLAYER_SIZE, // Full height for slash
             baseDamage,
             200,
-            false
+            false,
+            updatedPlayer.x + PLAYER_SIZE / 2
           ));
           break;
         case 'archer': {
@@ -833,8 +778,9 @@ export const useGameEngine = (
             character.attackRange + PLAYER_SIZE, // Extended width to cover self
             PLAYER_SIZE * 1.1, // Larger slash area
             baseDamage,
-            120, // Reduced duration for harder deflect
-            true // Can deflect projectiles
+            NINJA_PARRY_MS,
+            true, // Can deflect projectiles
+            updatedPlayer.x + PLAYER_SIZE / 2
           ));
           break;
         case 'scientist':
@@ -850,6 +796,7 @@ export const useGameEngine = (
           break;
         case 'hunter':
           // Shotgun: 5 bullets (or 9 if Focused Fire) with spread
+          {
           const isFocused = (updatedPlayer.hunterFocusedDuration || 0) > 0;
           const bulletCount = isFocused ? 7 : 5;
           const spreadFactor = isFocused ? 0.33 : 1.0; // Tighter spread if focused
@@ -872,6 +819,7 @@ export const useGameEngine = (
             ));
           }
           break;
+        }
         case 'reaper':
           newHitboxes.push(createAttackHitbox(
             player.id,
@@ -880,7 +828,9 @@ export const useGameEngine = (
             character.attackRange + PLAYER_SIZE + 20,
             PLAYER_SIZE + 20,
             baseDamage,
-            250
+            250,
+            false,
+            updatedPlayer.x + PLAYER_SIZE / 2
           ));
           break;
         case 'ice-mage':
@@ -895,6 +845,7 @@ export const useGameEngine = (
           ));
           break;
         case 'hacker':
+          {
           const missile = createProjectile(
             'hacker-missile',
             player.id,
@@ -904,27 +855,10 @@ export const useGameEngine = (
             0,
             baseDamage
           );
-          // If in own packet block, this missile carries the swap effect
-          // We can mark it using a special property not on the type yet, or deduce it on hit.
-          // Actually, we calculated baseDamage with +25% already.
-          // We need to know if we should swap on hit.
-          if (inOwnPacketBlock) {
-            // We'll use a property on the projectile to indicate it's a swap missile
-            // Since we don't have a dedicated field, we can abuse `createsFirePool` or similar, or just check damage? 
-            // Checking baseDamage is unreliable due to other buffs.
-            // Let's add a temporary property or use `stunDuration` to flag it? No, stun has effect.
-            // Let's rely on the damage calculation at hit time ONLY if we added a specific flag.
-            // OR: We update Projectile interface to support `isSwapMissile`.
-            // For now, let's cast it to any and add the prop, or add it to interface.
-            // Let's stick to adding it to interface in types/projectile.ts? 
-            // It's cleaner to check at hit time: "If projectile owner is Hacker AND projectile has specific damage?" No.
-            // Let's add `knockback` as a signal? No.
-            // Let's assume we can attach the swap logic to the hit handler by checking if the source was boosted.
-            // We can just add a property to the object literal. JS allows it.
-            (missile as any).isSwapMissile = true;
-          }
+          missile.isSwapMissile = inOwnPacketBlock;
           newProjectiles.push(missile);
           break;
+        }
       }
 
       setTimeout(() => {
@@ -955,6 +889,7 @@ export const useGameEngine = (
             updatedPlayer.poisonArrowsRemaining = 3;
             break;
           case 'mage':
+            {
             const largeFireball = createProjectile(
               'large-fireball',
               player.id,
@@ -966,9 +901,11 @@ export const useGameEngine = (
             );
             newProjectiles.push(largeFireball);
             break;
+          }
           case 'ninja':
+            {
             updatedPlayer.isDashing = true;
-            const dashDistance = 280;
+            const dashDistance = NINJA_DASH_DISTANCE;
             const dashX = updatedPlayer.x + (attackDirection * dashDistance);
             updatedPlayer.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, dashX));
             setTimeout(() => {
@@ -980,6 +917,7 @@ export const useGameEngine = (
               }));
             }, 200);
             break;
+          }
           case 'hunter':
             newProjectiles.push(createProjectile(
               'net',
@@ -993,6 +931,7 @@ export const useGameEngine = (
             break;
           case 'reaper':
             // Spawn bat slightly in front of the player to avoid initial overlap
+            {
             const batSpawnX = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * (PLAYER_SIZE / 2 + 20));
             const bat = createProjectile(
               'bat',
@@ -1008,11 +947,12 @@ export const useGameEngine = (
             bat.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - bat.height, bat.y));
             // Dev log: bat spawn (with clamped coords)
             if (process.env.NODE_ENV !== 'production') {
-              // eslint-disable-next-line no-console
+
               console.log('BAT SPAWN', { id: bat.id, owner: bat.ownerId, x: bat.x, y: bat.y, vx: bat.velocityX, vy: bat.velocityY });
             }
             newProjectiles.push(bat);
             break;
+          }
           case 'ice-mage':
             // Avalanche: 4 large snowballs
             for (let i = 0; i < 4; i++) {
@@ -1039,6 +979,7 @@ export const useGameEngine = (
             }
             break;
           case 'hacker':
+            {
             const zone = createHazardZone(
               'packet-block-zone',
               player.id,
@@ -1055,6 +996,7 @@ export const useGameEngine = (
 
             newHazards.push(zone);
             break;
+          }
         }
 
         setTimeout(() => {
@@ -1300,6 +1242,7 @@ export const useGameEngine = (
           break;
         case 'ice-mage':
           // Throw blizzard stone
+          {
           const blizzardStone = createProjectile(
             'blizzard-stone',
             player.id,
@@ -1311,10 +1254,12 @@ export const useGameEngine = (
           );
           newProjectiles.push(blizzardStone);
           break;
+        }
         case 'hacker':
           // Hacking
 
           // Simplest way: Create a "hack-projectile" that instant hits.
+          {
           const hackProj = createProjectile(
             'hacking',
             player.id,
@@ -1325,9 +1270,10 @@ export const useGameEngine = (
           hackProj.width = 1;
           hackProj.height = 1;
           hackProj.lifetime = 50;
-          (hackProj as any).isHackUltimate = true; // Flag for collision handler
+          hackProj.isHackUltimate = true; // Flag for collision handler
           newProjectiles.push(hackProj);
           break;
+        }
       }
 
       setTimeout(() => {
@@ -1365,7 +1311,7 @@ export const useGameEngine = (
     return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newClones, newShieldTick };
   };
 
-  const gameLoop = useCallback(() => {
+  const gameLoop = () => {
     const now = Date.now();
     const deltaTime = now - lastTickRef.current;
     lastTickRef.current = now;
@@ -1377,6 +1323,7 @@ export const useGameEngine = (
 
     setGameState(prev => {
       if (!prev.isRoundActive || prev.isPaused) return prev;
+      const diagnostics = nextCombatDiagnostics(prev.diagnostics);
 
       // Update time
       const elapsedSeconds = (now - roundStartTimeRef.current) / 1000;
@@ -1408,7 +1355,16 @@ export const useGameEngine = (
 
 
       // Get player 2 keys from AI or keyboard
-      const p2Keys = gameMode === 'single' ? getAIKeys(prev.players[1], prev.players[0], prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now, mapId, prev.lightningStrikes) : p1Keys;
+      const needsAI = gameMode === 'single' || prev.clones.length > 0;
+      const aiFrame = needsAI ? prepareAIFrame({ ...prev, mapId, now, deltaTime }) : null;
+      const learning = needsAI ? { opponents: {
+        1: observeOpponent(prev.aiState.learning.opponents[1], prev.players[0], prev.players[1], now),
+        2: observeOpponent(prev.aiState.learning.opponents[2], prev.players[1], prev.players[0], now),
+      } } : prev.aiState.learning;
+      const controllers: AIRoundState['controllers'] = {};
+      const p2Decision = gameMode === 'single' && aiFrame ? decideAI(aiFrame, prev.players[1], learning.opponents[1], prev.aiState.controllers.player2) : null;
+      if (p2Decision) controllers.player2 = p2Decision.memory;
+      const p2Keys = p2Decision?.keys ?? p1Keys;
 
       // Update players
       const p1Result = updatePlayer(
@@ -1432,15 +1388,15 @@ export const useGameEngine = (
 
       shieldManaTickRef.current = [p1Result.newShieldTick, p2Result.newShieldTick];
 
-      let players: [Player, Player] = [p1Result.player, p2Result.player];
+      const players: [Player, Player] = [p1Result.player, p2Result.player];
 
       // Update clones
-      let nextClones: Player[] = [];
-      let cloneProjectiles: Projectile[] = [];
-      let cloneHitboxes: AttackHitbox[] = [];
-      let cloneHazards: HazardZone[] = [];
+      const nextClones: Player[] = [];
+      const cloneProjectiles: Projectile[] = [];
+      const cloneHitboxes: AttackHitbox[] = [];
+      const cloneHazards: HazardZone[] = [];
 
-      prev.clones.forEach(clone => {
+      prev.clones.forEach((clone, index) => {
         if (clone.health <= 0) return;
         // Remove clones after 6 seconds
         if (now - clone.createdAt > 6000) return;
@@ -1448,7 +1404,10 @@ export const useGameEngine = (
         const target = prev.players[clone.id === 1 ? 1 : 0];
 
         // Clone AI
-        let aiKeys = getAIKeys(clone, target, prev.projectiles, prev.hazardZones, prev.platforms, prev.isOvertime, now, mapId, prev.lightningStrikes);
+        const controllerId = clone.aiControllerId ?? 'clone:' + clone.id + ':' + clone.createdAt + ':' + index;
+        const decision = aiFrame ? decideAI(aiFrame, clone, learning.opponents[target.id], prev.aiState.controllers[controllerId]) : null;
+        if (decision) controllers[controllerId] = decision.memory;
+        let aiKeys = decision?.keys ?? emptyAIKeys();
         // Disable skills/ultimate for clones
         aiKeys = { ...aiKeys, g: false, h: false, enter: false, backslash: false };
 
@@ -1462,7 +1421,7 @@ export const useGameEngine = (
           prev.platforms
         );
 
-        nextClones.push(cloneRes.player);
+        nextClones.push({ ...cloneRes.player, aiControllerId: controllerId });
         cloneProjectiles.push(...cloneRes.newProjectiles);
         cloneHitboxes.push(...cloneRes.newHitboxes);
         cloneHazards.push(...cloneRes.newHazards);
@@ -1499,112 +1458,21 @@ export const useGameEngine = (
       }
       hazardZones = [...hazardZones, ...p1Result.newHazards, ...p2Result.newHazards, ...cloneHazards];
 
+      if (diagnostics) {
+        const activeIds: string[] = [];
+        for (const item of [...projectiles, ...attackHitboxes]) {
+          const key = item.ownerId + ':' + item.id;
+          activeIds.push(key);
+          if (!diagnostics.seenIds.includes(key)) diagnostics.attempts[item.ownerId - 1]++;
+        }
+        diagnostics.seenIds = activeIds;
+        diagnostics.hitIds = diagnostics.hitIds.filter(id => activeIds.includes(id));
+      }
+      const brokenVines = new Set<string>();
       const coilDamageMap = new Map<string, number>();
 
       // Update projectiles
-      projectiles = projectiles.map(proj => {
-        let newProj = { ...proj };
-
-        // For bat projectiles: check if hit arena bounds and start returning (only once)
-        if (newProj.type === 'bat' && newProj.isReturning) {
-          const timeSinceCreated = now - newProj.createdAt;
-          const owner = players[newProj.ownerId - 1];
-
-          // Check if should return: after 35% of lifetime OR hit bounds
-          const lifetimeThreshold = newProj.lifetime * 0.35;
-          const shouldReturnByTime = timeSinceCreated > lifetimeThreshold;
-
-          // Calculate next position to check bounds
-          const nextX = newProj.x + newProj.velocityX * (deltaTime / 1000);
-          const nextY = newProj.y + newProj.velocityY * (deltaTime / 1000);
-
-          // Check if will hit arena bounds (only check after initial delay to prevent false positives)
-          const hitBounds = timeSinceCreated > 50 && (
-            nextX < ARENA.padding ||
-            nextX > ARENA.width - ARENA.padding - newProj.width ||
-            nextY < ARENA.padding ||
-            nextY > ARENA.height - ARENA.padding - newProj.height
-          );
-
-          // Only set return velocity once; don't recalculate every frame near bounds
-          if ((shouldReturnByTime || hitBounds) && Math.abs(newProj.velocityX) < 600) {
-            // Start returning to owner (velocity < 600 ensures we set it only once from forward flight)
-            const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
-            const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist > 10) {
-              const speed = 650;
-              newProj.velocityX = (dx / dist) * speed;
-              newProj.velocityY = (dy / dist) * speed;
-              if (process.env.NODE_ENV !== 'production') {
-                // eslint-disable-next-line no-console
-                console.log('BAT RETURN', {
-                  id: newProj.id,
-                  owner: owner.id,
-                  projCenter: { x: newProj.x + newProj.width / 2, y: newProj.y + newProj.height / 2 },
-                  ownerCenter: { x: owner.x + PLAYER_SIZE / 2, y: owner.y + PLAYER_SIZE / 2 },
-                  velocity: { x: newProj.velocityX, y: newProj.velocityY },
-                  hitBounds,
-                  timeSinceCreated,
-                });
-              }
-            }
-          }
-          // Once returning, maintain velocity toward owner until collision
-        } else if (newProj.isReturning) {
-          // Other returning projectiles: original logic
-          const owner = players[newProj.ownerId - 1];
-          const timeSinceCreated = now - newProj.createdAt;
-          // Start returning after 35% of lifetime
-          if (timeSinceCreated > newProj.lifetime * 0.35) {
-            const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
-            const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
-            const dist = Math.sqrt(dx * dx + dy * dy);
-
-            if (dist > 10) {
-              const speed = 750;
-              newProj.velocityX = (dx / dist) * speed;
-              newProj.velocityY = (dy / dist) * speed;
-            }
-          }
-        }
-
-        newProj.x += newProj.velocityX * (deltaTime / 1000);
-        newProj.y += newProj.velocityY * (deltaTime / 1000);
-
-        // Clamp bat position inside arena bounds and adjust velocity if clamped
-        if (newProj.type === 'bat') {
-          const clampedX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - newProj.width, newProj.x));
-          const clampedY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - newProj.height, newProj.y));
-
-          // If position was clamped (hit boundary), reset velocity toward owner
-          const isClamped = clampedX !== newProj.x || clampedY !== newProj.y;
-          if (isClamped && newProj.isReturning) {
-            newProj.x = clampedX;
-            newProj.y = clampedY;
-            // Recalculate velocity to escape boundary
-            const owner = players[newProj.ownerId - 1];
-            const dx = (owner.x + PLAYER_SIZE / 2) - (newProj.x + newProj.width / 2);
-            const dy = (owner.y + PLAYER_SIZE / 2) - (newProj.y + newProj.height / 2);
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist > 10) {
-              const speed = 750;
-              newProj.velocityX = (dx / dist) * speed;
-              newProj.velocityY = (dy / dist) * speed;
-            }
-          } else {
-            newProj.x = clampedX;
-            newProj.y = clampedY;
-          }
-        }
-
-        if (newProj.hasGravity) {
-          newProj.velocityY += newProj.gravity * (deltaTime / 1000);
-        }
-
-        return newProj;
-      });
+      projectiles = projectiles.map(proj => advanceProjectile(proj, players[proj.ownerId - 1], now, deltaTime / 1000));
 
       const newlySpawnedProjectiles: Projectile[] = [];
       const explosionEffects = prev.explosionEffects.filter(effect => now - effect.createdAt < effect.duration);
@@ -1781,8 +1649,36 @@ export const useGameEngine = (
           }
         }
 
+        const victim = players[proj.ownerId === 1 ? 1 : 0];
+        let bodyTime = getProjectileCollisionTime(proj, previousPosition, { ...victim, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity;
+        for (const clone of nextClones) {
+          if (clone.id !== proj.ownerId) bodyTime = Math.min(bodyTime, getProjectileCollisionTime(proj, previousPosition, { ...clone, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity);
+        }
+        let firstSword: AttackHitbox | undefined;
+        let swordTime = Infinity;
+        if (proj.canBeDeflected) {
+          for (const hitbox of attackHitboxes) {
+            if (hitbox.ownerId === proj.ownerId || !hitbox.canDeflectProjectiles || now - hitbox.createdAt > hitbox.duration) continue;
+            const time = getProjectileCollisionTime(proj, previousPosition, hitbox);
+            if (time !== null && time < swordTime) { swordTime = time; firstSword = hitbox; }
+          }
+        }
+
+        // A vine reached before a fighter consumes exactly one projectile, even
+        // when that shot crosses the entire vine in one tick.
+        if (mapId === 'jungle') {
+          let vine: GameEngineState['vineShields'][number] | undefined;
+          let vineTime = Math.min(bodyTime, swordTime);
+          for (const candidate of prev.vineShields) {
+            if (!activeVine(candidate, now) || brokenVines.has(candidate.id)) continue;
+            const time = getProjectileCollisionTime(proj, previousPosition, candidate);
+            if (time !== null && time < vineTime) { vineTime = time; vine = candidate; }
+          }
+          if (vine) { brokenVines.add(vine.id); emitExplosion(proj, vine); return false; }
+        }
+
         // Check collision with Tesla Coils
-        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !(proj as any).isHackUltimate && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
+        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !proj.isHackUltimate && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
           emitExplosion(proj, hitCoil);
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
@@ -1806,9 +1702,18 @@ export const useGameEngine = (
           return false;
         }
 
+        // Resolve a sword reached before the body; fast projectiles cannot tunnel past it.
+        if (firstSword && swordTime < bodyTime) {
+          proj.x = previousPosition.x + (proj.x - previousPosition.x) * swordTime;
+          proj.y = previousPosition.y + (proj.y - previousPosition.y) * swordTime;
+          proj.velocityX *= -1;
+          proj.ownerId = firstSword.ownerId;
+          return true;
+        }
+
         // Check player collision
         const timeSinceCreated = now - proj.createdAt;
-        const isReturningToOwner = proj.isReturning && timeSinceCreated > proj.lifetime * 0.35;
+        const isReturningToOwner = proj.isReturning && (proj.type === 'bat' ? proj.returnPhase === 'returning' : timeSinceCreated > proj.lifetime * BAT_RETURN_FRACTION);
 
         const opponentId = proj.ownerId === 1 ? 2 : 1;
         const targetPlayerIndex = opponentId - 1;
@@ -1825,6 +1730,7 @@ export const useGameEngine = (
             )) {
               // Apply damage on return path
               const damageRes = applyDamage(playerTarget, proj.damage);
+              recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
               players[targetPlayerIndex] = damageRes.player;
               proj.hasHitReturn = true; // Mark as hit on return path
 
@@ -1850,8 +1756,7 @@ export const useGameEngine = (
               { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
             )) {
               if (playerTarget.isShielding) {
-                const fromFront = (proj.ownerId === 1 && !playerTarget.facingRight) ||
-                  (proj.ownerId === 2 && playerTarget.facingRight);
+                const fromFront = shieldFacesX(playerTarget, previousPosition.x + proj.width / 2);
                 if (fromFront) {
                   // Shield blocks bat
                   return false;
@@ -1859,6 +1764,7 @@ export const useGameEngine = (
               }
 
               const damageRes = applyDamage(playerTarget, proj.damage);
+              recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
               players[targetPlayerIndex] = damageRes.player;
               proj.hasHitForward = true; // Mark as hit on forward path
 
@@ -1875,7 +1781,7 @@ export const useGameEngine = (
               }
 
               // Returning projectiles don't disappear immediately on hit if they haven't returned yet
-              if (proj.isReturning && timeSinceCreated < proj.lifetime * 0.35) {
+              if (proj.isReturning && proj.returnPhase !== 'returning') {
                 return true;
               }
 
@@ -1891,8 +1797,9 @@ export const useGameEngine = (
                 { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
               )) {
                 const damageRes = applyDamage(clone, proj.damage);
+                recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
                 nextClones[i] = damageRes.player;
-                if (proj.isReturning && timeSinceCreated < proj.lifetime * 0.35) {
+                if (proj.isReturning && proj.returnPhase !== 'returning') {
                   return true;
                 }
                 return false;
@@ -1929,8 +1836,7 @@ export const useGameEngine = (
               let currentTarget = { ...target };
 
               if (currentTarget.isShielding) {
-                const fromFront = (proj.ownerId === 1 && !currentTarget.facingRight) ||
-                  (proj.ownerId === 2 && currentTarget.facingRight);
+                const fromFront = shieldFacesX(currentTarget, previousPosition.x + proj.width / 2);
                 if (fromFront) {
                   if (proj.canBeDeflected) {
                     proj.velocityX *= -1;
@@ -1968,6 +1874,7 @@ export const useGameEngine = (
               }
 
               const damageRes = applyDamage(currentTarget, finalDamage);
+              recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
               currentTarget = damageRes.player;
 
               // Record hit time
@@ -2008,7 +1915,7 @@ export const useGameEngine = (
                 const owner = players[proj.ownerId - 1];
 
                 // Calculate pull direction
-                let pullDirX = owner.x - currentTarget.x;
+                const pullDirX = owner.x - currentTarget.x;
                 // Add weak vertical pull (mostly horizontal)
                 const pullDirY = (owner.y - currentTarget.y) * 0.5;
 
@@ -2145,7 +2052,7 @@ export const useGameEngine = (
               }
 
               // Hacker Position Swap
-              if ((proj as any).isSwapMissile) {
+              if (proj.isSwapMissile) {
                 // Swap positions!
                 const attacker = players[proj.ownerId - 1];
                 const victim = currentTarget;
@@ -2164,7 +2071,7 @@ export const useGameEngine = (
               }
 
               // Hacker Ultimate Instant Hit
-              if ((proj as any).isHackUltimate) {
+              if (proj.isHackUltimate) {
                 currentTarget.isHacked = true;
                 currentTarget.hackedDuration = 4000;
               }
@@ -2173,7 +2080,7 @@ export const useGameEngine = (
               if (hitPlayer) players[targetPlayerIndex] = currentTarget;
               else nextClones[hitCloneIndex] = currentTarget;
 
-              if ((proj as any).isHackUltimate) return false;
+              if (proj.isHackUltimate) return false;
 
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
@@ -2213,7 +2120,7 @@ export const useGameEngine = (
         if (proj.isReturning) {
           const owner = players[proj.ownerId - 1];
           const timeSinceCreated = now - proj.createdAt;
-          if (timeSinceCreated > proj.lifetime * 0.35) {
+          if (proj.type === 'bat' ? proj.returnPhase === 'returning' : timeSinceCreated > proj.lifetime * BAT_RETURN_FRACTION) {
             if (checkCollision(
               proj.x, proj.y, proj.width, proj.height,
               owner.x, owner.y, PLAYER_SIZE, PLAYER_SIZE
@@ -2243,18 +2150,6 @@ export const useGameEngine = (
             }
           }
         }
-
-        attackHitboxes.forEach(hitbox => {
-          if (hitbox.ownerId !== proj.ownerId && hitbox.canDeflectProjectiles && proj.canBeDeflected) {
-            if (checkCollision(
-              proj.x, proj.y, proj.width, proj.height,
-              hitbox.x, hitbox.y, hitbox.width, hitbox.height
-            )) {
-              proj.velocityX *= -1;
-              proj.ownerId = hitbox.ownerId;
-            }
-          }
-        });
 
         return true;
       });
@@ -2290,8 +2185,7 @@ export const useGameEngine = (
           let currentTarget = { ...target };
 
           if (currentTarget.isShielding) {
-            const fromFront = (hitbox.ownerId === 1 && !currentTarget.facingRight) ||
-              (hitbox.ownerId === 2 && currentTarget.facingRight);
+            const fromFront = shieldFacesX(currentTarget, hitbox.sourceX ?? players[hitbox.ownerId - 1].x + PLAYER_SIZE / 2);
             if (fromFront) return true;
           }
 
@@ -2302,6 +2196,7 @@ export const useGameEngine = (
           }
 
           const damageRes = applyDamage(currentTarget, finalDamage);
+          recordHit(diagnostics, hitbox.id, hitbox.ownerId, damageRes.dealt);
           currentTarget = damageRes.player;
 
           // Reaper Passive: Life steal 15%
@@ -2591,14 +2486,12 @@ export const useGameEngine = (
             // Apply 1 damage per 1.5 seconds to both players (reduced frequency)
             for (let i = 0; i < 2; i++) {
               if (now % 1500 < deltaTime) {
-                players[i] = applyDamage(players[i], 1, true).player;
+                const environmentHit = applyDamage(players[i], 1, true);
+                if (diagnostics) diagnostics.environmentDamage[i] += environmentHit.dealt;
+                players[i] = environmentHit.player;
               }
               // Push players in sandstorm direction - stronger and gusty
-              const gustFactor = 1 + Math.sin(now / 500) * 0.5; // Gusts every ~3 seconds
-              const basePushForce = sandstormDirection === 'right' ? 120 : -120;
-              const totalPush = basePushForce * gustFactor * (deltaTime / 1000);
-
-              players[i].knockbackVelocityX += totalPush * 10; // Multiply by 10 to make it impactful on KVX decay
+              players[i].knockbackVelocityX += sandstormImpulse(now, deltaTime / 1000, sandstormDirection);
 
               // Add minor vertical jitter if grounded to simulate sand hitting
               if (players[i].isGrounded && Math.random() < 0.1) {
@@ -2637,13 +2530,15 @@ export const useGameEngine = (
         // Process lightning strikes
         lightningStrikes = lightningStrikes.map(strike => {
           const elapsed = now - strike.warningStart;
-          if (elapsed >= 1500 && !strike.struck) {
+          if (elapsed >= LIGHTNING_WARNING_MS && !strike.struck) {
             // Strike!
             const strikeX = strike.x;
             for (let i = 0; i < 2; i++) {
               const px = players[i].x + PLAYER_SIZE / 2;
-              if (Math.abs(px - strikeX) < 40) {
-                players[i] = applyDamage(players[i], 20, true).player;
+              if (Math.abs(px - strikeX) < LIGHTNING_RADIUS) {
+                const environmentHit = applyDamage(players[i], 20, true);
+                if (diagnostics) diagnostics.environmentDamage[i] += environmentHit.dealt;
+                players[i] = environmentHit.player;
                 players[i].isStunned = true;
                 players[i].stunDuration = 500;
                 players[i].isSlowed = true;
@@ -2710,20 +2605,20 @@ export const useGameEngine = (
 
         // Check vine-projectile collision
         vineShields = vineShields.filter(vine => {
-          if (vine.destroyedAt !== undefined) return now - vine.destroyedAt < 700;
+          if (vine.destroyedAt !== undefined) return now - vine.destroyedAt < VINE_FADE_MS;
           if (now - vine.createdAt > vine.duration) {
             vine.destroyedAt = now;
             return true;
           }
           if (vine.hp <= 0) return false;
-          const hit = projectiles.findIndex(p =>
+          const hit = brokenVines.has(vine.id) ? -1 : projectiles.findIndex(p =>
             checkCollision(vine.x, vine.y, vine.width, vine.height, p.x, p.y, p.width, p.height)
           );
           const hitByMelee = attackHitboxes.some(hitbox =>
             checkCollision(vine.x, vine.y, vine.width, vine.height,
               hitbox.x, hitbox.y, hitbox.width, hitbox.height)
           );
-          if (hit >= 0 || hitByMelee) {
+          if (brokenVines.has(vine.id) || hit >= 0 || hitByMelee) {
             if (hit >= 0) {
               emitExplosion(projectiles[hit], vine);
               projectiles.splice(hit, 1);
@@ -2764,7 +2659,9 @@ export const useGameEngine = (
             if (now - newLastLavaDamage[i] >= 500) { // Prevent rapid re-triggering
               let lavaDamage = 15;
               if (players[i].isBurning) lavaDamage *= 1.2;
-              players[i] = applyDamage(players[i], lavaDamage, true).player;
+              const environmentHit = applyDamage(players[i], lavaDamage, true);
+              if (diagnostics) diagnostics.environmentDamage[i] += environmentHit.dealt;
+              players[i] = environmentHit.player;
               // Bounce up
               players[i].velocityY = -900;
               players[i].y = ARENA.height - ARENA.padding - PLAYER_SIZE - 5;
@@ -2795,6 +2692,8 @@ export const useGameEngine = (
       return {
         ...prev,
         players,
+        aiState: { learning, controllers },
+        diagnostics,
         clones: nextClones,
         projectiles,
         explosionEffects,
@@ -2811,7 +2710,7 @@ export const useGameEngine = (
         fallingLeaves,
       };
     });
-  }, [roundTimeLimit, gameMode, updatePlayer]);
+  };
 
   useEffect(() => {
     if (gameState.roundWinner && !roundEndingRef.current) {
@@ -2823,20 +2722,24 @@ export const useGameEngine = (
     }
   }, [gameState.roundWinner, onRoundEnd]);
 
+  const gameLoopRef = useRef(gameLoop);
+  useEffect(() => { gameLoopRef.current = gameLoop; });
   useEffect(() => {
-    const interval = setInterval(gameLoop, TICK_RATE);
+    const interval = setInterval(() => gameLoopRef.current(), TICK_RATE);
     return () => clearInterval(interval);
-  }, [gameLoop]);
+  }, []);
 
   const resetRound = useCallback(() => {
     roundStartTimeRef.current = Date.now();
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
-    setGameState(createInitialEngineState());
-  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId]);
+    setGameState(prev => ({ ...createInitialEngineState(), aiState: createAIRoundState(prev.aiState.learning) }));
+  }, [createInitialEngineState]);
 
   const togglePause = useCallback(() => {
-    setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+    setGameState(prev => ({ ...prev, isPaused: !prev.isPaused,
+      aiState: { ...prev.aiState, learning: resetAILearningObservations(prev.aiState.learning) },
+    }));
   }, []);
 
   return {

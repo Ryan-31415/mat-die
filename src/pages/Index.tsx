@@ -10,6 +10,7 @@ import { useGameState } from '@/hooks/useGameState';
 
 const Index = () => {
   const {
+    aiSessionRef,
     screen,
     settings,
     setSettings,
@@ -60,6 +61,7 @@ const Index = () => {
 
       {screen === 'game' && player1Character && player2Character && (
         <GameArena
+          aiSessionRef={aiSessionRef}
           player1Character={player1Character}
           player2Character={player2Character}
           settings={settings}

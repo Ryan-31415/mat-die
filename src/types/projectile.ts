@@ -1,3 +1,4 @@
+import { DEFAULT_PROJECTILE_LIFETIME_MS, HUNTER_BULLET_LIFETIME_MS, POOL_SIZE } from './combatPhysics';
 // Projectile Types
 
 export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile' | 'hacking';
@@ -30,6 +31,9 @@ export interface Projectile {
   firePoolDuration: number;
   canBeDeflected: boolean;
   isReturning: boolean;
+  returnPhase?: 'outbound' | 'returning';
+  isSwapMissile?: boolean;
+  isHackUltimate?: boolean;
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
   hasHitReturn?: boolean; // Track if projectile has hit on return path
@@ -137,6 +141,7 @@ export interface AttackHitbox {
   createdAt: number;
   knockback: number;
   canDeflectProjectiles: boolean;
+  sourceX?: number;
 }
 
 // Helper function to create projectiles
@@ -165,7 +170,7 @@ export const createProjectile = (
     isExplosive: false,
     explosionRadius: 0,
     createdAt: Date.now(),
-    lifetime: 3000,
+    lifetime: DEFAULT_PROJECTILE_LIFETIME_MS,
     isPoisonous: false,
     poisonDuration: 0,
     slowAmount: 0,
@@ -272,7 +277,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 10,
         height: 8,
-        lifetime: 240,
+        lifetime: HUNTER_BULLET_LIFETIME_MS,
         knockback: 10,
       };
       break;
@@ -281,7 +286,7 @@ export const createProjectile = (
         ...baseProjectile,
         width: 10,
         height: 8,
-        lifetime: 240,
+        lifetime: HUNTER_BULLET_LIFETIME_MS,
         knockback: 15,
       };
       break;
@@ -293,6 +298,7 @@ export const createProjectile = (
         lifetime: 3600,
         canBeDeflected: false,
         isReturning: true,
+        returnPhase: 'outbound',
         hasHitForward: false,
         hasHitReturn: false,
       };
@@ -379,8 +385,8 @@ export const createHazardZone = (
     ownerId,
     x,
     y,
-    width: type === 'toxic-pool' ? 150 : 225,
-    height: type === 'toxic-pool' ? 150 : 225,
+    width: type === 'toxic-pool' ? POOL_SIZE['toxic-pool'] : POOL_SIZE['fire-pool'],
+    height: type === 'toxic-pool' ? POOL_SIZE['toxic-pool'] : POOL_SIZE['fire-pool'],
     damage,
     tickRate: 100, // Increased frequency (5x), damage per tick adjusted in useGameEngine
     lastTick: Date.now(),
@@ -413,8 +419,8 @@ export const createHazardZone = (
   if (type === 'blizzard') {
     return {
       ...base,
-      width: 400, // Circular area diameter (increased)
-      height: 400,
+      width: POOL_SIZE.blizzard, // Circular area diameter
+      height: POOL_SIZE.blizzard,
       tickRate: 200, // Fast tick rate for smooth effect application
     };
   }
@@ -448,7 +454,8 @@ export const createAttackHitbox = (
   height: number,
   damage: number,
   duration: number,
-  canDeflect: boolean = false
+  canDeflect: boolean = false,
+  sourceX?: number
 ): AttackHitbox => ({
   id: `attack-${Date.now()}-${Math.random()}`,
   ownerId,
@@ -461,4 +468,5 @@ export const createAttackHitbox = (
   createdAt: Date.now(),
   knockback: 50,
   canDeflectProjectiles: canDeflect,
+  sourceX,
 });
