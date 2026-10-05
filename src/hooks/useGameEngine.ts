@@ -2382,10 +2382,10 @@ export const useGameEngine = (
             explosions.push(createHazardZone(
               'electric-explosion',
               zoneCopy.ownerId,
-              zoneCopy.x + zoneCopy.width / 2 - 95,
-              zoneCopy.y + zoneCopy.height / 2 - 95,
+              zoneCopy.x + zoneCopy.width / 2 - 60,
+              zoneCopy.y + zoneCopy.height / 2 - 60,
               0,
-              300
+              zoneCopy.damage * 25
             ));
           }
           return null;

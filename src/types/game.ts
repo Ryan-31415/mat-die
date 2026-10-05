@@ -275,7 +275,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '테슬라 코일',
-      description: '제자리에 테슬라 코일 설치해서 주변 적을 자동적으로 공격합니다. 파괴 시 강력한 폭발을 일으킵니다.',
+      description: '제자리에 테슬라 코일을 설치해서 주변 적을 자동적으로 공격합니다. 테슬라 코일은 1초에 2%씩 체력을 잃으며, 파괴 시 강력한 폭발을 일으킵니다.',
       manaCost: 100,
       cooldown: 0,
     },
