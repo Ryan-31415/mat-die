@@ -1828,10 +1828,10 @@ export const useGameEngine = (
               players[targetPlayerIndex] = damageRes.player;
               proj.hasHitReturn = true; // Mark as hit on return path
 
-              // Reaper Passive: Life steal 20%
+              // Reaper Passive: Life steal 15%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
+                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
                   players[ownerIndex].health + damageRes.dealt * regenMultiplier
@@ -1862,10 +1862,10 @@ export const useGameEngine = (
               players[targetPlayerIndex] = damageRes.player;
               proj.hasHitForward = true; // Mark as hit on forward path
 
-              // Reaper Passive: Life steal 20%
+              // Reaper Passive: Life steal 15%
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.5 : 0.2;
+                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
                 players[ownerIndex].health = Math.min(
                   players[ownerIndex].maxHealth,
                   players[ownerIndex].health + damageRes.dealt * regenMultiplier
@@ -2218,10 +2218,10 @@ export const useGameEngine = (
               proj.x, proj.y, proj.width, proj.height,
               owner.x, owner.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              // For bat: heal base 75% of damage + bonus from hits
+              // For bat: heal base 60% of damage + bonus from hits
               if (proj.type === 'bat') {
                 const baseHeal = 0;
-                const bonusHeal = (proj.damageAccumulated || 0) * 0.75;
+                const bonusHeal = (proj.damageAccumulated || 0) * 0.60;
                 const totalHeal = baseHeal + bonusHeal;
                 if (totalHeal > 0) {
                   players[proj.ownerId - 1].health = Math.min(
@@ -2231,7 +2231,7 @@ export const useGameEngine = (
                 }
               } else {
                 // Other returning projectiles: heal only from accumulated damage
-                const healAmount = (proj.damageAccumulated || 0) * 0.75;
+                const healAmount = (proj.damageAccumulated || 0) * 0.60;
                 if (healAmount > 0) {
                   players[proj.ownerId - 1].health = Math.min(
                     players[proj.ownerId - 1].maxHealth,
@@ -2549,15 +2549,15 @@ export const useGameEngine = (
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
               const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
               const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
-              const damageRes = applyDamage(target, baseDamage * 0.25, true); // 25% of base damage per tick (Area)
+              const damageRes = applyDamage(target, baseDamage * 0.15, true); // 15% of base damage per tick (Area)
               players[targetIndex] = damageRes.player;
-              // Life steal 20 -> 50%
-              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.5);
+              // Life steal 15 -> 33%
+              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.33);
               players[i].lastUltTick = now;
               // Slow effect
               players[targetIndex].isSlowed = true;
-              players[targetIndex].slowAmount = 0.2;
-              players[targetIndex].slowDuration = 300;
+              players[targetIndex].slowAmount = 0.15;
+              players[targetIndex].slowDuration = 500;
             }
           }
         }
