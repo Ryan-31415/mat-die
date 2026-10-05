@@ -845,7 +845,7 @@ export const useGameEngine = (
             updatedPlayer.y + PLAYER_SIZE / 2,
             attackDirection * 640,
             -105,
-            baseDamage
+            baseDamage * 0.5
           ));
           break;
         case 'hunter':
@@ -1282,7 +1282,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x,
             updatedPlayer.y,
-            baseDamage * 0.2,
+            baseDamage * 0.15,
             30000
           ));
           break;
@@ -1642,7 +1642,7 @@ export const useGameEngine = (
                 'toxic-pool',
                 proj.ownerId,
                 0, 0,
-                proj.damage * 0.1,
+                proj.damage * 0.2,
                 proj.firePoolDuration
               );
 
@@ -1765,7 +1765,7 @@ export const useGameEngine = (
             } else if (proj.isExplosive && proj.createsFirePool) {
               const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
               const isToxic = proj.type === 'flask';
-              const damage = isToxic ? proj.damage * 0.1 : proj.damage * 0.03;
+              const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
               const pool = createHazardZone(
                 poolType,
                 proj.ownerId,
@@ -1790,7 +1790,7 @@ export const useGameEngine = (
           if (proj.createsFirePool) {
             const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
             const isToxic = proj.type === 'flask';
-            const damage = isToxic ? proj.damage * 0.1 : proj.damage * 0.03;
+            const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
             const pool = createHazardZone(
               poolType,
               proj.ownerId,
@@ -2178,7 +2178,7 @@ export const useGameEngine = (
               if (proj.createsFirePool) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
                 const isToxic = proj.type === 'flask';
-                const damage = isToxic ? proj.damage * 0.1 : proj.damage * 0.03;
+                const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
                 const pool = createHazardZone(
                   poolType,
                   proj.ownerId,
@@ -2351,10 +2351,16 @@ export const useGameEngine = (
           if (zoneCopy.health <= 0) {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             if (checkCollision(
-              zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 200, 200,
+              zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 240, 240,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              players[targetIndex] = applyDamage(players[targetIndex], 30, true).player;
+              const target = players[targetIndex];
+              players[targetIndex] = applyDamage(target, zoneCopy.damage * 32, true).player;
+              const coilCenterX = zoneCopy.x + zoneCopy.width / 2;
+              const playerCenterX = target.x + PLAYER_SIZE / 2;
+              players[targetIndex].knockbackVelocityX = (playerCenterX >= coilCenterX ? 1 : -1) * 720;
+              players[targetIndex].knockbackVelocityY = -200;
+              players[targetIndex].isGrounded = false;
             }
 
             explosions.push(createHazardZone(
@@ -2376,16 +2382,22 @@ export const useGameEngine = (
               zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 200, 200,
               players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
             )) {
-              players[targetIndex] = applyDamage(players[targetIndex], 30, true).player;
+              const target = players[targetIndex];
+              players[targetIndex] = applyDamage(target, zoneCopy.damage * 32, true).player;
+              const coilCenterX = zoneCopy.x + zoneCopy.width / 2;
+              const playerCenterX = target.x + PLAYER_SIZE / 2;
+              players[targetIndex].knockbackVelocityX = (playerCenterX >= coilCenterX ? 1 : -1) * 500;
+              players[targetIndex].knockbackVelocityY = -180;
+              players[targetIndex].isGrounded = false;
             }
 
             explosions.push(createHazardZone(
               'electric-explosion',
               zoneCopy.ownerId,
-              zoneCopy.x + zoneCopy.width / 2 - 60,
-              zoneCopy.y + zoneCopy.height / 2 - 60,
+              zoneCopy.x + zoneCopy.width / 2 - 95,
+              zoneCopy.y + zoneCopy.height / 2 - 95,
               0,
-              zoneCopy.damage * 25
+              300
             ));
           }
           return null;
@@ -2393,7 +2405,7 @@ export const useGameEngine = (
 
         if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined && zoneCopy.maxHealth !== undefined) {
           const selfDamageTick = zoneCopy.lastSelfDamage || zoneCopy.createdAt;
-          if (now - selfDamageTick >= 500) {
+          if (now - selfDamageTick >= 250) {
             zoneCopy.health -= zoneCopy.maxHealth * 0.01;
             zoneCopy.lastSelfDamage = now;
           }
