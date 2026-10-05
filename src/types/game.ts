@@ -153,12 +153,12 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.4,
     speed: 4.8,
     attackDamage: 15,
-    attackRange: 80,
+    attackRange: 95,
     attackCooldown: 850,
     attackDescription: '전방으로 검을 휘둘러 근접한 적을 공격합니다.',
     skill: {
       name: '방어',
-      description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 반사합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
+      description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 방어합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
       manaCost: 2, // per 0.1 seconds
       cooldown: 0,
     },
@@ -236,9 +236,9 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.6,
     speed: 5.5, // slightly faster base speed
     attackDamage: 16,
-    attackRange: 85,
+    attackRange: 105,
     attackCooldown: 1000,
-    passive: '일반 공격을 통해 적의 투사체를 반사할 수 있습니다.',
+    passive: '카타나로 적의 투사체를 반사할 수 있습니다.',
     attackDescription: '전방으로 카타나를 휘둘러 근접한 적을 공격합니다.',
     skill: {
       name: '돌진',
@@ -291,7 +291,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.4,
     speed: 4.6,
     attackDamage: 15,
-    attackRange: 150,
+    attackRange: 140,
     attackCooldown: 1100,
     attackDescription: '전방으로 짧은 거리를 날아가는 산탄 5발을 발사합니다. 탄환 당 공격력의 30%의 피해를 입힙니다.',
     skill: {
@@ -318,10 +318,10 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     manaRegen: 6.9,
     speed: 5.2,
     attackDamage: 15,
-    attackRange: 110,
+    attackRange: 115,
     attackCooldown: 1100,
     attackDescription: '전방으로 낫을 휘둘러 가까운 적을 공격합니다. 흡혈 효과로 체력을 회복합니다.',
-    passive: '흡혈: 가한 데미지의 20%를 체력으로 회복합니다.',
+    passive: '가한 데미지의 20%만큼의 체력을 회복합니다.',
     skill: {
       name: '박쥐',
       description: '부메랑처럼 돌아오는 박쥐를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 75%를 추가적으로 회복합니다.',

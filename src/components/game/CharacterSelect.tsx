@@ -84,7 +84,7 @@ const CharacterCard = ({
         {character.passive && (
           <div className="bg-muted/50 rounded-md p-2">
             <p className="text-xs font-medium text-emerald-600">패시브</p>
-            <p className="text-xs">{character.passive}</p>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{character.passive}</p>
           </div>
         )}
 
