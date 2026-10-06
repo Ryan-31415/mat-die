@@ -87,7 +87,6 @@ export interface Player {
   // Archer specific
   archerBurstRemaining?: number;
   archerBurstCooldown?: number;
-  archerBurstFacingRight?: boolean;
   // Ice Mage specific
   freezeGauge: number;
   isFrozen: boolean;

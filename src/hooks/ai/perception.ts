@@ -53,7 +53,6 @@ function visiblePlayer(raw: Player, world: AIWorld, previous: AIWorld | undefine
     p.freezeGauge = raw.freezeGauge; p.dodgesRemaining = raw.dodgesRemaining;
     p.poisonArrowsRemaining = raw.poisonArrowsRemaining;
     p.archerBurstRemaining = raw.archerBurstRemaining ?? 0;
-    p.archerBurstFacingRight = old?.archerBurstRemaining ? old.archerBurstFacingRight : raw.facingRight;
     p.isInvulnerable = p.invulnerableDuration > 0 && (p.isFlying || character?.id !== 'reaper');
     p.isChargingSkill = raw.isChargingSkill;
     if (p.isChargingSkill) {

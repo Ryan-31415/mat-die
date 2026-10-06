@@ -28,7 +28,7 @@ export function matchupTactics(player: Player, opponent: Player, frame: AIFrame,
 }
 
 export function opponentLineRisk(opponent: Player, point: { x: number; y: number }, enemyPoint: { x: number; y: number }, elapsed: number, now: number) {
-  const firingRight = opponent.character!.id === 'archer' && opponent.archerBurstRemaining > 0 ? opponent.archerBurstFacingRight : opponent.facingRight;
+  const firingRight = opponent.facingRight;
   const inFront = (point.x - enemyPoint.x) * (firingRight ? 1 : -1) > 0;
   if (!inFront || Math.abs(point.y - enemyPoint.y) > 32) return 0;
   if (opponent.character!.id === 'archer' && opponent.archerBurstRemaining > 0 && elapsed < opponent.archerBurstRemaining * 0.08) return 90;

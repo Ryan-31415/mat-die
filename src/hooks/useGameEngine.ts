@@ -1211,7 +1211,6 @@ export const useGameEngine = (
         case 'archer':
           updatedPlayer.archerBurstRemaining = ARCHER_BURST_COUNT;
           updatedPlayer.archerBurstCooldown = 0;
-          updatedPlayer.archerBurstFacingRight = updatedPlayer.facingRight;
           break;
         case 'mage':
           // Fire Avatar - 5 second buff with fire ring
@@ -1305,8 +1304,8 @@ export const useGameEngine = (
 
     if (character.id === 'archer') {
       while ((updatedPlayer.archerBurstRemaining ?? 0) > 0 && (updatedPlayer.archerBurstCooldown ?? 0) <= 0) {
-        // Keep the initial aim and sample each shot within a total ten-degree cone.
-        const direction = updatedPlayer.archerBurstFacingRight ? 1 : -1;
+        // Follow the archer's current facing while keeping each shot within a total ten-degree cone.
+        const direction = updatedPlayer.facingRight ? 1 : -1;
         const angle = Math.atan2(-80, 1000) + (Math.random() - 0.5) * ARCHER_BURST_SPREAD;
         const speed = Math.hypot(1000, 80);
         const damageMultiplier = gameState.isOvertime ? 2 : 1;

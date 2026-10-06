@@ -57,7 +57,7 @@ describe('opponent ability counters', () => {
   });
   it('avoids the burst direction and ice freeze buildup instead of treating every enemy identically', () => {
     const world = scene('mage', 'archer'), [enemy, ai] = world.players;
-    enemy.archerBurstRemaining = 8; enemy.archerBurstFacingRight = true; enemy.facingRight = false;
+    enemy.archerBurstRemaining = 8; enemy.facingRight = true;
     expect(opponentLineRisk(enemy, { x: 550, y: 440 }, enemy, 0.1, now)).toBeGreaterThan(0);
     expect(opponentLineRisk(enemy, { x: 200, y: 440 }, enemy, 0.1, now)).toBe(0);
     enemy.character = CHARACTERS['ice-mage']; ai.freezeGauge = 3;
