@@ -1,6 +1,7 @@
 import type { Player } from '@/types/game';
 import type { KeyboardState } from '../useKeyboard';
 import { createOpponentModel, resetObservation, type OpponentModel } from './learning';
+import type { DifficultyRuntime, DifficultySession } from './difficulty';
 
 export type Strategy = 'approach' | 'pressure' | 'kite' | 'recover' | 'escape' | 'flank';
 export interface AIMemory {
@@ -22,13 +23,16 @@ export interface AIMemory {
 }
 export interface AILearningSession {
   opponents: Record<1 | 2, OpponentModel>;
+  difficulty?: DifficultySession;
 }
 export interface AIRoundState {
   learning: AILearningSession;
   controllers: Record<string, AIMemory>;
+  difficulty?: DifficultyRuntime;
 }
 export const createAILearningSession = (): AILearningSession => ({ opponents: { 1: createOpponentModel(), 2: createOpponentModel() } });
 export const resetAILearningObservations = (session: AILearningSession): AILearningSession => ({
+  ...session,
   opponents: { 1: resetObservation(session.opponents[1]), 2: resetObservation(session.opponents[2]) },
 });
 export const createAIRoundState = (learning = createAILearningSession()): AIRoundState => ({ learning: resetAILearningObservations(learning), controllers: {} });

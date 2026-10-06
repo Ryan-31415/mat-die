@@ -7,6 +7,7 @@ import ResultScreen from '@/components/game/ResultScreen';
 import SettingsModal from '@/components/game/SettingsModal';
 import ControlsModal from '@/components/game/ControlsModal';
 import { useGameState } from '@/hooks/useGameState';
+import AIDifficultySelect from '@/components/game/AIDifficultySelect';
 
 const Index = () => {
   const {
@@ -24,8 +25,10 @@ const Index = () => {
     selectedMap,
     startGame,
     confirmCharacterSelection,
+    confirmAISettings,
     confirmMapSelection,
     goBackToCharacterSelect,
+    goBackFromMapSelect,
     endRound,
     returnToMenu,
     rematch,
@@ -49,13 +52,21 @@ const Index = () => {
           onConfirm={confirmCharacterSelection}
           onBack={returnToMenu}
           gameMode={gameMode}
+          initialPlayer1={player1Character}
+          initialPlayer2={player2Character}
         />
+      )}
+
+      {screen === 'ai-settings' && gameMode === 'single' && (
+        <AIDifficultySelect settings={settings.ai} automaticTraits={aiSessionRef.current.difficulty?.automaticTraits}
+          onChange={ai => setSettings({ ...settings, ai })} onBack={goBackToCharacterSelect} onConfirm={confirmAISettings} />
       )}
 
       {screen === 'map-select' && (
         <MapSelect
           onConfirm={confirmMapSelection}
-          onBack={goBackToCharacterSelect}
+          onBack={goBackFromMapSelect}
+          backLabel={gameMode === 'single' ? 'AI 난이도 다시 선택' : '캐릭터 다시 선택'}
         />
       )}
 

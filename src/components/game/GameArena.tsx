@@ -11,6 +11,7 @@ import PlatformRenderer from './PlatformRenderer';
 import GameUI from './GameUI';
 import MapEffectsRenderer from './MapEffectsRenderer';
 import type { AILearningSession } from '@/hooks/ai/state';
+import type { AISettings } from '@/types/ai';
 
 interface GameArenaProps {
   player1Character: Character;
@@ -19,6 +20,7 @@ interface GameArenaProps {
     maxRounds: number;
     roundTimeLimit: number;
     soundEnabled: boolean;
+    ai?: AISettings;
   };
   scores: [number, number];
   onRoundEnd: (winner: 1 | 2 | 'draw') => void;
@@ -54,7 +56,9 @@ const GameArena = ({
     isOvertime,
     roundsCompleted + 1,
     mapId,
-    aiSessionRef
+    aiSessionRef,
+    false,
+    settings.ai
   );
 
   const [frozenRoundNumber, setFrozenRoundNumber] = useState(roundsCompleted + 1);

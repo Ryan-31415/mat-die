@@ -5,6 +5,7 @@ import { clampPlayerX, FLOOR_Y, playerMoveSpeed } from '@/types/combatPhysics';
 import { overlapsPlayer, type AIFrame } from './world';
 import { createAIMemory, type AIMemory, type Strategy } from './state';
 import { matchupTactics } from './matchup';
+import { NEUTRAL_AI_TRAITS, type AITraits } from '@/types/ai';
 
 export interface Point { x: number; y: number }
 export const isMelee = (id: CharacterType) => id === 'gladiator' || id === 'ninja' || id === 'reaper';
@@ -93,24 +94,27 @@ function zoneGoal(player: Player, zone: { x: number; y: number; width: number; h
   return { x: clampPlayerX(Math.max(platform.x, Math.min(platform.x + platform.width - PLAYER_SIZE, zone.x + zone.width / 2 - PLAYER_SIZE / 2))), y: platform.y - PLAYER_SIZE };
 }
 
-export function selectGoal(player: Player, opponent: Player, frame: AIFrame, previous?: AIMemory) {
+export function selectGoal(player: Player, opponent: Player, frame: AIFrame, previous?: AIMemory, characterWeight = 1, traits: AITraits = NEUTRAL_AI_TRAITS) {
   const { now, mapId, roundTimeRemaining } = frame.world;
   const memory = { ...(previous ?? createAIMemory(player, now)) };
   const character = player.character!;
   const distance = Math.hypot(player.x - opponent.x, player.y - opponent.y);
-  const low = player.health < player.maxHealth * 0.35;
+  const low = player.health < player.maxHealth * 0.35 * traits.recovery;
   const winningClock = roundTimeRemaining < 12 && player.health > opponent.health + 5;
   let strategy: Strategy = low || winningClock || opponent.isInvulnerable ? 'kite' : distance < character.attackRange ? 'pressure' : 'approach';
   let preferred = isMelee(character.id) ? character.attackRange * 0.65 : character.id === 'hunter' ? player.hunterFocusedDuration ? 240 : 180 : low ? 340 : 270;
+  const genericPreferred = isMelee(character.id) ? character.attackRange * 0.65 : low ? 340 : 270;
   if (strategy === 'kite') preferred = Math.max(330, preferred);
   if (opponent.isFrozen || opponent.rootDuration > 0 || opponent.isStunned) { strategy = 'pressure'; preferred *= 0.8; }
   if (character.id === 'ice-mage' && opponent.freezeGauge >= 3) { strategy = 'pressure'; preferred = 210; }
   const matchup = matchupTactics(player, opponent, frame, preferred, strategy);
-  preferred = matchup.preferred; strategy = matchup.strategy;
-  let target: Point = matchup.flank ?? opponent;
+  preferred = characterWeight === 1 ? matchup.preferred : genericPreferred + (matchup.preferred - genericPreferred) * characterWeight;
+  if (characterWeight >= 0.5) strategy = matchup.strategy;
+  preferred *= traits.spacing;
+  let target: Point = matchup.flank && characterWeight >= 0.5 ? matchup.flank : opponent;
   let direct = false;
   const zoneRisk = (p: Point) => frame.zones.reduce((r, z) => r + (z.ownerId !== player.id ? hazardRisk(p, z) : 0), 0);
-  if (low || player.mana < character.skill.manaCost) {
+  if (traits.recovery > 0 && (low || player.mana < character.skill.manaCost * traits.recovery)) {
     const recovery = frame.souls.map(zone => ({ zone, goal: zoneGoal(player, zone, frame) }))
       .filter(({ zone, goal }) => goal && now + 800 - zone.createdAt < zone.duration && zoneRisk(goal) < 60)
       .sort((a, b) => Math.hypot(a.goal!.x - player.x, a.goal!.y - player.y) - Math.hypot(b.goal!.x - player.x, b.goal!.y - player.y))[0];
@@ -118,14 +122,14 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
       strategy = 'recover'; target = recovery.goal; preferred = 0;
     }
   }
-  if (character.id === 'hacker' && strategy !== 'recover' && strategy !== 'flank') {
+  if (characterWeight >= 0.5 && character.id === 'hacker' && strategy !== 'recover' && strategy !== 'flank') {
     const own = frame.zones.find(z => z.type === 'packet-block-zone' && z.ownerId === player.id && now + 400 - z.createdAt < z.duration);
     const position = own && zoneGoal(player, own, frame);
     if (position && zoneRisk(position) < 60 && Math.abs(position.y - opponent.y) < 80 && Math.abs(position.x - opponent.x) < character.attackRange) {
       target = position; preferred = 0;
     }
   }
-  if (character.id === 'reaper' && !player.isFlying) {
+  if (characterWeight >= 0.5 && character.id === 'reaper' && !player.isFlying) {
     const bat = frame.paths.find(p => p.projectile.ownerId === player.id && p.projectile.type === 'bat');
     if (bat && (bat.projectile.returnPhase === 'returning' || now - bat.projectile.createdAt > bat.projectile.lifetime * 0.25)) {
       if (bat.projectile.returnPhase === 'returning' && (bat.projectile.damageAccumulated > 0 || bat.projectile.hasHitReturn)) {

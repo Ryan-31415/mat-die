@@ -9,6 +9,8 @@ interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
   onBack: () => void;
   gameMode: 'single' | 'multi';
+  initialPlayer1?: Character | null;
+  initialPlayer2?: Character | null;
 }
 
 const characterIcons: Record<CharacterType, React.ReactNode> = {
@@ -126,10 +128,10 @@ const CharacterCard = ({
   );
 };
 
-const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) => {
-  const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1);
-  const [player1Character, setPlayer1Character] = useState<Character | null>(null);
-  const [player2Character, setPlayer2Character] = useState<Character | null>(null);
+const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, initialPlayer2 = null }: CharacterSelectProps) => {
+  const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(initialPlayer2 ? 2 : 1);
+  const [player1Character, setPlayer1Character] = useState<Character | null>(initialPlayer1);
+  const [player2Character, setPlayer2Character] = useState<Character | null>(initialPlayer2);
 
   const characters = Object.values(CHARACTERS);
 
@@ -256,7 +258,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode }: CharacterSelectProps) 
             {gameMode === 'single'
               ? currentPlayer === 1
                 ? 'AI 캐릭터 선택'
-                : '맵 선택'
+                : 'AI 난이도 선택'
               : currentPlayer === 1
                 ? 'P1 선택 완료'
                 : '맵 선택'}

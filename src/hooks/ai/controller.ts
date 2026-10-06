@@ -9,6 +9,8 @@ import { createAIMemory, type AIMemory } from './state';
 import { hazardRisk, isMelee, selectGoal, support } from './navigation';
 import { AI_DT, AI_STEPS, overlapsPlayer, type AIFrame } from './world';
 import { chooseCombat } from './combat';
+import { AI_PRESETS, NEUTRAL_AI_TRAITS, type AIDecisionOptions } from '@/types/ai';
+import { gaussian } from './random';
 
 export type Action = { direction: Direction; jump: boolean; drop: boolean };
 export const emptyAIKeys = (): KeyboardState => ({
@@ -18,13 +20,23 @@ export const emptyAIKeys = (): KeyboardState => ({
 export interface AIDecision { keys: KeyboardState; memory: AIMemory; risk: number }
 
 /** Deterministic: neither the frame, the learning model nor the prior memory is mutated. */
-export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = createOpponentModel(), previous?: AIMemory): AIDecision {
+export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = createOpponentModel(), previous?: AIMemory, options?: AIDecisionOptions): AIDecision {
+  const parameters = options?.parameters ?? AI_PRESETS.perfect;
+  const traits = options?.traits ?? NEUTRAL_AI_TRAITS;
+  const prediction = parameters.prediction / 100;
+  const learning = parameters.learning / 100;
+  if (learning < 1) model = {
+    ...model, samples: Math.floor(model.samples.length * learning) ? model.samples.slice(-Math.floor(model.samples.length * learning)) : [],
+    turnCount: model.turnCount * learning, jumpCadenceCount: model.jumpCadenceCount * learning,
+    reactionCount: model.reactionCount * learning, attackCount: model.attackCount * learning,
+  };
+  if (learning === 0) model = { ...createOpponentModel(), last: model.last, velocityX: model.velocityX };
   const { world } = frame;
   const { platforms, now, mapId, isOvertime } = world;
   const opponent = world.players[player.id === 1 ? 1 : 0];
   const keys = emptyAIKeys();
   if (!player.character || !opponent.character || player.health <= 0 || opponent.health <= 0) return { keys, memory: previous ?? createAIMemory(player, now), risk: 0 };
-  const { goal, memory, strategy } = selectGoal(player, opponent, frame, previous);
+  const { goal, memory, strategy } = selectGoal(player, opponent, frame, previous, parameters.character / 100, traits);
   if (player.isStunned || player.isFrozen) return { keys, memory, risk: 0 };
   const id = player.character.id;
   const toward: Direction = opponent.x >= player.x ? 1 : -1;
@@ -39,12 +51,20 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   const currentPlatform = support(player, platforms);
   const enemyFuture = [{ x: opponent.x, y: opponent.y, confidence: 0 }];
   predictOpponent(model, opponent, AI_STEPS * AI_DT, platforms, now, true, enemyFuture);
+  if (prediction < 1) for (const point of enemyFuture) {
+    point.x = opponent.x + (point.x - opponent.x) * prediction;
+    point.y = opponent.y + (point.y - opponent.y) * prediction;
+  }
   const targetCache = new Map<number, ReturnType<typeof predictOpponent>>();
   const targetAt = (time: number) => {
     const tick = Math.round(time * 60);
     if (tick >= 0 && tick < enemyFuture.length) return enemyFuture[tick];
     let result = targetCache.get(tick);
-    if (!result) { result = predictOpponent(model, opponent, tick / 60, platforms, now, true); targetCache.set(tick, result); }
+    if (!result) {
+      result = predictOpponent(model, opponent, tick / 60, platforms, now, true);
+      if (prediction < 1) result = { ...result, x: opponent.x + (result.x - opponent.x) * prediction, y: opponent.y + (result.y - opponent.y) * prediction };
+      targetCache.set(tick, result);
+    }
     return result;
   };
   function evaluate(action: Action) {
@@ -57,6 +77,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     const hits = new Uint8Array(paths.length);
     if (action.drop && currentPlatform?.type === 'one-way' && !player.isJumping) { point.y += 25; vy = 300; }
     for (let step = 1; step <= AI_STEPS; step++) {
+      const priorRisk = risk;
       const dt = step === 1 ? Math.min(0.05, Math.max(0.001, world.deltaTime / 1000)) : AI_DT;
       elapsed += dt;
       const flying = player.isFlying && elapsed * 1000 < player.invulnerableDuration;
@@ -77,7 +98,8 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       }
       if (world.sandstormActive && elapsed * 1000 < world.sandstormTimer) kx += sandstormImpulse(now + elapsed * 1000, dt, world.sandstormDirection);
       travelCost += (Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y) * 1.3) / AI_STEPS;
-      if (mapId === 'volcano' && point.y >= FLOOR_Y - 1 && !invulnerable) risk += 1600 / AI_STEPS;
+      const lavaRisk = mapId === 'volcano' && point.y >= FLOOR_Y - 1 && !invulnerable ? 1600 / AI_STEPS : 0;
+      risk += lavaRisk;
       if (!invulnerable) {
         risk += opponentLineRisk(opponent, point, enemyFuture[step], elapsed, now) / AI_STEPS;
         for (const zone of zones) if (now + elapsed * 1000 - zone.createdAt <= zone.duration) risk += hazardRisk(point, zone) / AI_STEPS;
@@ -100,13 +122,16 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
           }
         }
       }
-      for (const zone of frame.souls) if (now + elapsed * 1000 - zone.createdAt <= zone.duration && overlapsPlayer(point, zone)) benefit += ((1 - player.health / player.maxHealth) * 14 + (1 - player.mana / player.maxMana) * 6) / AI_STEPS;
+      // Immediate threats remain perceptible even when future prediction is disabled.
+      if (step > 1 && prediction < 1) risk = priorRisk + lavaRisk + (risk - priorRisk - lavaRisk) * prediction;
+      for (const zone of frame.souls) if (now + elapsed * 1000 - zone.createdAt <= zone.duration && overlapsPlayer(point, zone)) benefit += ((1 - player.health / player.maxHealth) * 14 + (1 - player.mana / player.maxMana) * 6) * traits.recovery / AI_STEPS;
       const shieldFront = opponent.isShielding && (point.x - enemyFuture[step].x) * (opponent.facingRight ? 1 : -1) > 0;
-      if (!opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - enemyFuture[step].y) < 30 && Math.abs(point.x - enemyFuture[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * 1.3 / AI_STEPS;
+      if (!opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - enemyFuture[step].y) < 30 && Math.abs(point.x - enemyFuture[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * 1.3 * traits.aggression / AI_STEPS;
       if (mapId === 'graveyard') risk += Math.max(0, FLOOR_Y - point.y) / 4000 / AI_STEPS;
     }
     if (mapId === 'volcano' && !player.isFlying && vy > 0 && !platforms.some(p => p.id !== 'ground' && p.y >= point.y + PLAYER_SIZE && point.x + PLAYER_SIZE > p.x && point.x < p.x + p.width)) risk += 130;
-    return { action, risk, score: risk * (lowHealth ? 1.4 : 1) + travelCost * (strategy === 'escape' || strategy === 'flank' ? 0.28 : 0.16) - benefit + (action.jump ? 7 : 0) + (action.drop ? 3 : 0) + (action.direction ? 0.5 : 0) };
+    const noise = parameters.noise > 0 && options ? gaussian(options.random) * parameters.noise : 0;
+    return { action, risk, score: risk * (lowHealth ? 1.4 : 1) * traits.defense + travelCost * (strategy === 'escape' || strategy === 'flank' ? 0.28 : 0.16) - benefit + (action.jump ? 7 : 0) + (action.drop ? 3 : 0) + (action.direction ? 0.5 : 0) + noise };
   }
   const candidates: Action[] = [];
   for (const direction of [0, -1, 1] as Direction[]) {
@@ -127,9 +152,12 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     const turn = evaluated.find(c => c.action.direction === toward && c.action.jump === chosen.jump && c.action.drop === chosen.drop)!;
     if (turn.risk <= best.risk + 1) { chosen.direction = toward; facingTarget = true; }
   }
-  const combat = chooseCombat(frame, player, opponent, model, chosen, facingTarget, threatened, strategy, targetAt, allowLongRange);
-  const direction = player.isHacked ? -chosen.direction : chosen.direction;
-  const jump = player.isHacked ? chosen.drop : chosen.jump, drop = player.isHacked ? chosen.jump : chosen.drop;
+  const combat = chooseCombat(frame, player, opponent, model, chosen, facingTarget, threatened, strategy, targetAt, allowLongRange, options);
+  // This status comes from the matured observation. Failed adaptation uses familiar
+  // controls again on this decision, allowing lower tiers to make repeated mistakes.
+  const compensate = player.isHacked && (parameters.controlAdaptation === 100 || (options?.random() ?? 0) < parameters.controlAdaptation / 100);
+  const direction = compensate ? -chosen.direction : chosen.direction;
+  const jump = compensate ? chosen.drop : chosen.jump, drop = compensate ? chosen.jump : chosen.drop;
   if (player.id === 2) {
     keys.arrowLeft = direction < 0; keys.arrowRight = direction > 0; keys.arrowUp = jump; keys.arrowDown = drop;
     keys.shift = combat.attack; keys.enter = combat.skill; keys.backslash = combat.ultimate;

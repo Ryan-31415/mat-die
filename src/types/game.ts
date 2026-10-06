@@ -1,6 +1,7 @@
+import { createAISettings, type AISettings } from './ai';
 // Game Types and Interfaces
 
-export type GameScreen = 'menu' | 'character-select' | 'map-select' | 'game' | 'result';
+export type GameScreen = 'menu' | 'character-select' | 'ai-settings' | 'map-select' | 'game' | 'result';
 
 export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage' | 'hacker';
 
@@ -139,6 +140,7 @@ export interface GameSettings {
   roundTimeLimit: number;
   soundEnabled: boolean;
   gameMode: GameMode;
+  ai: AISettings;
 }
 
 // Character Definitions
@@ -405,6 +407,7 @@ export const PLAYER_SIZE = 40;
 
 // Default game settings
 export const DEFAULT_SETTINGS: GameSettings = {
+  ai: createAISettings(),
   maxRounds: 3,
   roundTimeLimit: 60,
   soundEnabled: true,

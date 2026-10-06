@@ -6,9 +6,12 @@ import { hazardRisk, isMelee, type Point } from './navigation';
 import type { Direction, OpponentModel } from './learning';
 import type { Strategy } from './state';
 import type { Action } from './controller';
+import { NEUTRAL_AI_TRAITS, type AIDecisionOptions } from '@/types/ai';
 
 export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, model: OpponentModel, chosen: Action,
-  facingTarget: boolean, threatened: boolean, strategy: Strategy, targetAt: (time: number) => Point, allowLongRange = false) {
+  facingTarget: boolean, threatened: boolean, strategy: Strategy, targetAt: (time: number) => Point, allowLongRange = false, options?: AIDecisionOptions) {
+  const traits = options?.traits ?? NEUTRAL_AI_TRAITS;
+  const understanding = (options?.parameters.character ?? 100) / 100;
   const { now, platforms, mapId } = frame.world;
   const character = player.character!, id = character.id;
   const dx = opponent.x - player.x, dy = opponent.y - player.y, distance = Math.hypot(dx, dy);
@@ -18,6 +21,7 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   const warnings = frame.world.lightningStrikes.filter(s => !s.struck && now - s.warningStart <= 1500);
   const targetVulnerable = !opponent.isInvulnerable && !opponent.isEvading;
   const shieldFacingUs = shieldFacesX(opponent, player.x + PLAYER_SIZE / 2);
+  let castingPreference = 1;
   const canHit = (speed: number, vertical = 0, gravity = 0, tolerance = 30, range = character.attackRange, breakVine = false, reflectable = true, lifetime = DEFAULT_PROJECTILE_LIFETIME_MS) => {
     let time = Math.max(0, Math.abs(dx) - PLAYER_SIZE / 2) / speed;
     let target = targetAt(time);
@@ -27,7 +31,7 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
     const effectiveRange = allowLongRange && !isMelee(id) ? Infinity : range;
     if (Math.abs(target.x - player.x) > effectiveRange + PLAYER_SIZE / 2 || Math.sign(target.x - player.x) !== toward) return false;
     const shotY = player.y + PLAYER_SIZE / 2 + vertical * time + gravity * time * time / 2;
-    if (Math.abs(shotY - target.y - PLAYER_SIZE / 2) >= tolerance) return false;
+    if (Math.abs(shotY - target.y - PLAYER_SIZE / 2) >= tolerance * (0.6 + 0.4 * castingPreference)) return false;
     let before = { x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 };
     for (let t = AI_DT; t <= time + AI_DT; t += AI_DT) {
       const at = Math.min(t, time);
@@ -79,24 +83,29 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   }
   let skill = false, ultimate = false;
   const canCast = !player.isSilenced && !player.isClone;
-  if (canCast && player.mana >= character.ultimate.manaCost && !player.isChargingSkill && targetVulnerable) {
+  castingPreference = traits.ultimate;
+  if (canCast && traits.ultimate > 0 && player.mana >= character.ultimate.manaCost && !player.isChargingSkill && targetVulnerable) {
+    const eagerDistance = distance / Math.max(0.25, traits.ultimate);
     switch (id) {
-      case 'gladiator': ultimate = player.buffDuration <= 0 && (distance < 240 || (lowHealth && threatened)); break;
+      case 'gladiator': ultimate = player.buffDuration <= 0 && (eagerDistance < 240 || (lowHealth && threatened)); break;
       case 'archer': ultimate = !(player.archerBurstRemaining > 0) && facingTarget && !shieldFacingUs && canHit(1000, -80, 190, 65, 650); break;
-      case 'mage': ultimate = player.mageUltimateDuration <= 0 && distance < 420; break;
-      case 'ninja': ultimate = !player.isInvisible && (distance < 350 || threatened); break;
-      case 'scientist': ultimate = distance < 200 && !frame.zones.some(z => z.ownerId === player.id && z.type === 'tesla-coil'); break;
-      case 'hunter': ultimate = (player.hunterFocusedDuration ?? 0) <= 0 && Math.abs(dy) < 65 && distance < 340; break;
-      case 'reaper': ultimate = !player.isFlying && (distance < 300 || (lowHealth && threatened)); break;
+      case 'mage': ultimate = player.mageUltimateDuration <= 0 && eagerDistance < 420; break;
+      case 'ninja': ultimate = !player.isInvisible && (eagerDistance < 350 || threatened); break;
+      case 'scientist': ultimate = eagerDistance < 200 && !frame.zones.some(z => z.ownerId === player.id && z.type === 'tesla-coil'); break;
+      case 'hunter': ultimate = (player.hunterFocusedDuration ?? 0) <= 0 && Math.abs(dy) < 65 && eagerDistance < 340; break;
+      case 'reaper': ultimate = !player.isFlying && (eagerDistance < 300 || (lowHealth && threatened)); break;
       case 'ice-mage': ultimate = facingTarget && !shieldFacingUs && canHit(600, -100, 600, 100, 450); break;
-      case 'hacker': ultimate = !opponent.isHacked && distance < 600; break;
+      case 'hacker': ultimate = !opponent.isHacked && eagerDistance < 600; break;
     }
   }
-  if (canCast && !ultimate && player.mana >= character.skill.manaCost && player.skillCooldownRemaining <= 0) {
+  if (ultimate && options && options.random() > Math.min(1, traits.ultimate * (0.5 + understanding * 0.5))) ultimate = false;
+  const reservedMana = character.skill.manaCost * Math.max(1, traits.recovery / Math.max(0.25, traits.skill));
+  castingPreference = traits.skill;
+  if (canCast && !ultimate && (traits.skill > 0 || player.isChargingSkill) && player.mana >= reservedMana && player.skillCooldownRemaining <= 0) {
     switch (id) {
       case 'gladiator': {
         const learnedAttackSoon = model.attackCount >= 2 && model.lastAttackAt !== undefined && now - model.lastAttackAt > model.attackInterval - 180;
-        skill = player.mana >= 5 && facingTarget && (threatened || (isMelee(opponent.character!.id) && distance < 140 && (opponent.attackCooldownRemaining < 180 || learnedAttackSoon)));
+        skill = traits.defense > 0 && player.mana >= 5 && facingTarget && (threatened || (isMelee(opponent.character!.id) && distance < 140 * traits.defense && (opponent.attackCooldownRemaining < 180 || learnedAttackSoon)));
         break;
       }
       case 'archer': skill = player.poisonArrowsRemaining === 0 && targetVulnerable && canHit(1000, -80, 190, 50, 650); break;
@@ -104,14 +113,14 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
         const fallTime = Math.max(0, opponent.y - 21) / 750;
         const landing = targetAt(fallTime);
         const blocked = frame.vines.some(v => v.x < opponent.x + PLAYER_SIZE / 2 + 21 && v.x + v.width > opponent.x + PLAYER_SIZE / 2 - 21 && v.y < landing.y && now + fallTime * 1000 - v.createdAt <= v.duration);
-        skill = targetVulnerable && !blocked && Math.abs(landing.x - opponent.x) < (opponent.isFrozen || opponent.rootDuration > 0 ? 80 : 48);
+        skill = targetVulnerable && !blocked && Math.abs(landing.x - opponent.x) < (opponent.isFrozen || opponent.rootDuration > 0 ? 80 : 48) * (0.5 + 0.5 * traits.skill);
         break;
       }
       case 'ninja': {
         const direction = strategy === 'escape' ? chosen.direction : toward;
         const landing = { x: clampPlayerX(player.x + direction * NINJA_DASH_DISTANCE), y: player.y };
         const safe = mapId !== 'volcano' || platforms.some(p => p.id !== 'ground' && landing.x + PLAYER_SIZE > p.x && landing.x < p.x + p.width && p.y >= landing.y + PLAYER_SIZE && p.y < FLOOR_Y);
-        skill = !!direction && safe && (strategy === 'escape' || (facingTarget && Math.abs(dy) < 65 && Math.abs(dx) > 190 && Math.abs(dx) < 460)) && zones.every(z => !hazardRisk(landing, z)) && warnings.every(s => Math.abs(landing.x + PLAYER_SIZE / 2 - s.x) >= 55);
+        skill = !!direction && safe && (strategy === 'escape' || (facingTarget && Math.abs(dy) < 65 && Math.abs(dx) > 190 / (0.5 + 0.5 * traits.skill) && Math.abs(dx) < 460)) && zones.every(z => !hazardRisk(landing, z)) && warnings.every(s => Math.abs(landing.x + PLAYER_SIZE / 2 - s.x) >= 55);
         if (skill) chosen.direction = direction;
         break;
       }
@@ -125,8 +134,11 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
       case 'hunter': skill = facingTarget && targetVulnerable && !shieldFacingUs && !(opponent.isMarked && opponent.markOwnerId === player.id) && canHit(750, -115, 360, 55, 500, false, false); break;
       case 'reaper': skill = facingTarget && targetVulnerable && !shieldFacingUs && !frame.paths.some(p => p.projectile.ownerId === player.id && p.projectile.type === 'bat') && canHit(550, 0, 0, 55, 550, false, false); break;
       case 'ice-mage': skill = facingTarget && targetVulnerable && !shieldFacingUs && canHit(920, 0, 0, 65, 600); break;
-      case 'hacker': skill = Math.abs(dy) < 130 && Math.abs(dx) < 430 && !frame.zones.some(z => z.ownerId === player.id && z.type === 'packet-block-zone') && facingTarget; break;
+      case 'hacker': skill = Math.abs(dy) < 130 && Math.abs(dx) < 430 * (0.5 + 0.5 * traits.skill) && !frame.zones.some(z => z.ownerId === player.id && z.type === 'packet-block-zone') && facingTarget; break;
     }
   }
+  // Held defense/charge inputs must not flicker just because a new decision was sampled.
+  if (skill && !player.isChargingSkill && !player.isShielding && options && options.random() > Math.min(1, traits.skill * (0.5 + understanding * 0.5))) skill = false;
+  if (attack && traits.aggression < 1 && options && options.random() > traits.aggression) attack = false;
   return { attack, skill, ultimate };
 }

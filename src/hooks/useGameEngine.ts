@@ -8,6 +8,8 @@ import { decideAI, emptyAIKeys, prepareAIFrame } from './gameAI';
 import { observeOpponent } from './ai/learning';
 import { createCombatDiagnostics, nextCombatDiagnostics, recordHit, type CombatDiagnostics } from './ai/diagnostics';
 import { activeVine } from './ai/world';
+import { createDifficultyRuntime, createDifficultySession, stepDifficulty } from './ai/difficulty';
+import type { AISettings } from '@/types/ai';
 import { createAIRoundState, resetAILearningObservations, type AILearningSession, type AIRoundState } from './ai/state';
 import { advanceProjectile, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, platformCollision, playerMoveSpeed, sandstormImpulse, shieldFacesX, VINE_FADE_MS } from '@/types/combatPhysics';
 
@@ -80,10 +82,12 @@ export const useGameEngine = (
   roundNumber: number = 1,
   mapId: MapId = 'default',
   learningSessionRef?: React.MutableRefObject<AILearningSession>,
-  collectDiagnostics = false
+  collectDiagnostics = false,
+  aiSettings?: AISettings
 ) => {
   const map = MAPS[mapId];
   const now0 = Date.now();
+  const [initialDifficultySession] = useState(() => gameMode === 'single' && aiSettings ? learningSessionRef?.current.difficulty ?? createDifficultySession() : undefined);
 
   const createInitialEngineState = useCallback((): GameEngineState => {
     const players: [Player, Player] = [
@@ -108,7 +112,10 @@ export const useGameEngine = (
     }
 
     return {
-      aiState: createAIRoundState(learningSessionRef?.current),
+      aiState: {
+        ...createAIRoundState(learningSessionRef?.current),
+        ...(initialDifficultySession ? { difficulty: createDifficultyRuntime(initialDifficultySession) } : {}),
+      },
       diagnostics: collectDiagnostics ? createCombatDiagnostics() : undefined,
       players,
       clones: [],
@@ -136,7 +143,7 @@ export const useGameEngine = (
       lastLavaDamage: [0, 0],
       fallingLeaves: [],
     };
-  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId, map, learningSessionRef, collectDiagnostics]);
+  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId, map, learningSessionRef, collectDiagnostics, initialDifficultySession]);
 
   const [gameState, setGameState] = useState<GameEngineState>(createInitialEngineState);
 
@@ -1365,15 +1372,19 @@ export const useGameEngine = (
 
 
       // Get player 2 keys from AI or keyboard
-      const needsAI = gameMode === 'single' || prev.clones.length > 0;
-      const aiFrame = needsAI ? prepareAIFrame({ ...prev, mapId, now, deltaTime }) : null;
-      const learning = needsAI ? { opponents: {
+      const needsUnrestrictedAI = (gameMode === 'single' && !aiSettings) || prev.clones.length > 0;
+      const aiFrame = needsUnrestrictedAI ? prepareAIFrame({ ...prev, mapId, now, deltaTime }) : null;
+      const learning: AILearningSession = needsUnrestrictedAI ? { ...prev.aiState.learning, opponents: {
         1: observeOpponent(prev.aiState.learning.opponents[1], prev.players[0], prev.players[1], now),
         2: observeOpponent(prev.aiState.learning.opponents[2], prev.players[1], prev.players[0], now),
-      } } : prev.aiState.learning;
+      } } : { ...prev.aiState.learning };
       const controllers: AIRoundState['controllers'] = {};
-      const p2Decision = gameMode === 'single' && aiFrame ? decideAI(aiFrame, prev.players[1], learning.opponents[1], prev.aiState.controllers.player2) : null;
-      if (p2Decision) controllers.player2 = p2Decision.memory;
+      const difficulty = gameMode === 'single' && aiSettings && prev.aiState.difficulty
+        ? stepDifficulty({ ...prev, mapId, now, deltaTime }, aiSettings, prev.aiState.difficulty) : undefined;
+      if (difficulty) learning.difficulty = difficulty.session;
+      const p2Decision = difficulty ? { keys: difficulty.keys, memory: difficulty.memory }
+        : gameMode === 'single' && aiFrame ? decideAI(aiFrame, prev.players[1], learning.opponents[1], prev.aiState.controllers.player2) : null;
+      if (p2Decision?.memory) controllers.player2 = p2Decision.memory;
       const p2Keys = p2Decision?.keys ?? p1Keys;
 
       // Update players
@@ -2702,7 +2713,7 @@ export const useGameEngine = (
       return {
         ...prev,
         players,
-        aiState: { learning, controllers },
+        aiState: { learning, controllers, ...(difficulty ? { difficulty } : {}) },
         diagnostics,
         clones: nextClones,
         projectiles,
@@ -2744,7 +2755,10 @@ export const useGameEngine = (
     pausedAtRef.current = null;
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
-    setGameState(prev => ({ ...createInitialEngineState(), aiState: createAIRoundState(prev.aiState.learning) }));
+    setGameState(prev => ({ ...createInitialEngineState(), aiState: {
+      ...createAIRoundState(prev.aiState.learning),
+      ...(prev.aiState.difficulty ? { difficulty: createDifficultyRuntime(prev.aiState.difficulty.session) } : {}),
+    } }));
   }, [createInitialEngineState]);
 
   const togglePause = useCallback(() => {

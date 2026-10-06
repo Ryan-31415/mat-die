@@ -8,6 +8,7 @@ import { Mountain, Skull, TreePine, Flame, Swords, Dices } from 'lucide-react';
 interface MapSelectProps {
   onConfirm: (mapId: MapId) => void;
   onBack: () => void;
+  backLabel?: string;
 }
 
 const mapIcons: Record<MapId, React.ReactNode> = {
@@ -75,7 +76,7 @@ const MapCard = ({
   </Card>
 );
 
-const MapSelect = ({ onConfirm, onBack }: MapSelectProps) => {
+const MapSelect = ({ onConfirm, onBack, backLabel = '캐릭터 다시 선택' }: MapSelectProps) => {
   const [selectedMap, setSelectedMap] = useState<MapId>('default');
   const maps = Object.values(MAPS);
 
@@ -105,7 +106,7 @@ const MapSelect = ({ onConfirm, onBack }: MapSelectProps) => {
 
         <div className="flex justify-center gap-4">
           <Button variant="outline" size="lg" onClick={onBack}>
-            캐릭터 다시 선택
+            {backLabel}
           </Button>
           <Button size="lg" variant="secondary" onClick={handleRandom} className="gap-2">
             <Dices className="h-5 w-5" />

@@ -1,5 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { createAILearningSession } from './ai/state';
+import { createDifficultySession } from './ai/difficulty';
+import { loadAISettings, saveAISettings } from '@/types/ai';
 import {
   GameScreen,
   GameSettings,
@@ -11,7 +13,8 @@ import { MapId } from '@/types/map';
 export const useGameState = () => {
   const aiSessionRef = useRef(createAILearningSession());
   const [screen, setScreen] = useState<GameScreen>('menu');
-  const [settings, setSettings] = useState<GameSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<GameSettings>(() => ({ ...DEFAULT_SETTINGS, ai: loadAISettings() }));
+  useEffect(() => { saveAISettings(settings.ai); }, [settings.ai]);
   const [player1Character, setPlayer1Character] = useState<Character | null>(null);
   const [player2Character, setPlayer2Character] = useState<Character | null>(null);
   const [scores, setScores] = useState<[number, number]>([0, 0]);
@@ -26,7 +29,7 @@ export const useGameState = () => {
   }, []);
 
   const startGame = useCallback((mode: 'single' | 'multi') => {
-    aiSessionRef.current = createAILearningSession();
+    aiSessionRef.current = { ...createAILearningSession(), ...(mode === 'single' ? { difficulty: createDifficultySession() } : {}) };
     setGameMode(mode);
     setPlayer1Character(null);
     setPlayer2Character(null);
@@ -53,8 +56,13 @@ export const useGameState = () => {
     setPlayer2Character(p2);
     setIsOvertime(false);
     setRoundsCompleted(0);
-    goToScreen('map-select');
-  }, [goToScreen]);
+    goToScreen(gameMode === 'single' ? 'ai-settings' : 'map-select');
+  }, [goToScreen, gameMode]);
+
+  const confirmAISettings = useCallback(() => { goToScreen('map-select'); }, [goToScreen]);
+  const goBackFromMapSelect = useCallback(() => {
+    goToScreen(gameMode === 'single' ? 'ai-settings' : 'character-select');
+  }, [gameMode, goToScreen]);
 
   const confirmMapSelection = useCallback((mapId: MapId) => {
     setSelectedMap(mapId);
@@ -134,8 +142,10 @@ export const useGameState = () => {
     startGame,
     selectCharacter,
     confirmCharacterSelection,
+    confirmAISettings,
     confirmMapSelection,
     goBackToCharacterSelect,
+    goBackFromMapSelect,
     endRound,
     returnToMenu,
     rematch,
