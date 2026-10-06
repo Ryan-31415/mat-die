@@ -1,3 +1,4 @@
+import type { AILearningParameters } from '@/types/ai';
 import { JUMP_FORCE, type Platform } from '@/types/platform';
 import { PLAYER_SIZE, type Player } from '@/types/game';
 import { clampPlayerX, fallStep, playerMoveSpeed } from '@/types/combatPhysics';
@@ -40,7 +41,7 @@ export function resetObservation(model: OpponentModel): OpponentModel {
   return { ...model, last: undefined, samples: [], velocityX: 0, lastAttackAt: undefined, lastTurnAt: undefined, lastJumpAt: undefined, reactionAt: undefined };
 }
 
-export function observeOpponent(model: OpponentModel, player: Player, observer: Player, now: number): OpponentModel {
+export function observeOpponent(model: OpponentModel, player: Player, observer: Player, now: number, options?: AILearningParameters): OpponentModel {
   if (model.last?.time === now) return model;
   const last = model.last;
   const dt = last ? (now - last.time) / 1000 : 0;
@@ -57,9 +58,9 @@ export function observeOpponent(model: OpponentModel, player: Player, observer: 
     observerCooldown: observer.attackCooldownRemaining, observerX: observer.x, knockbackX: player.knockbackVelocityX, disabled,
   };
   if (!continuous) return { ...resetObservation(model), last: observation };
-  const decay = Math.pow(0.5, dt / 10);
+  const decay = Math.pow(0.5, dt * 1000 / (options?.halfLifeMs ?? 10000));
   const next: OpponentModel = {
-    ...model, last: observation, velocityX: vx * 0.8 + model.velocityX * 0.2,
+    ...model, samples: model.samples.filter(s => now - s.time <= (options?.memoryMs ?? 8000)), last: observation, velocityX: vx * 0.8 + model.velocityX * 0.2,
     transitions: model.transitions.map(n => n * decay), jumpCount: model.jumpCount * decay,
     groundedCount: model.groundedCount * decay, attackCount: model.attackCount * decay,
     jumpCadenceCount: model.jumpCadenceCount * decay,
@@ -67,8 +68,8 @@ export function observeOpponent(model: OpponentModel, player: Player, observer: 
     reactionJump: model.reactionJump * decay, reactionAway: model.reactionAway * decay,
   };
   // At most 20 statistical observations per second, with a hard memory bound.
-  if (!model.samples.length || now - model.samples[model.samples.length - 1].time >= 50) {
-    next.samples = [...model.samples.filter(s => now - s.time <= 8000), observation].slice(-160);
+  if (!model.samples.length || now - model.samples[model.samples.length - 1].time >= (options?.sampleIntervalMs ?? 50)) {
+    next.samples = [...next.samples, observation].slice(-(options ? 600 : 160));
     next.transitions[(last.direction + 1) * 3 + direction + 1]++;
     if (player.isGrounded) next.groundedCount++;
   }

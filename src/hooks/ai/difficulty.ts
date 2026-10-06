@@ -1,4 +1,4 @@
-import { AI_TRAIT_LABELS, NEUTRAL_AI_TRAITS, type AISettings, type AITraits, type AITrait } from '@/types/ai';
+import { AI_TRAIT_LABELS, AI_INPUT_LABELS, NEUTRAL_AI_TRAITS, type AISettings, type AITraits, type AITrait, type AIInputKey } from '@/types/ai';
 import type { KeyboardState } from '../useKeyboard';
 import { decideAI, emptyAIKeys } from './controller';
 import { createOpponentModel, observeOpponent, resetObservation, type OpponentModel } from './learning';
@@ -69,7 +69,7 @@ export function stepDifficulty(world: AIWorld, settings: AISettings, previous: D
   let lastObservedAt = previous.lastObservedAt;
   let observationsTaken = previous.observationsTaken;
   if (activeTime - lastObservedAt >= parameters.observationInterval) {
-    const sample = perceiveWorld(world, parameters, perception, activeTime);
+    const sample = perceiveWorld(world, parameters, perception, activeTime, rng.next);
     perception = sample.memory;
     const delay = parameters.reactionMin + rng.next() * (parameters.reactionMax - parameters.reactionMin);
     const readyAt = Math.max(activeTime + delay, observations[observations.length - 1]?.readyAt ?? 0);
@@ -83,16 +83,25 @@ export function stepDifficulty(world: AIWorld, settings: AISettings, previous: D
     const sample = observations.shift();
     latest = sample.world;
     // Only matured observations teach P2; clone learning is never used here.
-    model = observeOpponent(model, latest.players[0], latest.players[1], latest.now);
+    model = observeOpponent(model, latest.players[0], latest.players[1], latest.now, parameters.learningOptions);
   }
   let memory = previous.memory;
   let decisionsMade = previous.decisionsMade;
   if (latest) {
-    const decision = decideAI(prepareAIFrame(latest), latest.players[1], model, memory, { parameters, traits: resolveTraits(settings, previous.session), random: rng.next });
+    const forecasts = parameters.prediction > 0 ? parameters.forecasts : {
+      opponent: { ...parameters.forecasts.opponent, horizonMs: 0 },
+      projectiles: { ...parameters.forecasts.projectiles, horizonMs: 0 },
+      environment: { ...parameters.forecasts.environment, horizonMs: 0 },
+    };
+    const decision = decideAI(prepareAIFrame(latest, { forecasts, random: rng.next }), latest.players[1], model, memory, { parameters, traits: resolveTraits(settings, previous.session), random: rng.next });
     memory = decision.memory;
     decisionsMade++;
-    const precision = (parameters.precisionMin + rng.next() * (parameters.precisionMax - parameters.precisionMin)) / 100;
     inputGroups.forEach((group, index) => {
+      const kind = (Object.keys(AI_INPUT_LABELS) as AIInputKey[])[index];
+      const input = parameters.inputs[kind];
+      const min = input.useCommonPrecision ? parameters.precisionMin : input.precisionMin;
+      const max = input.useCommonPrecision ? parameters.precisionMax : input.precisionMax;
+      const precision = (min + rng.next() * (max - min)) / 100;
       const pending = inputs.find(i => i.group === index);
       if (pending && group.every(key => pending.values[key] === decision.keys[key])) return;
       inputs = inputs.filter(i => i.group !== index);
@@ -100,7 +109,8 @@ export function stepDifficulty(world: AIWorld, settings: AISettings, previous: D
       if (precision < 1 && rng.next() >= precision) return;
       const values: Partial<KeyboardState> = {};
       group.forEach(key => { values[key] = decision.keys[key]; });
-      inputs.push({ group: index, readyAt: activeTime + (precision === 1 ? 0 : rng.next() * 100 * (1 - precision)), values });
+      const delayMaxMs = input.useCommonDelay ? parameters.inputDelayMaxMs : input.delayMaxMs;
+      inputs.push({ group: index, readyAt: activeTime + (delayMaxMs > 0 ? rng.next() * delayMaxMs : 0), values });
     });
     inputs = flushInputs(inputs, keys, activeTime);
   }

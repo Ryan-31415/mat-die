@@ -9,6 +9,8 @@ import { createOpponentModel } from './learning';
 import { createPerceptionMemory, perceiveWorld } from './perception';
 import { prepareAIFrame, type AIWorld } from './world';
 import { seededRandom } from './random';
+import { estimateNumber } from './estimation';
+import { forecastPoint, forecastTime, sampleForecastError } from './forecast';
 
 function world(character: CharacterType = 'mage', map: MapId = 'wasteland'): AIWorld {
   return {
@@ -71,13 +73,13 @@ describe('perception information boundaries', () => {
   it('honors information switches even with exact internal data', () => {
     const w = world(); w.projectiles = [projectile()]; w.hazardZones = [trap()];
     w.players = [{ ...w.players[0], health: 1, mana: 1, isHacked: true, skillCooldownRemaining: 1000 }, w.players[1]];
-    const parameters = { ...AI_PRESETS.perfect, information: { resources: false, cooldowns: false, statuses: false, projectiles: false, hazards: false, environment: false } };
+    const parameters = { ...AI_PRESETS.perfect, information: { health: false, mana: false, attackCooldowns: false, skillCooldowns: false, statuses: false, statusTimers: false, projectiles: false, meleeHitboxes: false, hazards: false, wind: false, lightning: false, recoveryZones: false, vines: false } };
     const observation = perceiveWorld(w, parameters, createPerceptionMemory()).world;
     expect(observation.players[0]).toMatchObject({ health: CHARACTERS.gladiator.maxHealth, mana: 100, isHacked: false, skillCooldownRemaining: 0 });
     expect([observation.projectiles, observation.hazardZones, observation.attackHitboxes, observation.lightningStrikes, observation.vineShields]).toEqual([[], [], [], [], []]);
   });
   it('forgets temporary memories after three seconds from the last sighting without learning hidden changes', () => {
-    const parameters = { ...AI_PRESETS.hard, hidden: 'temporary' as const };
+    const parameters = { ...AI_PRESETS.hard, hidden: 'temporary' as const, hiddenMemoryMs: 3000 };
     const w = { ...world(), hazardZones: [trap()] };
     const first = perceiveWorld(w, parameters, createPerceptionMemory());
     const refreshed = perceiveWorld({ ...w, now: 10500 }, parameters, first.memory);
@@ -92,7 +94,7 @@ describe('perception information boundaries', () => {
     expect(perceiveWorld(visibleAgain, parameters, forgotten.memory).world.hazardZones[0].x).toBe(700);
   });
   it('uses the active observation clock for temporary memory while wall time is paused', () => {
-    const parameters = { ...AI_PRESETS.hard, hidden: 'temporary' as const };
+    const parameters = { ...AI_PRESETS.hard, hidden: 'temporary' as const, hiddenMemoryMs: 3000 };
     const observed = perceiveWorld({ ...world(), hazardZones: [trap()] }, parameters, createPerceptionMemory(), 100);
     const hidden = { ...world(), now: 18000, hazardZones: [] };
     expect(perceiveWorld(hidden, parameters, observed.memory, 200).world.hazardZones).toHaveLength(1);
@@ -215,4 +217,170 @@ describe('difficulty scheduling and compatibility', () => {
       expect(resolveTraits(settings, runtime.session)).toEqual(NEUTRAL_AI_TRAITS);
     }
   });
+});
+
+describe('granular AI controls', () => {
+  it.each(['none', 'visible', 'temporary', 'remembered', 'all'] as const)('enforces %s trap access independently of exact numerical groups', hidden => {
+    const p = createAISettings('perfect').parameters;
+    p.hidden = hidden; p.hiddenMemoryMs = 100;
+    const first = perceiveWorld({ ...world(), hazardZones: [trap()] }, p, createPerceptionMemory(), 0);
+    expect(first.world.hazardZones).toHaveLength(hidden === 'none' ? 0 : 1);
+    const hiddenWorld = { ...world(), now: 12000, hazardZones: [trap({ x: 700 })] };
+    const next = perceiveWorld(hiddenWorld, p, first.memory, 50);
+    expect(next.world.hazardZones).toHaveLength(hidden === 'none' || hidden === 'visible' ? 0 : 1);
+    if (next.world.hazardZones.length) expect(next.world.hazardZones[0].x).toBe(hidden === 'all' ? 700 : 300);
+    expect(perceiveWorld(hiddenWorld, p, next.memory, 100).world.hazardZones).toHaveLength(hidden === 'temporary' || hidden === 'none' || hidden === 'visible' ? 0 : 1);
+  });
+  it('expires remembered traps on the active clock, without reading unseen removals', () => {
+    const p = createAISettings('hard').parameters;
+    p.estimation.durations = { mode: 'estimated', errorPercent: 0, rounding: 0 };
+    const first = perceiveWorld({ ...world(), hazardZones: [trap()] }, p, createPerceptionMemory(), 100);
+    expect(perceiveWorld({ ...world(), now: 90000, hazardZones: [] }, p, first.memory, 200).memory.traps).toHaveLength(1);
+    expect(perceiveWorld({ ...world(), now: 90000, hazardZones: [] }, p, first.memory, 10100).memory.traps).toEqual([]);
+  });
+  it('does not grant unseen attack access through exact internal groups', () => {
+    const p = createAISettings('perfect').parameters;
+    const w = world('ninja');
+    w.players[0].isAttacking = true;
+    w.projectiles = [projectile({ type: 'hacking', isHackUltimate: true })];
+    w.attackHitboxes = [{ id: 'secret', ownerId: 1, x: 900, y: 900, width: 100, height: 100, damage: 90, createdAt: w.now, duration: 100, knockback: 2, canDeflectProjectiles: false }];
+    p.hiddenAttacks = 'none';
+    let observed = perceiveWorld(w, p, createPerceptionMemory()).world;
+    expect(observed.attackHitboxes).toEqual([]); expect(observed.projectiles).toEqual([]);
+    p.hiddenAttacks = 'inferred';
+    observed = perceiveWorld(w, p, createPerceptionMemory()).world;
+    expect(observed.attackHitboxes[0].id).toBe('observed-attack-1'); expect(observed.projectiles).toEqual([]);
+    p.hiddenAttacks = 'exact';
+    observed = perceiveWorld(w, p, createPerceptionMemory()).world;
+    expect(observed.attackHitboxes[0].id).toBe('secret'); expect(observed.projectiles).toHaveLength(1);
+    p.information.meleeHitboxes = false; p.information.projectiles = false;
+    observed = perceiveWorld(w, p, createPerceptionMemory()).world;
+    expect(observed.attackHitboxes).toEqual([]); expect(observed.projectiles).toEqual([]);
+  });
+  it('grants only the selected exact group and honors individual HUD toggles', () => {
+    const p = createAISettings('hard').parameters;
+    p.estimation.movement.mode = 'exact';
+    p.information.health = false; p.information.statusTimers = false;
+    const w = world();
+    w.players[0].velocityX = 333; w.players[0].damageBoost = 123; w.players[0].health = 1;
+    w.players[0].mana = 9; w.players[0].isHacked = true; w.players[0].hackedDuration = 1000;
+    const observed = perceiveWorld(w, p, createPerceptionMemory()).world.players[0];
+    expect(observed.velocityX).toBe(333); expect(observed.damageBoost).toBe(0);
+    expect(observed.health).toBe(150); expect(observed.mana).toBe(9);
+    expect(observed.isHacked).toBe(true); expect(observed.hackedDuration).toBe(0);
+  });
+  it('bounds estimation noise, quantizes separately and bypasses randomness for exact values', () => {
+    const e = { mode: 'estimated' as const, errorPercent: 25, rounding: 0 };
+    expect(estimateNumber(200, e, () => 0)).toBe(150);
+    expect(estimateNumber(200, e, () => 1)).toBe(250);
+    expect(estimateNumber(123, { ...e, errorPercent: 0, rounding: 10 }, () => 0)).toBe(120);
+    expect(estimateNumber(-123, { ...e, errorPercent: 0, rounding: 10 }, () => 0, 1, true)).toBe(-120);
+    expect(estimateNumber(123, { ...e, mode: 'exact' }, () => { throw new Error('unexpected random draw'); })).toBe(123);
+  });
+  it('keeps legacy 48-step calls and bounds configurable forecasts, including zero horizons', () => {
+    const w = world(); w.deltaTime = 1000 / 60; w.projectiles = [projectile({ x: 30, velocityX: 10 })];
+    expect(prepareAIFrame(w).steps).toBe(48);
+    for (const horizonMs of [0, 1, 300, 800, 2000]) {
+      const forecasts = createAISettings('perfect').parameters.forecasts;
+      for (const f of Object.values(forecasts)) f.horizonMs = horizonMs;
+      const frame = prepareAIFrame(w, { forecasts, random: () => 0.5 });
+      expect(frame.steps).toBe(Math.max(1, Math.ceil(horizonMs / (1000 / 60))));
+      expect(frame.paths[0].x).toHaveLength(frame.steps + 1);
+      expect(frame.times[frame.steps]).toBeCloseTo(horizonMs ? horizonMs / 1000 : 1 / 60);
+      expect(Array.from(frame.paths[0].x).every(Number.isFinite)).toBe(true);
+    }
+  });
+  it('shares bounded forecast offsets and never alters the currently observed point', () => {
+    const f = { horizonMs: 2000, positionError: 40, timingErrorMs: 1000 };
+    const error = sampleForecastError(f, () => 1);
+    const point = { x: 200, y: 100 };
+    expect(forecastPoint(point, f, error, 0)).toEqual(point);
+    expect(forecastPoint(point, f, error, 1)).toEqual({ x: 220, y: 120 });
+    expect(forecastPoint(point, f, error, 2)).toEqual({ x: 240, y: 140 });
+    expect(forecastTime(f, error, 2)).toBe(2);
+    expect(forecastTime(f, { ...error, time: -1 }, 0)).toBe(0);
+    const w = world(); w.projectiles = [projectile({ x: 100, velocityX: 50 })];
+    const forecasts = createAISettings('perfect').parameters.forecasts;
+    forecasts.projectiles = f;
+    const before = JSON.stringify(w), rng = seededRandom(731);
+    const frame = prepareAIFrame(w, { forecasts, random: rng.next });
+    const a = seededRandom(42), b = seededRandom(42), p = createAISettings('perfect').parameters;
+    const decision = decideAI(frame, w.players[1], createOpponentModel(), undefined, { parameters: p, traits: NEUTRAL_AI_TRAITS, random: a.next });
+    expect(decideAI(frame, w.players[1], createOpponentModel(), undefined, { parameters: p, traits: NEUTRAL_AI_TRAITS, random: b.next })).toEqual(decision);
+    expect(JSON.stringify(w)).toBe(before);
+  });
+  it('can omit movement while allowing attacks and independently delay perfect inputs', () => {
+    const settings = neutral(createAISettings('perfect'));
+    const w = world();
+    settings.parameters.inputs.movement = { useCommonPrecision: false, useCommonDelay: false, precisionMin: 0, precisionMax: 0, delayMaxMs: 0 };
+    let runtime = stepDifficulty(w, settings, createDifficultyRuntime(createDifficultySession(731)));
+    expect(runtime.keys.arrowLeft || runtime.keys.arrowRight).toBe(false);
+    expect(runtime.keys.shift).toBe(true);
+    settings.parameters.inputs.attack.delayMaxMs = 1000;
+    runtime = stepDifficulty(w, settings, createDifficultyRuntime(createDifficultySession(731)));
+    expect(runtime.keys.shift).toBe(false);
+    expect(runtime.inputs.some(i => i.group === 2 && i.readyAt > runtime.activeTime)).toBe(true);
+    const later = stepDifficulty({ ...w, now: 11000, deltaTime: 1000 }, settings, runtime);
+    expect(later.keys.shift).toBe(true);
+  });
+  it('uses common delay only for opted-in inputs and restores individual delay when disabled', () => {
+    const settings = neutral(createAISettings('perfect'));
+    settings.parameters.inputDelayMaxMs = 1000;
+    const w = world();
+    const previous = createDifficultyRuntime(createDifficultySession(731));
+    const immediate = stepDifficulty(w, settings, previous);
+    expect(immediate.keys.shift).toBe(true);
+    settings.parameters.inputs.attack.useCommonDelay = true;
+    const delayed = stepDifficulty(w, settings, previous);
+    expect(delayed.keys.shift).toBe(false);
+    expect(delayed.inputs.some(input => input.group === 2 && input.readyAt > delayed.activeTime)).toBe(true);
+    expect(stepDifficulty(w, settings, previous)).toEqual(delayed);
+    expect(previous.inputs).toEqual([]);
+    settings.parameters.inputs.attack.useCommonDelay = false;
+    expect(stepDifficulty(w, settings, previous)).toEqual(immediate);
+  });
+});
+describe('undistorted observational memory', () => {
+  it('does not compound cooldown noise between observations', () => {
+    const p = createAISettings('medium').parameters;
+    p.estimation.cooldowns = { mode: 'estimated', errorPercent: 50, rounding: 0 };
+    const w = world();
+    w.players[0].isAttacking = true;
+    const first = perceiveWorld(w, p, createPerceptionMemory(), 0, () => 1);
+    const next: AIWorld = { ...w, now: w.now + 50, players: [{ ...w.players[0], isAttacking: false }, w.players[1]] };
+    const second = perceiveWorld(next, p, first.memory, 50, () => 1);
+    expect(second.world.players[0].attackCooldownRemaining).toBe((CHARACTERS.gladiator.attackCooldown - 50) * 1.5);
+  });
+  it('keeps displacement precision when projectile rounding is zero', () => {
+    const p = createAISettings('medium').parameters;
+    p.estimation.properties = { mode: 'estimated', errorPercent: 0, rounding: 0 };
+    const w = world();
+    w.projectiles = [projectile({ x: 100, y: 100 })];
+    const first = perceiveWorld(w, p, createPerceptionMemory());
+    const next = { ...w, now: w.now + 50, projectiles: [{ ...w.projectiles[0], x: 112.34 }] };
+    expect(perceiveWorld(next, p, first.memory).world.projectiles[0].velocityX).toBeCloseTo(246.8);
+  });
+  it('infers knockback from observed displacement and a stun onset', () => {
+    const p = createAISettings('medium').parameters;
+    p.estimation.movement = { mode: 'estimated', errorPercent: 0, rounding: 0 };
+    const w = world();
+    const first = perceiveWorld(w, p, createPerceptionMemory());
+    const next: AIWorld = { ...w, now: w.now + 50, players: [{ ...w.players[0], x: 230, y: 430, isStunned: true, health: w.players[0].health - 1 }, w.players[1]] };
+    const observed = perceiveWorld(next, p, first.memory).world.players[0];
+    expect(observed.knockbackVelocityX).toBe(600);
+    expect(observed.knockbackVelocityY).toBe(-200);
+  });
+});
+it('uses a configured two-second frame without additional decision options or random draws', () => {
+  const forecasts = createAISettings('perfect').parameters.forecasts;
+  forecasts.opponent.positionError = 50;
+  let draws = 0;
+  const w = world();
+  const frame = prepareAIFrame(w, { forecasts, random: () => { draws++; return 0.75; } });
+  const sampled = draws;
+  const first = decideAI(frame, w.players[1]);
+  expect(decideAI(frame, w.players[1])).toEqual(first);
+  expect(draws).toBe(sampled);
+  expect(frame.steps).toBeGreaterThan(48);
+  expect(frame.times[frame.steps]).toBe(2);
 });

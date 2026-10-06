@@ -1,11 +1,12 @@
+import AIAdvancedOptions from './AIAdvancedOptions';
 import * as SliderPrimitive from '@radix-ui/react-slider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-  AI_INFO_LABELS, AI_PRESET_COLORS, AI_PRESET_IDS, AI_PRESET_LABELS, AI_TRAIT_LABELS,
-  changeAIParameters, selectAIPreset, type AIInfoKey, type AIParameters, type AISettings, type AITrait, type AITraits,
+  AI_PRESET_COLORS, AI_PRESET_IDS, AI_PRESET_LABELS, AI_TRAIT_LABELS,
+  changeAIParameters, selectAIPreset, type AIParameters, type AISettings, type AITrait, type AITraits,
 } from '@/types/ai';
 
 interface Props {
@@ -15,7 +16,6 @@ interface Props {
   onBack: () => void;
   onConfirm: () => void;
 }
-type NumericParameter = { [K in keyof AIParameters]: AIParameters[K] extends number ? K : never }[keyof AIParameters];
 const traitDescriptions: Record<AITrait, string> = {
   aggression: '접근과 공격 기회를 더 적극적으로 선택합니다.', skill: '스킬 사용 기회를 더 적극적으로 선택합니다.',
   ultimate: '궁극기를 더 빨리 사용합니다.', defense: '방어와 위험 회피를 더 중시합니다.',
@@ -33,19 +33,9 @@ const AIDifficultySelect = ({ settings, automaticTraits, onChange, onBack, onCon
   const parameters = settings.parameters;
   const color = AI_PRESET_COLORS[settings.difficulty];
   const change = (values: Partial<AIParameters>) => onChange(changeAIParameters(settings, values));
-  const numeric = (name: NumericParameter, label: string, max: number, unit: string) => (
-    <div className="flex items-center justify-between gap-3" key={name}>
-      <Label htmlFor={`ai-${name}`} className="min-w-0">{label}</Label>
-      <div className="flex shrink-0 items-center gap-2">
-        <Input id={`ai-${name}`} type="number" min={0} max={max} step={1} value={parameters[name]}
-          onChange={e => { const value = e.target.valueAsNumber; if (Number.isFinite(value)) change({ [name]: value }); }} className="w-24" />
-        <span className="w-7 text-xs text-muted-foreground">{unit}</span>
-      </div>
-    </div>
-  );
   return (
     <main className="min-h-screen bg-gradient-to-b from-background to-muted p-4 md:p-8">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-4xl">
         <header className="mb-8 text-center">
           <h1 className="mb-2 text-4xl font-bold">AI 난이도 선택</h1>
           <p className="text-muted-foreground">상대 AI의 실력과 성향을 선택하세요</p>
@@ -76,56 +66,10 @@ const AIDifficultySelect = ({ settings, automaticTraits, onChange, onBack, onCon
             <p className="text-sm text-muted-foreground">{presetDescriptions[settings.difficulty]}</p>
             <p className="text-sm">반응 지연 {parameters.reactionMin}–{parameters.reactionMax}ms · 입력 정밀도 {parameters.precisionMin}–{parameters.precisionMax}%</p>
           </div>
-          <details className="group rounded-xl border bg-card p-4 shadow-lg sm:p-6">
+          <details className="rounded-xl border bg-card p-4 shadow-lg sm:p-6">
             <summary className="cursor-pointer font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">세부 AI 옵션</summary>
-            <div className="mt-5 grid gap-6 md:grid-cols-2">
-              <fieldset className="space-y-3">
-                <legend className="mb-3 font-semibold">피지컬</legend>
-                {numeric('reactionMin', '최소 반응 지연', 1000, 'ms')}
-                {numeric('reactionMax', '최대 반응 지연', 1000, 'ms')}
-                {numeric('precisionMin', '최저 입력 정밀도', 100, '%')}
-                {numeric('precisionMax', '최고 입력 정밀도', 100, '%')}
-                <p className="text-xs text-muted-foreground">정밀도가 낮으면 이동·공격·점프 시점에 오차가 생기거나 입력을 놓칩니다.</p>
-              </fieldset>
-              <fieldset className="space-y-3">
-                <legend className="mb-3 font-semibold">판단력</legend>
-                {numeric('noise', '행동 평가값 노이즈', 100, '')}
-                {numeric('character', '캐릭터 특성 반영', 100, '%')}
-                {numeric('prediction', '미래 예측 반영', 100, '%')}
-                {numeric('learning', '상대 패턴 학습 반영', 100, '%')}
-                {numeric('controlAdaptation', '조작 반전 대응력', 100, '%')}
-                <p className="text-xs text-muted-foreground">반전 상태를 인지한 뒤 매 판단에서 올바르게 대응할 확률입니다. 100%는 반응 지연 후 즉시 대응하며, 낮을수록 방향·점프 조작을 잘못합니다.</p>
-              </fieldset>
-              <fieldset className="space-y-3">
-                <legend className="mb-3 font-semibold">정보량</legend>
-                {numeric('observationInterval', '외부 정보 갱신 간격', 1000, 'ms')}
-                <p className="text-xs text-muted-foreground">0ms는 매 게임 틱입니다. 관찰한 상황에 반응하기까지 별도의 반응 지연이 적용됩니다.</p>
-                <div className="space-y-2">
-                  <Label htmlFor="ai-internal">추정 가능한 내부 수치</Label>
-                  <select id="ai-internal" value={parameters.internal} onChange={e => {
-                    const value = e.target.value;
-                    if (value === 'none' || value === 'estimated' || value === 'exact') change({ internal: value });
-                  }} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
-                    <option value="none">미사용</option><option value="estimated">관측으로 추정</option><option value="exact">정확한 내부 정보</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="ai-hidden">보이지 않는 대상 정보</Label>
-                  <select id="ai-hidden" value={parameters.hidden} onChange={e => {
-                    const value = e.target.value;
-                    if (value === 'temporary' || value === 'remembered' || value === 'all') change({ hidden: value });
-                  }} className="h-10 w-full rounded-md border bg-background px-3 text-sm">
-                    <option value="temporary">관찰 기억·3초 후 잊음</option><option value="remembered">관찰한 위치만 기억</option><option value="all">전체 정보</option>
-                  </select>
-                  <p className="text-xs text-muted-foreground">3초 기억은 마지막으로 관찰한 시점부터 계산합니다. 다시 보이면 갱신되며 일시정지 중에는 시간이 흐르지 않습니다.</p>
-                </div>
-                {(Object.keys(AI_INFO_LABELS) as AIInfoKey[]).map(name => (
-                  <div key={name} className="flex items-center justify-between gap-3">
-                    <Label htmlFor={`ai-info-${name}`}>{AI_INFO_LABELS[name]}</Label>
-                    <Switch id={`ai-info-${name}`} checked={parameters.information[name]} onCheckedChange={checked => change({ information: { ...parameters.information, [name]: checked } })} />
-                  </div>
-                ))}
-              </fieldset>
+            <div className="mt-5">
+              <AIAdvancedOptions parameters={parameters} change={change}>
               <fieldset className="space-y-4">
                 <legend className="mb-3 font-semibold">성향</legend>
                 <p className="text-xs text-muted-foreground">자동 성향은 1배 주변에서 새 게임마다 추첨되며 재대결까지 유지됩니다. 수동값과 성향 변경은 난이도에 영향을 주지 않습니다.</p>
@@ -153,6 +97,7 @@ const AIDifficultySelect = ({ settings, automaticTraits, onChange, onBack, onCon
                   );
                 })}
               </fieldset>
+              </AIAdvancedOptions>
             </div>
           </details>
         </div>

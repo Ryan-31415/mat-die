@@ -20,7 +20,9 @@ const api = compile(`export { getAIKeys, prepareAIFrame, decideAI } from './src/
   export { CHARACTERS, createInitialPlayer } from './src/types/game';
   export { createProjectile, createHazardZone } from './src/types/projectile';
   export { MAPS } from './src/types/map';
-  export { createOpponentModel } from './src/hooks/ai/learning';`);
+  export { createOpponentModel } from './src/hooks/ai/learning';
+  export { createAISettings } from './src/types/ai';
+  export { createDifficultyRuntime, createDifficultySession, stepDifficulty } from './src/hooks/ai/difficulty';`);
 const now = 1791158400000;
 const ai = { ...api.createInitialPlayer(2, api.CHARACTERS.mage), x: 500, y: 440, mana: 60, lastGroundedTime: now };
 const target = { ...api.createInitialPlayer(1, api.CHARACTERS.archer), x: 200, y: 440 };
@@ -49,7 +51,15 @@ for (const count of [0, 20, 60, 120]) {
     api.decideAI(frame, ai, model);
     for (let i = 0; i < 3; i++) api.decideAI(frame, { ...ai, isClone: true, x: 450 + i * 70 }, model);
   });
-  results.push({ projectiles: count, baseline, current, sharedWithThreeClones: sharedWithClones });
+  const difficulty = horizonMs => {
+    const settings = api.createAISettings('perfect');
+    for (const forecast of Object.values(settings.parameters.forecasts)) forecast.horizonMs = horizonMs;
+    const session = api.createDifficultySession(731);
+    let runtime = api.createDifficultyRuntime(session);
+    return measure(() => { runtime = api.stepDifficulty(world, settings, runtime); });
+  };
+  results.push({ projectiles: count, baseline, current, sharedWithThreeClones: sharedWithClones,
+    difficulty800ms: difficulty(800), difficulty2000ms: difficulty(2000) });
 }
 const report = { measuredAt: new Date().toISOString(), node: process.version,
   cpu: cpus()[0]?.model, platform: platform(), arch: arch(),

@@ -126,3 +126,29 @@ describe('in-session opponent learning', () => {
     expect(Math.abs(learned.y - actualY)).toBeLessThan(Math.abs(cold.y - actualY));
   });
 });
+
+describe('configurable learning retention', () => {
+  it('prunes memory independently of sampling and respects the 600 sample ceiling', () => {
+    const p = { ...createInitialPlayer(1, CHARACTERS.archer), x: 200, y: 440 };
+    const observer = createInitialPlayer(2, CHARACTERS.mage);
+    const options = { memoryMs: 30000, sampleIntervalMs: 50, halfLifeMs: 10000 };
+    let model = createOpponentModel();
+    for (let now = 0; now <= 30100; now += 50) model = observeOpponent(model, p, observer, now, options);
+    expect(model.samples).toHaveLength(600);
+    model = observeOpponent(model, p, observer, 30150, { ...options, memoryMs: 1000, sampleIntervalMs: 1000 });
+    expect(model.samples.every(s => 30150 - s.time <= 1000)).toBe(true);
+  });
+  it('changes statistical decay and collection frequency without changing the default caller', () => {
+    const p = { ...createInitialPlayer(1, CHARACTERS.archer), x: 200, y: 440 };
+    const observer = createInitialPlayer(2, CHARACTERS.mage);
+    const model = observeOpponent(createOpponentModel(), p, observer, 0);
+    model.attackCount = 8;
+    const quick = observeOpponent(model, p, observer, 100, { memoryMs: 8000, sampleIntervalMs: 1000, halfLifeMs: 1000 });
+    const slow = observeOpponent(model, p, observer, 100, { memoryMs: 8000, sampleIntervalMs: 50, halfLifeMs: 30000 });
+    expect(quick.attackCount).toBeCloseTo(8 * 0.5 ** 0.1);
+    expect(slow.attackCount).toBeGreaterThan(quick.attackCount);
+    const quick2 = observeOpponent(quick, p, observer, 200, { memoryMs: 8000, sampleIntervalMs: 1000, halfLifeMs: 1000 });
+    const slow2 = observeOpponent(slow, p, observer, 200, { memoryMs: 8000, sampleIntervalMs: 50, halfLifeMs: 30000 });
+    expect(quick2.samples).toHaveLength(1); expect(slow2.samples).toHaveLength(2);
+  });
+});

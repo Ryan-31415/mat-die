@@ -11,6 +11,7 @@ import { AI_DT, AI_STEPS, overlapsPlayer, type AIFrame } from './world';
 import { chooseCombat } from './combat';
 import { AI_PRESETS, NEUTRAL_AI_TRAITS, type AIDecisionOptions } from '@/types/ai';
 import { gaussian } from './random';
+import { forecastPoint, forecastTime, sampleForecastError } from './forecast';
 
 export type Action = { direction: Direction; jump: boolean; drop: boolean };
 export const emptyAIKeys = (): KeyboardState => ({
@@ -49,23 +50,40 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   const hitboxes = frame.hitboxes.filter(h => h.ownerId !== player.id);
   const canJump = !player.isJumping && !player.rootDuration && (player.isGrounded || now - player.lastGroundedTime < COYOTE_TIME);
   const currentPlatform = support(player, platforms);
+
+  const forecast = options?.parameters.forecasts.opponent ?? frame.forecasts?.opponent;
   const enemyFuture = [{ x: opponent.x, y: opponent.y, confidence: 0 }];
-  predictOpponent(model, opponent, AI_STEPS * AI_DT, platforms, now, true, enemyFuture);
-  if (prediction < 1) for (const point of enemyFuture) {
-    point.x = opponent.x + (point.x - opponent.x) * prediction;
-    point.y = opponent.y + (point.y - opponent.y) * prediction;
-  }
+  const forecastHorizon = forecast ? prediction > 0 ? forecast.horizonMs / 1000 : 0 : AI_STEPS * AI_DT;
+  predictOpponent(model, opponent, forecastHorizon, platforms, now, true, enemyFuture);
+  const error = forecast && prediction > 0 ? frame.opponentError ?? sampleForecastError(forecast, options?.random ?? (() => 0.5)) : { x: 0, y: 0, time: 0 };
   const targetCache = new Map<number, ReturnType<typeof predictOpponent>>();
   const targetAt = (time: number) => {
+    if (forecast) {
+      const sample = forecastTime(forecast, error, Math.min(time, forecastHorizon));
+      const index = Math.min(enemyFuture.length - 1, Math.floor(sample * 60));
+      const next = Math.min(enemyFuture.length - 1, index + 1);
+      const start = Math.min(forecastHorizon, index / 60), end = Math.min(forecastHorizon, next / 60);
+      const ratio = end > start ? Math.max(0, Math.min(1, (sample - start) / (end - start))) : 0;
+      const from = enemyFuture[index], to = enemyFuture[next];
+      const point = forecastPoint({ x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio, confidence: from.confidence }, forecast, error, Math.min(time, forecastHorizon));
+      return { ...point, x: opponent.x + (point.x - opponent.x) * prediction, y: opponent.y + (point.y - opponent.y) * prediction };
+    }
     const tick = Math.round(time * 60);
     if (tick >= 0 && tick < enemyFuture.length) return enemyFuture[tick];
     let result = targetCache.get(tick);
-    if (!result) {
-      result = predictOpponent(model, opponent, tick / 60, platforms, now, true);
-      if (prediction < 1) result = { ...result, x: opponent.x + (result.x - opponent.x) * prediction, y: opponent.y + (result.y - opponent.y) * prediction };
-      targetCache.set(tick, result);
-    }
+    if (!result) { result = predictOpponent(model, opponent, tick / 60, platforms, now, true); targetCache.set(tick, result); }
     return result;
+  };
+  const targets = Array.from({ length: frame.steps + 1 }, (_, step) => forecast ? targetAt(frame.times[step]) : enemyFuture[step]);
+  const environment = options?.parameters.forecasts.environment ?? frame.forecasts?.environment;
+  const projectileForecast = options?.parameters.forecasts.projectiles ?? frame.forecasts?.projectiles;
+  const environmentPoint = <T extends { x: number; y: number; id: string }>(entity: T, elapsed: number): T => {
+    const error = frame.environmentErrors.get(entity.id);
+    return environment && error ? forecastPoint(entity, environment, error, elapsed) : entity;
+  };
+  const environmentTime = (id: string, elapsed: number) => {
+    const error = frame.environmentErrors.get(id);
+    return environment && error ? forecastTime(environment, error, elapsed) : elapsed;
   };
   function evaluate(action: Action) {
     const point = { x: player.x, y: player.y };
@@ -76,9 +94,12 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     const approaches = direction !== 0 && Math.sign(goal.x - player.x) === direction;
     const hits = new Uint8Array(paths.length);
     if (action.drop && currentPlatform?.type === 'one-way' && !player.isJumping) { point.y += 25; vy = 300; }
-    for (let step = 1; step <= AI_STEPS; step++) {
+    for (let step = 1; step <= frame.steps; step++) {
       const priorRisk = risk;
-      const dt = step === 1 ? Math.min(0.05, Math.max(0.001, world.deltaTime / 1000)) : AI_DT;
+      const dt = frame.times[step] - frame.times[step - 1];
+      const opponentInRange = !forecast || step === 1 || elapsed + dt <= forecastHorizon + 1e-9;
+      const environmentInRange = !environment || step === 1 || elapsed + dt <= environment.horizonMs / 1000 + 1e-9;
+      const projectileInRange = !projectileForecast || step === 1 || elapsed + dt <= projectileForecast.horizonMs / 1000 + 1e-9;
       elapsed += dt;
       const flying = player.isFlying && elapsed * 1000 < player.invulnerableDuration;
       const invulnerable = player.isInvulnerable && elapsed * 1000 < player.invulnerableDuration;
@@ -96,21 +117,24 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
         point.y = Math.max(ARENA.padding, Math.min(FLOOR_Y, next.y));
         if (next.isGrounded || point.y >= FLOOR_Y) vy = 0;
       }
-      if (world.sandstormActive && elapsed * 1000 < world.sandstormTimer) kx += sandstormImpulse(now + elapsed * 1000, dt, world.sandstormDirection);
-      travelCost += (Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y) * 1.3) / AI_STEPS;
-      const lavaRisk = mapId === 'volcano' && point.y >= FLOOR_Y - 1 && !invulnerable ? 1600 / AI_STEPS : 0;
+      if (environmentInRange && world.sandstormActive && environmentTime('wind', elapsed) * 1000 < world.sandstormTimer) kx += sandstormImpulse(now + elapsed * 1000, dt, world.sandstormDirection);
+      travelCost += (Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y) * 1.3) / frame.steps;
+      const lavaRisk = mapId === 'volcano' && point.y >= FLOOR_Y - 1 && !invulnerable ? 1600 / frame.steps : 0;
       risk += lavaRisk;
       if (!invulnerable) {
-        risk += opponentLineRisk(opponent, point, enemyFuture[step], elapsed, now) / AI_STEPS;
-        for (const zone of zones) if (now + elapsed * 1000 - zone.createdAt <= zone.duration) risk += hazardRisk(point, zone) / AI_STEPS;
-        for (const strike of warnings) {
+        if (opponentInRange) risk += opponentLineRisk(opponent, point, targets[step], elapsed, now) / frame.steps;
+        if (environmentInRange) for (const zone of zones) if (now + environmentTime(zone.id, elapsed) * 1000 - zone.createdAt <= zone.duration) risk += hazardRisk(point, environmentPoint(zone, elapsed)) / frame.steps;
+        if (environmentInRange) for (const strike of warnings) {
+          const key = 'lightning:' + strike.x + ':' + strike.warningStart;
+          const strikeTime = environmentTime(key, elapsed), previousStrikeTime = environmentTime(key, elapsed - dt);
+          const strikePoint = environmentPoint({ id: key, x: strike.x, y: 0 }, elapsed);
           const strikeIn = (LIGHTNING_WARNING_MS - (now - strike.warningStart)) / 1000;
-          if (elapsed >= strikeIn && elapsed - dt < strikeIn && Math.abs(point.x + PLAYER_SIZE / 2 - strike.x) < LIGHTNING_RADIUS + 8) risk += 240;
+          if (strikeTime >= strikeIn && previousStrikeTime < strikeIn && Math.abs(point.x + PLAYER_SIZE / 2 - strikePoint.x) < LIGHTNING_RADIUS + 8) risk += 240;
         }
-        for (const pool of pools) if (elapsed >= pool.impactTime && overlapsPlayer(point, pool, 8)) risk += 160 / AI_STEPS;
-        for (const hitbox of hitboxes) if (now + elapsed * 1000 - hitbox.createdAt <= hitbox.duration && overlapsPlayer(point, hitbox)) risk += 180 / AI_STEPS;
-        if (opponent.isFlying && opponent.invulnerableDuration > elapsed * 1000 && Math.hypot(point.x - enemyFuture[step].x, point.y - enemyFuture[step].y) < 65) risk += 300 / AI_STEPS;
-        else if (isMelee(opponent.character!.id) && opponent.attackCooldownRemaining < elapsed * 1000 && Math.abs(point.y - enemyFuture[step].y) < PLAYER_SIZE && Math.abs(point.x - enemyFuture[step].x) < opponent.character!.attackRange + 15) risk += (isMelee(id) && !lowHealth ? 8 : 30) / AI_STEPS;
+        if (projectileInRange && environmentInRange) for (const pool of pools) if (elapsed >= pool.impactTime && overlapsPlayer(point, pool, 8)) risk += 160 / frame.steps;
+        if (opponentInRange) for (const hitbox of hitboxes) if (now + elapsed * 1000 - hitbox.createdAt <= hitbox.duration && overlapsPlayer(point, hitbox)) risk += 180 / frame.steps;
+        if (opponentInRange && opponent.isFlying && opponent.invulnerableDuration > elapsed * 1000 && Math.hypot(point.x - targets[step].x, point.y - targets[step].y) < 65) risk += 300 / frame.steps;
+        else if (opponentInRange && isMelee(opponent.character!.id) && opponent.attackCooldownRemaining < elapsed * 1000 && Math.abs(point.y - targets[step].y) < PLAYER_SIZE && Math.abs(point.x - targets[step].x) < opponent.character!.attackRange + 15) risk += (isMelee(id) && !lowHealth ? 8 : 30) / frame.steps;
         for (let index = 0; index < paths.length; index++) {
           const path = paths[index], p = path.projectile;
           const phase = path.returning[step] ? 2 : 1;
@@ -124,10 +148,10 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       }
       // Immediate threats remain perceptible even when future prediction is disabled.
       if (step > 1 && prediction < 1) risk = priorRisk + lavaRisk + (risk - priorRisk - lavaRisk) * prediction;
-      for (const zone of frame.souls) if (now + elapsed * 1000 - zone.createdAt <= zone.duration && overlapsPlayer(point, zone)) benefit += ((1 - player.health / player.maxHealth) * 14 + (1 - player.mana / player.maxMana) * 6) * traits.recovery / AI_STEPS;
-      const shieldFront = opponent.isShielding && (point.x - enemyFuture[step].x) * (opponent.facingRight ? 1 : -1) > 0;
-      if (!opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - enemyFuture[step].y) < 30 && Math.abs(point.x - enemyFuture[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * 1.3 * traits.aggression / AI_STEPS;
-      if (mapId === 'graveyard') risk += Math.max(0, FLOOR_Y - point.y) / 4000 / AI_STEPS;
+      if (environmentInRange) for (const zone of frame.souls) if (now + environmentTime(zone.id, elapsed) * 1000 - zone.createdAt <= zone.duration && overlapsPlayer(point, environmentPoint(zone, elapsed))) benefit += ((1 - player.health / player.maxHealth) * 14 + (1 - player.mana / player.maxMana) * 6) * traits.recovery / frame.steps;
+      const shieldFront = opponent.isShielding && (point.x - targets[step].x) * (opponent.facingRight ? 1 : -1) > 0;
+      if (opponentInRange && !opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - targets[step].y) < 30 && Math.abs(point.x - targets[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * 1.3 * traits.aggression / frame.steps;
+      if (mapId === 'graveyard') risk += Math.max(0, FLOOR_Y - point.y) / 4000 / frame.steps;
     }
     if (mapId === 'volcano' && !player.isFlying && vy > 0 && !platforms.some(p => p.id !== 'ground' && p.y >= point.y + PLAYER_SIZE && point.x + PLAYER_SIZE > p.x && point.x < p.x + p.width)) risk += 130;
     const noise = parameters.noise > 0 && options ? gaussian(options.random) * parameters.noise : 0;
