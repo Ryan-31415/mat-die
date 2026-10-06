@@ -148,11 +148,21 @@ export const useGameEngine = (
   const keysRefHolder = useRef<React.MutableRefObject<KeyboardState> | null>(null);
   const lastTickRef = useRef(Date.now());
   const roundStartTimeRef = useRef(Date.now());
+  const pausedAtRef = useRef<number | null>(null);
   const shieldManaTickRef = useRef<[number, number]>([0, 0]);
 
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    if (gameState.isPaused) {
+      pausedAtRef.current ??= Date.now();
+    } else if (pausedAtRef.current !== null) {
+      roundStartTimeRef.current += Date.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+  }, [gameState.isPaused]);
 
   // Flag to prevent duplicate round end calls
   const roundEndingRef = useRef(false);
@@ -2731,6 +2741,7 @@ export const useGameEngine = (
 
   const resetRound = useCallback(() => {
     roundStartTimeRef.current = Date.now();
+    pausedAtRef.current = null;
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
     setGameState(prev => ({ ...createInitialEngineState(), aiState: createAIRoundState(prev.aiState.learning) }));

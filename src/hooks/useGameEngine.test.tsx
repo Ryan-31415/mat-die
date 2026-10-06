@@ -167,6 +167,30 @@ describe('explosive projectile impact effects', () => {
   });
 });
 
+describe('round timer pause behavior', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-04T00:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('does not consume round time while paused', () => {
+    const { result } = renderHook(() => useGameEngine(
+      CHARACTERS.hacker, CHARACTERS.gladiator, 60, vi.fn(), 'multi'
+    ));
+    act(() => result.current.setKeysRef({ current: emptyKeys() }));
+
+    act(() => { vi.advanceTimersByTime(50_000); });
+    act(() => result.current.togglePause());
+    act(() => { vi.advanceTimersByTime(20_000); });
+    act(() => result.current.togglePause());
+    act(() => { vi.advanceTimersByTime(17); });
+
+    expect(result.current.gameState.roundWinner).toBeNull();
+    expect(result.current.gameState.roundTimeRemaining).toBeGreaterThan(9);
+  });
+});
+
 describe('scientist charging in hacker zones', () => {
   beforeEach(() => {
     vi.useFakeTimers();
