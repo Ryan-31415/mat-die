@@ -815,10 +815,10 @@ export const useGameEngine = (
           // Shotgun: 5 bullets (or 9 if Focused Fire) with spread
           {
           const isFocused = (updatedPlayer.hunterFocusedDuration || 0) > 0;
-          const bulletCount = isFocused ? 7 : 5;
+          const bulletCount = isFocused ? 5 : 5;
           const spreadFactor = isFocused ? 0.33 : 1.0; // Tighter spread if focused
           const speedMultiplier = isFocused ? 1.25 : 1.0; // Faster bullets if focused
-          const damageMultiplier = isFocused ? 1.0 : 1.0; // Increased damage if focused, Not used but kept for future use
+          const damageMultiplier = isFocused ? 1.33 : 1.0; // Increased damage if focused
 
           for (let i = 0; i < bulletCount; i++) {
             const centerIndex = (bulletCount - 1) / 2;
@@ -826,7 +826,7 @@ export const useGameEngine = (
             const radians = spreadAngle * (Math.PI / 180);
 
             newProjectiles.push(createProjectile(
-              isFocused ? 'bullet' : 'bullet',
+              isFocused ? 'super-bullet' : 'bullet',
               player.id,
               updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2,
