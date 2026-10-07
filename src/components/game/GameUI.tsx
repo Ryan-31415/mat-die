@@ -1,5 +1,4 @@
 import { Player } from '@/types/game';
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Pause, Home } from 'lucide-react';
 
@@ -95,7 +94,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
   const attackCooldownPercent = ((character.attackCooldown - player.attackCooldownRemaining) / character.attackCooldown) * 100;
 
   return (
-    <div className={`flex-1 p-3 rounded-lg border ${isPlayer1 ? 'border-primary/50' : 'border-destructive/50'}`}>
+    <div className={`flex-1 min-w-0 p-3 rounded-lg border ${isPlayer1 ? 'border-primary/50' : 'border-destructive/50'}`}>
       <div className="flex items-center justify-between mb-2">
         <span
           className={`font-bold ${isPlayer1 ? 'text-primary' : 'text-destructive'}`}
@@ -161,96 +160,99 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
         </div>
       </div>
 
-      {/* Status effects display */}
-      {(player.buffDuration > 0 || player.isPoisoned || player.isSlowed || player.isStunned || player.isInvisible || player.isFrozen || player.freezeGauge > 0 || player.mageUltimateDuration > 0 || player.isBurning || player.regenDuration > 0 || player.invulnerableDuration > 0 || player.poisonArrowsRemaining > 0 || player.dodgesRemaining > 0 || player.isMarked || player.hunterFocusedDuration > 0 || player.isSilenced || player.isHacked) && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {player.isSilenced && (
-            <span className="text-xs px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded">
-              침묵 {(player.silenceDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isHacked && (
-            <span className="text-xs px-1.5 py-0.5 bg-lime-500/20 text-lime-500 rounded animate-pulse">
-              해킹 {(player.hackedDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isFrozen && (
-            <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-500 rounded animate-pulse">
-              빙결 {(player.frozenDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.freezeGauge > 0 && !player.isFrozen && (
-            <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-400 rounded">
-              결빙 {player.freezeGauge} / 5
-            </span>
-          )}
-          {player.buffDuration > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
-              버프 {(player.buffDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isPoisoned && (
-            <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-500 rounded">
-              독 {(player.poisonDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isSlowed && (
-            <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-500 rounded">
-              둔화 {(player.slowDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isStunned && (
-            <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 rounded">
-              기절 {(player.stunDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isInvisible && (
-            <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-500 rounded">
-              은신 {(player.invisibleDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.regenDuration > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-pink-400/20 text-pink-400 rounded animate-pulse">
-              재생 {(player.regenDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isBurning && (
-            <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded">
-              화상 {(player.burnDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.mageUltimateDuration > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
-              각성 {(player.mageUltimateDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.isMarked && (
-            <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded">
-              표식 {(player.markDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.hunterFocusedDuration > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
-              집중 {(player.hunterFocusedDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.dodgesRemaining > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-gray-500/20 text-gray-500 rounded">
-              회피 x {player.dodgesRemaining}
-            </span>
-          )}
-          {player.invulnerableDuration > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-black-500/20 text-black-500 rounded">
-              무적 {(player.invulnerableDuration / 1000).toFixed(1)}s
-            </span>
-          )}
-          {player.poisonArrowsRemaining > 0 && (
-            <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-500 rounded">
-              독화살 x {player.poisonArrowsRemaining}
-            </span>
-          )}
-        </div>
-      )}
+      {/* Reserve two rows even when empty so effects never move the arena. */}
+      <div
+        role="region"
+        aria-label={`P${player.id} 상태 효과`}
+        tabIndex={0}
+        className="mt-2 h-12 overflow-y-auto flex flex-wrap content-start gap-1 [&>span]:shrink-0 [&>span]:whitespace-nowrap"
+      >
+        {player.isSilenced && (
+          <span className="text-xs px-1.5 py-0.5 bg-gray-500/20 text-gray-400 rounded">
+            침묵 {(player.silenceDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isHacked && (
+          <span className="text-xs px-1.5 py-0.5 bg-lime-500/20 text-lime-500 rounded animate-pulse">
+            해킹 {(player.hackedDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isFrozen && (
+          <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-500 rounded animate-pulse">
+            빙결 {(player.frozenDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.freezeGauge > 0 && !player.isFrozen && (
+          <span className="text-xs px-1.5 py-0.5 bg-sky-500/20 text-sky-400 rounded">
+            결빙 {player.freezeGauge} / 5
+          </span>
+        )}
+        {player.buffDuration > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
+            버프 {(player.buffDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isPoisoned && (
+          <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-500 rounded">
+            독 {(player.poisonDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isSlowed && (
+          <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-500 rounded">
+            둔화 {(player.slowDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isStunned && (
+          <span className="text-xs px-1.5 py-0.5 bg-yellow-500/20 text-yellow-500 rounded">
+            기절 {(player.stunDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isInvisible && (
+          <span className="text-xs px-1.5 py-0.5 bg-purple-500/20 text-purple-500 rounded">
+            은신 {(player.invisibleDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.regenDuration > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-pink-400/20 text-pink-400 rounded animate-pulse">
+            재생 {(player.regenDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isBurning && (
+          <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded">
+            화상 {(player.burnDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.mageUltimateDuration > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
+            각성 {(player.mageUltimateDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.isMarked && (
+          <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-500 rounded">
+            표식 {(player.markDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.hunterFocusedDuration > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
+            집중 {(player.hunterFocusedDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.dodgesRemaining > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-gray-500/20 text-gray-500 rounded">
+            회피 x {player.dodgesRemaining}
+          </span>
+        )}
+        {player.invulnerableDuration > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-black-500/20 text-black-500 rounded">
+            무적 {(player.invulnerableDuration / 1000).toFixed(1)}s
+          </span>
+        )}
+        {player.poisonArrowsRemaining > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-500 rounded">
+            독화살 x {player.poisonArrowsRemaining}
+          </span>
+        )}
+      </div>
     </div>
   );
 };
