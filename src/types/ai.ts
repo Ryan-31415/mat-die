@@ -72,9 +72,9 @@ function preset(index: number, base: Pick<AIParameters, 'reactionMin' | 'reactio
   };
 }
 export const AI_PRESETS: Record<AIPreset, AIParameters> = {
-  easy: preset(0, { reactionMin: 250, reactionMax: 350, precisionMin: 65, precisionMax: 80, noise: 50, character: 25, prediction: 15, learning: 0, controlAdaptation: 15, observationInterval: 250 }),
-  medium: preset(1, { reactionMin: 175, reactionMax: 225, precisionMin: 85, precisionMax: 95, noise: 16, character: 60, prediction: 40, learning: 25, controlAdaptation: 50, observationInterval: 100 }),
-  hard: preset(2, { reactionMin: 100, reactionMax: 150, precisionMin: 98, precisionMax: 100, noise: 2, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
+  easy: preset(0, { reactionMin: 250, reactionMax: 350, precisionMin: 65, precisionMax: 85, noise: 35, character: 15, prediction: 20, learning: 0, controlAdaptation: 15, observationInterval: 200 }),
+  medium: preset(1, { reactionMin: 175, reactionMax: 225, precisionMin: 85, precisionMax: 95, noise: 12, character: 65, prediction: 50, learning: 25, controlAdaptation: 50, observationInterval: 100 }),
+  hard: preset(2, { reactionMin: 100, reactionMax: 150, precisionMin: 98, precisionMax: 100, noise: 1, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
   perfect: preset(3, { reactionMin: 0, reactionMax: 0, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
 };
 export function cloneAIParameters(p: AIParameters): AIParameters {

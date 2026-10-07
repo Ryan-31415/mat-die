@@ -78,7 +78,7 @@ export default function AIAdvancedOptions({ parameters: p, change, children }: P
       <p className="text-sm text-muted-foreground">항목을 펼쳐 공통 설정과 개별 설정을 조절하세요.</p>
       <div className="flex gap-2">
         <Button type="button" variant="outline" size="sm" onClick={() => setExpanded(sectionNames)}>모두 펼치기</Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setExpanded([])}>모두 접기</Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => setExpanded([])}>모두 접기</Button>
       </div>
     </div>
     {section('input', '입력', `반응 ${p.reactionMin}–${p.reactionMax}ms · 공통 정밀도 ${p.precisionMin}–${p.precisionMax}%`, <>
