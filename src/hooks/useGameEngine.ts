@@ -1222,7 +1222,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x + PLAYER_SIZE / 2 - 90, // Center on player
             updatedPlayer.y + PLAYER_SIZE / 2 - 90,
-            character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * 0.07, // 7% of buffed attack damage per tick (70% per a second)
+            character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * 0.05, // 5% of buffed attack damage per tick (50% per a second)
             5000 // 5 seconds duration
           ));
           break;
@@ -1890,7 +1890,7 @@ export const useGameEngine = (
               // Apply Mark Damage Boost
               let finalDamage = proj.damage;
               if (currentTarget.isMarked && currentTarget.markOwnerId === proj.ownerId) {
-                finalDamage *= 1.2;
+                finalDamage *= 1.25;
               }
 
               const damageRes = applyDamage(currentTarget, finalDamage);
@@ -1928,7 +1928,7 @@ export const useGameEngine = (
               // Net Logic: Pull + Mark
               if (proj.type === 'net') {
                 currentTarget.isMarked = true;
-                currentTarget.markDuration = 6000;
+                currentTarget.markDuration = 5000;
                 currentTarget.markOwnerId = proj.ownerId;
 
                 // Pull target towards owner
@@ -2212,7 +2212,7 @@ export const useGameEngine = (
           // Apply Mark Damage Boost
           let finalDamage = hitbox.damage;
           if (currentTarget.isMarked && currentTarget.markOwnerId === hitbox.ownerId) {
-            finalDamage *= 1.2;
+            finalDamage *= 1.25;
           }
 
           const damageRes = applyDamage(currentTarget, finalDamage);
