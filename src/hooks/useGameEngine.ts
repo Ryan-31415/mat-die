@@ -1266,7 +1266,7 @@ export const useGameEngine = (
             updatedPlayer.y,
             attackDirection * 600, // Throw forward
             -100, // High arc
-            baseDamage * 0.05
+            baseDamage * 0.02
           );
           newProjectiles.push(blizzardStone);
           break;
@@ -2383,7 +2383,7 @@ export const useGameEngine = (
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {
-                if (Math.random() <= 0.25) {
+                if (Math.random() <= 0.1) {
                   players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
                 }
                 players[targetIndex].lastHitByIceMage = now;

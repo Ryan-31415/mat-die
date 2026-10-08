@@ -421,7 +421,7 @@ export const createHazardZone = (
       ...base,
       width: POOL_SIZE.blizzard, // Circular area diameter
       height: POOL_SIZE.blizzard,
-      tickRate: 200, // Fast tick rate for smooth effect application
+      tickRate: 100,
     };
   }
 
