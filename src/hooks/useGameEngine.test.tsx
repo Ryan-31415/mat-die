@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CHARACTERS, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
-import { createProjectile, createHazardZone, type ProjectileType } from '@/types/projectile';
+import { CHARACTERS, PLAYER_SIZE, createInitialPlayer, type CharacterType } from '@/types/game';
+import { createProjectile, createHazardZone, createAttackHitbox, type ProjectileType } from '@/types/projectile';
 import type { MapId } from '@/types/map';
 import { useGameEngine } from './useGameEngine';
 import type { KeyboardState } from './useKeyboard';
@@ -11,6 +11,93 @@ const emptyKeys = (): KeyboardState => ({
   f: false, g: false, h: false,
   arrowUp: false, arrowDown: false, arrowLeft: false, arrowRight: false,
   enter: false, shift: false, backslash: false,
+});
+
+describe('hunter low-health damage passive', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-08T00:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  function setup(attacker: CharacterType = 'hunter', ownerId: 1 | 2 = 1) {
+    const { result } = renderHook(() => useGameEngine(
+      CHARACTERS[ownerId === 1 ? attacker : 'gladiator'],
+      CHARACTERS[ownerId === 2 ? attacker : 'gladiator'],
+      60, vi.fn(), 'multi'
+    ));
+    act(() => result.current.setKeysRef({ current: emptyKeys() }));
+    const targetIndex = ownerId === 1 ? 1 : 0;
+    const hit = (type: 'bullet' | 'net' = 'bullet') => {
+      const target = result.current.gameState.players[targetIndex];
+      result.current.gameState.projectiles.push(createProjectile(type, ownerId, target.x, target.y + 25, 0, 0, 10));
+      act(() => { vi.advanceTimersByTime(17); });
+    };
+    return { result, targetIndex, hit };
+  }
+
+  it.each([1, 2] as const)('uses pre-hit health at the 50%% boundary for player %s', ownerId => {
+    const { result, targetIndex, hit } = setup('hunter', ownerId);
+    const target = result.current.gameState.players[targetIndex];
+    target.health = target.maxHealth * 0.5 + 10;
+    hit();
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.maxHealth * 0.5);
+    hit();
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.maxHealth * 0.5 - 11.5);
+    hit();
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.maxHealth * 0.5 - 23);
+  });
+
+  it('does not activate above 50% even if the hit crosses the threshold', () => {
+    const { result, targetIndex, hit } = setup();
+    const target = result.current.gameState.players[targetIndex];
+    target.health = target.maxHealth * 0.5 + 0.01;
+    hit();
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.health - 10);
+  });
+
+  it.each(['bullet', 'net'] as const)('stacks with the mark and damage reduction for %s', type => {
+    const { result, targetIndex, hit } = setup();
+    const target = result.current.gameState.players[targetIndex];
+    Object.assign(target, { health: target.maxHealth * 0.5, isMarked: true, markOwnerId: 1, markDuration: 5000, damageReduction: 0.2 });
+    hit(type);
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.health - 10 * 1.15 * 1.25 * 0.8);
+  });
+
+  it('does not give other characters the passive', () => {
+    const { result, targetIndex, hit } = setup('hacker');
+    const target = result.current.gameState.players[targetIndex];
+    target.health = target.maxHealth * 0.5;
+    hit();
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.health - 10);
+  });
+
+  it.each(['isInvulnerable', 'isEvading'] as const)('respects %s', status => {
+    const { result, targetIndex, hit } = setup();
+    const target = result.current.gameState.players[targetIndex];
+    Object.assign(target, { health: target.maxHealth * 0.5, [status]: true, invulnerableDuration: 1000, evadeDuration: 1000 });
+    hit();
+    expect(result.current.gameState.players[targetIndex].health).toBe(target.health);
+  });
+
+  it('applies to enemy clones', () => {
+    const { result } = setup();
+    const clone = { ...createInitialPlayer(2, CHARACTERS.hacker), x: 400, isClone: true, createdAt: Date.now() };
+    clone.health = clone.maxHealth * 0.5;
+    result.current.gameState.clones.push(clone);
+    result.current.gameState.projectiles.push(createProjectile('bullet', 1, clone.x + 25, clone.y + 25, 0, 0, 10));
+    act(() => { vi.advanceTimersByTime(17); });
+    expect(result.current.gameState.clones[0].health).toBeCloseTo(clone.health - 11.5);
+  });
+
+  it('applies consistently to attack hitboxes', () => {
+    const { result, targetIndex } = setup();
+    const target = result.current.gameState.players[targetIndex];
+    target.health = target.maxHealth * 0.5;
+    result.current.gameState.attackHitboxes.push(createAttackHitbox(1, target.x, target.y, 50, 50, 10, 100));
+    act(() => { vi.advanceTimersByTime(17); });
+    expect(result.current.gameState.players[targetIndex].health).toBeCloseTo(target.health - 11.5);
+  });
 });
 
 describe('explosive projectile impact effects', () => {

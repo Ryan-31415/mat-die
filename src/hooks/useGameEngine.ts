@@ -1889,6 +1889,9 @@ export const useGameEngine = (
 
               // Apply Mark Damage Boost
               let finalDamage = proj.damage;
+              if (players[proj.ownerId - 1].character?.id === 'hunter' && currentTarget.health <= currentTarget.maxHealth * 0.5) {
+                finalDamage *= 1.15;
+              }
               if (currentTarget.isMarked && currentTarget.markOwnerId === proj.ownerId) {
                 finalDamage *= 1.25;
               }
@@ -2211,6 +2214,9 @@ export const useGameEngine = (
 
           // Apply Mark Damage Boost
           let finalDamage = hitbox.damage;
+          if (players[hitbox.ownerId - 1].character?.id === 'hunter' && currentTarget.health <= currentTarget.maxHealth * 0.5) {
+            finalDamage *= 1.15;
+          }
           if (currentTarget.isMarked && currentTarget.markOwnerId === hitbox.ownerId) {
             finalDamage *= 1.25;
           }

@@ -296,6 +296,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     attackRange: 140,
     attackCooldown: 1100,
     attackDescription: '전방으로 짧은 거리를 날아가는 산탄 5발을 발사합니다. 탄환 당 공격력의 30%의 피해를 입힙니다.',
+    passive: '상대방의 체력이 50% 이하일 때 15%의 추가 피해를 입힙니다.',
     skill: {
       name: '그물 투척',
       description: '투척형 그물을 던져 적중 시 적을 플레이어 쪽으로 약간 끌어오고, 5초간 표식을 부여합니다. 표식 대상은 사냥꾼에게 받는 피해가 25% 증가하며, 피격 시 1초간 이동속도가 20% 감소합니다.',
