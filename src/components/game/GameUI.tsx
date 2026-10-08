@@ -91,6 +91,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
   const skillCooldownPercent = character.skill.cooldown > 0
     ? ((character.skill.cooldown - player.skillCooldownRemaining) / character.skill.cooldown) * 100
     : 100;
+  const skillUnavailable = player.skillCooldownRemaining > 0 || player.mana < character.skill.manaCost;
   const attackCooldownPercent = ((character.attackCooldown - player.attackCooldownRemaining) / character.attackCooldown) * 100;
 
   return (
@@ -141,7 +142,7 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
           <div className="text-xs mb-1">스킬 ({character.skill.manaCost}%)</div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-100 ${player.skillCooldownRemaining > 0 ? 'bg-muted-foreground' : 'bg-violet-500'
+              className={`h-full transition-all duration-100 ${skillUnavailable ? 'bg-muted-foreground' : 'bg-violet-500'
                 }`}
               style={{ width: `${skillCooldownPercent}%` }}
             />
