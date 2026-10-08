@@ -16,6 +16,7 @@ const effects: Array<[string, Partial<Player>]> = [
   ['재생', { regenDuration: 3000 }],
   ['화상', { isBurning: true, burnDuration: 3000 }],
   ['각성', { mageUltimateDuration: 3000 }],
+  ['네이팜', { napalmDuration: 3000 }],
   ['표식', { isMarked: true, markDuration: 3000 }],
   ['집중', { hunterFocusedDuration: 3000 }],
   ['회피', { dodgesRemaining: 3 }],

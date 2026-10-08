@@ -24,12 +24,26 @@ export function matchupTactics(player: Player, opponent: Player, frame: AIFrame,
   if (enemy === 'reaper' && opponent.isFlying && opponent.invulnerableDuration > 500) {
     preferred = Math.max(preferred, 350); strategy = 'kite';
   }
+  if (enemy === 'rocketeer') {
+    const recovering = opponent.attackCooldownRemaining > 500 &&
+      (opponent.skillCooldownRemaining > 300 || opponent.mana < opponent.character!.skill.manaCost);
+    if (!ranged && recovering && strategy !== 'kite') {
+      preferred = Math.min(preferred, player.character!.attackRange * 0.6);
+      strategy = 'pressure';
+    } else if (ranged && opponent.napalmDuration > 0) {
+      preferred = Math.max(preferred, 360);
+      strategy = 'kite';
+    }
+  }
   return { preferred, strategy, flank };
 }
 
 export function opponentLineRisk(opponent: Player, point: { x: number; y: number }, enemyPoint: { x: number; y: number }, elapsed: number, now: number) {
   const firingRight = opponent.facingRight;
   const inFront = (point.x - enemyPoint.x) * (firingRight ? 1 : -1) > 0;
+  if (opponent.character!.id === 'rocketeer' && opponent.napalmDuration > 0 && inFront &&
+      Math.abs(point.y - enemyPoint.y) < 32 && Math.abs(point.x - enemyPoint.x) < 600 &&
+      opponent.attackCooldownRemaining <= elapsed * 1000) return 35;
   if (!inFront || Math.abs(point.y - enemyPoint.y) > 32) return 0;
   if (opponent.character!.id === 'archer' && opponent.archerBurstRemaining > 0 && elapsed < opponent.archerBurstRemaining * 0.08) return 90;
   if (opponent.character!.id === 'scientist' && opponent.isChargingSkill && now - opponent.skillChargeStartTime + elapsed * 1000 > 1200) return 45;

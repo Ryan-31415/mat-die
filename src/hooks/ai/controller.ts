@@ -1,7 +1,7 @@
 import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
 import { GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
-import { checkProjectileCollision } from '@/types/projectile';
-import { clampPlayerX, FLOOR_Y, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, playerMoveSpeed, platformCollision, sandstormImpulse, shieldFacesX } from '@/types/combatPhysics';
+import { checkProjectileCollision, getProjectileCollisionTime } from '@/types/projectile';
+import { clampPlayerX, FLOOR_Y, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, playerMoveSpeed, platformCollision, sandstormImpulse, shieldFacesX, stepProjectileMotion, POOL_SIZE } from '@/types/combatPhysics';
 import { opponentLineRisk } from './matchup';
 import type { KeyboardState } from '../useKeyboard';
 import { createOpponentModel, predictOpponent, type Direction, type OpponentModel } from './learning';
@@ -45,7 +45,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   const lowHealth = player.health < player.maxHealth * 0.35;
   const zones = frame.zones.filter(z => z.ownerId !== player.id);
   const paths = frame.paths.filter(p => p.projectile.ownerId !== player.id && !p.projectile.isHackUltimate);
-  const pools = frame.pools.filter(p => p.ownerId !== player.id);
+  const pools = frame.pools.filter(p => p.ownerId !== player.id && (player.isClone || !paths.some(path => path.projectile.id === p.sourceProjectileId && path.projectile.type === 'homing-rocket')));
   const warnings = world.lightningStrikes.filter(s => !s.struck && now - s.warningStart <= LIGHTNING_WARNING_MS);
   const hitboxes = frame.hitboxes.filter(h => h.ownerId !== player.id);
   const canJump = !player.isJumping && !player.rootDuration && (player.isGrounded || now - player.lastGroundedTime < COYOTE_TIME);
@@ -93,6 +93,10 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     const direction = player.isFlying && action.direction === 0 ? (player.facingRight ? 1 : -1) : action.direction;
     const approaches = direction !== 0 && Math.sign(goal.x - player.x) === direction;
     const hits = new Uint8Array(paths.length);
+    const guided = paths.map(path => !player.isClone && path.projectile.type === 'homing-rocket' ? { ...path.projectile } : undefined);
+    const guidedTimes = new Float64Array(paths.length);
+    const destroyedGuidedVines = new Set<string>();
+    const candidatePools: { x: number; y: number; width: number; height: number; impactTime: number; damage: number }[] = [];
     if (action.drop && currentPlatform?.type === 'one-way' && !player.isJumping) { point.y += 25; vy = 300; }
     for (let step = 1; step <= frame.steps; step++) {
       const priorRisk = risk;
@@ -131,18 +135,57 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
           const strikeIn = (LIGHTNING_WARNING_MS - (now - strike.warningStart)) / 1000;
           if (strikeTime >= strikeIn && previousStrikeTime < strikeIn && Math.abs(point.x + PLAYER_SIZE / 2 - strikePoint.x) < LIGHTNING_RADIUS + 8) risk += 240;
         }
-        if (projectileInRange && environmentInRange) for (const pool of pools) if (elapsed >= pool.impactTime && overlapsPlayer(point, pool, 8)) risk += 160 / frame.steps;
+        if (projectileInRange && environmentInRange) for (const pool of pools) if (elapsed >= pool.impactTime &&
+          (!pool.duration || (elapsed - pool.impactTime) * 1000 <= pool.duration) && overlapsPlayer(point, pool, 8))
+          risk += (pool.damage === undefined ? 160 : Math.max(160, pool.damage * 120)) / frame.steps;
+        for (const pool of candidatePools) if (elapsed >= pool.impactTime && overlapsPlayer(point, pool, 8)) risk += Math.max(160, pool.damage * 120) / frame.steps;
         if (opponentInRange) for (const hitbox of hitboxes) if (now + elapsed * 1000 - hitbox.createdAt <= hitbox.duration && overlapsPlayer(point, hitbox)) risk += 180 / frame.steps;
         if (opponentInRange && opponent.isFlying && opponent.invulnerableDuration > elapsed * 1000 && Math.hypot(point.x - targets[step].x, point.y - targets[step].y) < 65) risk += 300 / frame.steps;
         else if (opponentInRange && isMelee(opponent.character!.id) && opponent.attackCooldownRemaining < elapsed * 1000 && Math.abs(point.y - targets[step].y) < PLAYER_SIZE && Math.abs(point.x - targets[step].x) < opponent.character!.attackRange + 15) risk += (isMelee(id) && !lowHealth ? 8 : 30) / frame.steps;
         for (let index = 0; index < paths.length; index++) {
           const path = paths[index], p = path.projectile;
           const phase = path.returning[step] ? 2 : 1;
-          if (step > path.endStep || (hits[index] & phase) || (p.type === 'bat' && (phase === 2 ? p.hasHitReturn : p.hasHitForward))) continue;
-          const x0 = path.x[step - 1], x1 = path.x[step], y0 = path.y[step - 1], y1 = path.y[step];
+          const homing = guided[index];
+          if ((homing ? now + elapsed * 1000 - p.createdAt > p.lifetime || !projectileInRange : step > path.endStep) ||
+              (hits[index] & phase) || (p.type === 'bat' && (phase === 2 ? p.hasHitReturn : p.hasHitForward))) continue;
+          let x0 = path.x[step - 1], x1 = path.x[step], y0 = path.y[step - 1], y1 = path.y[step];
+          if (homing) {
+            const error = path.forecastError;
+            const before = projectileForecast && error ? forecastPoint(homing, projectileForecast, error, elapsed - dt) : homing;
+            x0 = before.x; y0 = before.y;
+            const sampleTime = projectileForecast && error && projectileForecast.horizonMs > 0 ? forecastTime(projectileForecast, error, elapsed) : elapsed;
+            stepProjectileMotion(homing, world.players[homing.ownerId - 1], now + sampleTime * 1000, sampleTime - guidedTimes[index], { ...point, isInvisible: player.isInvisible });
+            guidedTimes[index] = sampleTime;
+            const after = projectileForecast && error ? forecastPoint(homing, projectileForecast, error, elapsed) : homing;
+            x1 = after.x; y1 = after.y;
+            let contact = Infinity;
+            if (environmentInRange) for (const vine of frame.vines) {
+              if (!destroyedGuidedVines.has(vine.id) && now + environmentTime(vine.id, elapsed) * 1000 - vine.createdAt <= vine.duration) {
+                const time = getProjectileCollisionTime({ ...homing, x: x1, y: y1 }, { x: x0, y: y0 }, environmentPoint(vine, elapsed));
+                if (time !== null && time < contact) contact = time;
+              }
+            }
+            const body = getProjectileCollisionTime({ ...homing, x: x1, y: y1 }, { x: x0, y: y0 }, { ...point, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity;
+            const outside = x1 + p.width < 0 || x1 > ARENA.width || y1 + p.height < 0 || y1 > ARENA.height;
+            if (contact < body || (outside && body === Infinity)) {
+              if (contact < body) for (const vine of frame.vines) {
+                if (getProjectileCollisionTime({ ...homing, x: x1, y: y1 }, { x: x0, y: y0 }, environmentPoint(vine, elapsed)) === contact)
+                  destroyedGuidedVines.add(vine.id);
+              }
+              if (p.isNapalm) {
+                const poolSize = p.explosionRadius * 2;
+                candidatePools.push({ x: x0 + (x1 - x0) * (contact === Infinity ? 1 : contact) + p.width / 2 - poolSize / 2,
+                  y: y0 + (y1 - y0) * (contact === Infinity ? 1 : contact) + p.height / 2 - poolSize / 2,
+                  width: poolSize, height: poolSize, impactTime: elapsed, damage: p.firePoolDamage ?? p.damage * 0.1 });
+              }
+              hits[index] |= phase;
+              continue;
+            }
+          }
           if (Math.max(x0, x1) + p.width < point.x || Math.min(x0, x1) > point.x + PLAYER_SIZE || Math.max(y0, y1) + p.height < point.y || Math.min(y0, y1) > point.y + PLAYER_SIZE) continue;
           if (checkProjectileCollision({ x: x1, y: y1, width: p.width, height: p.height }, { x: x0, y: y0 }, { ...point, width: PLAYER_SIZE, height: PLAYER_SIZE })) {
-            risk += (100 + p.damage * (isOvertime ? 4 : 2)) * (1 - elapsed * 0.4); hits[index] |= phase;
+            const sustained = p.isNapalm ? (p.burnDamage ?? p.damage * 0.075) * 12 + (p.firePoolDamage ?? p.damage * 0.1) * 10 : 0;
+            risk += (100 + (p.damage + sustained) * (isOvertime ? 4 : 2)) * (1 - elapsed * 0.4); hits[index] |= phase;
           }
         }
       }
@@ -150,7 +193,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       if (step > 1 && prediction < 1) risk = priorRisk + lavaRisk + (risk - priorRisk - lavaRisk) * prediction;
       if (environmentInRange) for (const zone of frame.souls) if (now + environmentTime(zone.id, elapsed) * 1000 - zone.createdAt <= zone.duration && overlapsPlayer(point, environmentPoint(zone, elapsed))) benefit += ((1 - player.health / player.maxHealth) * 14 + (1 - player.mana / player.maxMana) * 6) * traits.recovery / frame.steps;
       const shieldFront = opponent.isShielding && (point.x - targets[step].x) * (opponent.facingRight ? 1 : -1) > 0;
-      if (opponentInRange && !opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - targets[step].y) < 30 && Math.abs(point.x - targets[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * 1.3 * traits.aggression / frame.steps;
+      if (opponentInRange && !opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - targets[step].y) < 30 && Math.abs(point.x - targets[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * (player.napalmDuration > elapsed * 1000 ? 2.5 : 1.3) * traits.aggression / frame.steps;
       if (mapId === 'graveyard') risk += Math.max(0, FLOOR_Y - point.y) / 4000 / frame.steps;
     }
     if (mapId === 'volcano' && !player.isFlying && vy > 0 && !platforms.some(p => p.id !== 'ground' && p.y >= point.y + PLAYER_SIZE && point.x + PLAYER_SIZE > p.x && point.x < p.x + p.width)) risk += 130;

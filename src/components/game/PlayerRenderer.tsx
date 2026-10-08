@@ -23,6 +23,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
   if (player.isFrozen) statusEffects.push('🧊');
   if (player.isBurning) statusEffects.push('🔥');
   if (player.mageUltimateDuration > 0) statusEffects.push('🌟');
+  if (player.napalmDuration > 0) statusEffects.push('🚀🔥');
   if (character.id === 'archer' && player.archerBurstRemaining > 0) statusEffects.push(`🏹x${player.archerBurstRemaining}`);
   if (player.isMarked) statusEffects.push('🎯');
   if (player.hunterFocusedDuration > 0) statusEffects.push('🔭');

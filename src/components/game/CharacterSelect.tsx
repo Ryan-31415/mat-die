@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Character, CHARACTERS, CharacterType } from '@/types/game';
-import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake, Terminal, Sparkles } from 'lucide-react';
+import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake, Terminal, Sparkles, Rocket } from 'lucide-react';
 
 interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
@@ -14,6 +14,7 @@ interface CharacterSelectProps {
 }
 
 const characterIcons: Record<CharacterType, React.ReactNode> = {
+  rocketeer: <Rocket className="w-8 h-8" />,
   gladiator: <Sword className="w-8 h-8" />,
   archer: <Target className="w-8 h-8" />,
   mage: <Flame className="w-8 h-8" />,

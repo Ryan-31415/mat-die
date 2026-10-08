@@ -5,6 +5,24 @@ interface ProjectileRendererProps {
 }
 
 const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
+  if (projectile.type === 'rocket' || projectile.type === 'homing-rocket') {
+    const color = projectile.type === 'rocket' ? '#ef4444' : '#3b82f6';
+    const angle = Math.atan2(projectile.velocityY, projectile.velocityX) * 180 / Math.PI;
+    return (
+      <div className="absolute pointer-events-none" aria-label={projectile.isNapalm ? '네이팜 로켓' : projectile.type === 'rocket' ? '무유도 로켓' : '유도 로켓'}
+        style={{ left: projectile.x, top: projectile.y, width: projectile.width, height: projectile.height,
+          transform: `rotate(${angle}deg)`, filter: projectile.isNapalm ? 'drop-shadow(0 0 6px #f97316)' : undefined }}>
+        <svg viewBox="0 0 36 24" className="w-full h-full overflow-visible">
+          <path d="M7 8 L-6 12 L7 16 Z" fill="#f97316" />
+          <path d="M7 10 L0 12 L7 14 Z" fill="#fef08a" />
+          <path d="M8 9 L5 2 L16 8 M8 15 L5 22 L16 16" fill={color} />
+          <rect x="6" y="8" width="20" height="8" rx="3" fill="#fff" stroke="#94a3b8" />
+          <path d="M26 8 L35 12 L26 16 Z" fill={color} />
+          {projectile.isNapalm && <path d="M12 11 L15 8 L18 12 L15 16 Z" fill="#f97316" />}
+        </svg>
+      </div>
+    );
+  }
   // Special case for Archer arrows to have hitbox larger than visual
   if (projectile.type === 'arrow' || projectile.type === 'poison-arrow') {
     const angle = Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI);
@@ -91,7 +109,7 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           boxShadow: '0 0 15px #00ff88, 0 0 30px #00dd66, inset 0 0 10px #00ff88',
           transform: `rotate(${Date.now() / 10 % 360}deg)`,
         };
-      case 'electric-orb':
+      case 'electric-orb': {
         const chargeLevel = projectile.chargeLevel || 0;
         const isMaxCharge = chargeLevel >= 1;
         return {
@@ -105,6 +123,7 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           animation: isMaxCharge ? 'pulse 0.05s infinite' : 'pulse 0.08s infinite',
           border: isMaxCharge ? '2px solid #fff' : 'none',
         };
+      }
       case 'bullet':
         return {
           backgroundColor: '#374151', // Dark gray

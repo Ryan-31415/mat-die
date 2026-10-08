@@ -7,6 +7,7 @@ import type { Direction, OpponentModel } from './learning';
 import type { Strategy } from './state';
 import type { Action } from './controller';
 import { NEUTRAL_AI_TRAITS, type AIDecisionOptions } from '@/types/ai';
+import { rocketeerShot } from './rocketeer';
 
 export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, model: OpponentModel, chosen: Action,
   facingTarget: boolean, threatened: boolean, strategy: Strategy, targetAt: (time: number) => Point, allowLongRange = false, options?: AIDecisionOptions) {
@@ -45,11 +46,17 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
     return true;
   };
   let attack = false;
+  const rocketFacing = chosen.direction || (player.facingRight ? 1 : -1);
+  const normalRocket = id === 'rocketeer' && facingTarget && targetVulnerable
+    ? rocketeerShot(frame, player, opponent, targetAt, false, rocketFacing, allowLongRange) : null;
+  const guidedRocket = id === 'rocketeer' && facingTarget && targetVulnerable && !opponent.isInvisible
+    ? rocketeerShot(frame, player, opponent, targetAt, true, rocketFacing, allowLongRange) === 'target' : false;
   if (facingTarget && targetVulnerable && player.attackCooldownRemaining <= 0) {
     if (isMelee(id)) attack = !shieldFacingUs && Math.abs(dx) < character.attackRange + PLAYER_SIZE - 6 && Math.abs(dy) < PLAYER_SIZE - 4;
     else if (!shieldFacingUs) {
       const range = allowLongRange ? Infinity : character.attackRange;
-      if (id === 'archer') attack = canHit(1000, -80, 190, 30, range, true);
+      if (id === 'rocketeer') attack = normalRocket !== null;
+      else if (id === 'archer') attack = canHit(1000, -80, 190, 30, range, true);
       else if (id === 'scientist') attack = canHit(640, -105, 220, 35, range, true);
       else if (id === 'hunter') attack = canHit(player.hunterFocusedDuration ? 1562.5 : 1250, 0, 0, 35, allowLongRange ? Infinity : player.hunterFocusedDuration ? 350 : 275, true, true, HUNTER_BULLET_LIFETIME_MS);
       else attack = canHit(id === 'mage' ? 780 : id === 'hacker' ? 800 : 700, 0, 0, 30, range, true);
@@ -87,6 +94,8 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   if (canCast && traits.ultimate > 0 && player.mana >= character.ultimate.manaCost && !player.isChargingSkill && targetVulnerable) {
     const eagerDistance = distance / Math.max(0.25, traits.ultimate);
     switch (id) {
+      case 'rocketeer': ultimate = player.napalmDuration <= 0 && eagerDistance < 600 &&
+        ((normalRocket === 'target' && player.attackCooldownRemaining < 300) || (guidedRocket && player.skillCooldownRemaining < 1200)); break;
       case 'gladiator': ultimate = player.buffDuration <= 0 && (eagerDistance < 240 || (lowHealth && threatened)); break;
       case 'archer': ultimate = !(player.archerBurstRemaining > 0) && facingTarget && !shieldFacingUs && canHit(1000, -80, 190, 65, 650); break;
       case 'mage': ultimate = player.mageUltimateDuration <= 0 && eagerDistance < 420; break;
@@ -103,7 +112,18 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   castingPreference = traits.skill;
   if (canCast && !ultimate && (traits.skill > 0 || player.isChargingSkill) && player.mana >= reservedMana && player.skillCooldownRemaining <= 0) {
     switch (id) {
+      case 'rocketeer': skill = guidedRocket; break;
       case 'gladiator': {
+        const incoming = frame.paths.find(path => path.projectile.ownerId !== player.id && path.projectile.canBeDeflected &&
+          Array.from({ length: Math.min(path.endStep, 8) }, (_, i) => i + 1).some(i => getProjectileCollisionTime(
+            { x: path.x[i], y: path.y[i], width: path.projectile.width, height: path.projectile.height },
+            { x: path.x[i - 1], y: path.y[i - 1] }, { ...player, width: PLAYER_SIZE, height: PLAYER_SIZE }
+          ) !== null));
+        if (incoming && traits.defense > 0 && player.mana >= 5) {
+          chosen.direction = incoming.projectile.x + incoming.projectile.width / 2 >= player.x + PLAYER_SIZE / 2 ? 1 : -1;
+          skill = true;
+          break;
+        }
         const learnedAttackSoon = model.attackCount >= 2 && model.lastAttackAt !== undefined && now - model.lastAttackAt > model.attackInterval - 180;
         skill = traits.defense > 0 && player.mana >= 5 && facingTarget && (threatened || (isMelee(opponent.character!.id) && distance < 140 * traits.defense && (opponent.attackCooldownRemaining < 180 || learnedAttackSoon)));
         break;

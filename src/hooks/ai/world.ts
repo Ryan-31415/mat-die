@@ -35,8 +35,9 @@ export interface ProjectilePath {
   y: Float64Array;
   returning: Uint8Array;
   endStep: number;
+  forecastError?: ForecastError;
 }
-export interface PredictedPool { ownerId: 1 | 2; x: number; y: number; width: number; height: number; impactTime: number }
+export interface PredictedPool { ownerId: 1 | 2; x: number; y: number; width: number; height: number; impactTime: number; damage?: number; duration?: number; sourceProjectileId?: string }
 export interface AIFrame {
   world: AIWorld;
   paths: ProjectilePath[];
@@ -79,6 +80,7 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
     return { projectile, x, y, returning: new Uint8Array(steps + 1), endStep: options ? Math.max(1, Array.from(times).filter(t => t > 0 && t * 1000 <= options.forecasts.projectiles.horizonMs + 1e-6).length) : AI_STEPS };
   });
   const errors = options ? paths.map(() => sampleForecastError(options.forecasts.projectiles, options.random)) : [];
+  paths.forEach((path, index) => { path.forecastError = errors[index]; });
   const simulatedTimes = paths.map(() => 0);
   const simulated = paths.map(path => ({ ...path.projectile }));
   const pools: PredictedPool[] = [];
@@ -93,7 +95,9 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
       const previous = { x: path.x[step - 1], y: path.y[step - 1] };
       const sampleTime = options && options.forecasts.projectiles.horizonMs > 0 ? forecastTime(options.forecasts.projectiles, errors[index], t) : options ? 0 : t;
       const motionDt = options ? sampleTime - simulatedTimes[index] : dt;
-      const p = stepProjectileMotion(simulated[index], world.players[simulated[index].ownerId - 1], now + sampleTime * 1000, motionDt);
+      const target = world.players[simulated[index].ownerId === 1 ? 1 : 0];
+      const p = stepProjectileMotion(simulated[index], world.players[simulated[index].ownerId - 1], now + sampleTime * 1000, motionDt,
+        { x: target.x + target.velocityX * sampleTime, y: target.y + target.velocityY * sampleTime, isInvisible: target.isInvisible });
       simulatedTimes[index] = sampleTime;
       const projected = options ? forecastPoint(p, options.forecasts.projectiles, errors[index], t) : p;
       path.x[step] = projected.x; path.y[step] = projected.y;
@@ -117,12 +121,14 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
         if (vine) destroyedVines.add(vine.id);
         path.endStep = step;
         // Preserve the engine's impact policy: flasks/blizzard land on platforms;
-        // other pools spawn at the boundary, while vines only consume the shot.
-        if (!vine && (p.type === 'flask' || p.type === 'blizzard-stone' || (!surface && p.createsFirePool))) {
-          const size = POOL_SIZE[p.type === 'flask' ? 'toxic-pool' : p.type === 'blizzard-stone' ? 'blizzard' : 'fire-pool'];
-          let x = projected.x + p.width / 2 - size / 2;
+        // other pools spawn at the boundary; napalm also ignites struck vines.
+        if ((p.isNapalm && vine) || (!vine && (p.type === 'flask' || p.type === 'blizzard-stone' || (!surface && p.createsFirePool)))) {
+          const size = p.isNapalm ? p.explosionRadius * 2 : POOL_SIZE[p.type === 'flask' ? 'toxic-pool' : p.type === 'blizzard-stone' ? 'blizzard' : 'fire-pool'];
+          const contact = vine ? vineTime : 1;
+          let x = previous.x + (projected.x - previous.x) * contact + p.width / 2 - size / 2;
           if (surface && p.type === 'flask') x = Math.max(surface.x, Math.min(x, surface.x + surface.width - size));
-          pools.push({ ownerId: p.ownerId, x, y: (surface?.y ?? projected.y + p.height / 2) - size / 2, width: size, height: size, impactTime: t });
+          pools.push({ ownerId: p.ownerId, x, y: (surface?.y ?? previous.y + (projected.y - previous.y) * contact + p.height / 2) - size / 2,
+            width: size, height: size, impactTime: t, damage: p.isNapalm ? p.firePoolDamage : undefined, duration: p.firePoolDuration, sourceProjectileId: p.id });
         }
       }
     }

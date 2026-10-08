@@ -223,6 +223,11 @@ const PlayerStats = ({ player, isPlayer1 }: PlayerStatsProps) => {
             화상 {(player.burnDuration / 1000).toFixed(1)}s
           </span>
         )}
+        {player.napalmDuration > 0 && (
+          <span className="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-500 rounded">
+            네이팜 {(player.napalmDuration / 1000).toFixed(1)}s
+          </span>
+        )}
         {player.mageUltimateDuration > 0 && (
           <span className="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-500 rounded">
             각성 {(player.mageUltimateDuration / 1000).toFixed(1)}s

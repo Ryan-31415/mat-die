@@ -65,6 +65,21 @@ const report = { measuredAt: new Date().toISOString(), node: process.version,
   cpu: cpus()[0]?.model, platform: platform(), arch: arch(),
   baselinePath, baselineSha256: createHash('sha256').update(baselineSource).digest('hex'),
   description: 'Synthetic CPU benchmark; includes frame preparation. Does not measure browser rendering or total engine ticks.', results };
+report.rocketeer = [0, 1, 4, 12].map(count => {
+  const rocketAI = { ...ai, character: api.CHARACTERS.rocketeer, napalmDuration: 4000 };
+  const rocketTarget = { ...target, character: api.CHARACTERS.rocketeer };
+  const projectiles = Array.from({ length: count }, (_, i) => ({
+    ...api.createProjectile('homing-rocket', 1, 100 + i * 37, 400, 660, 0, 16),
+    id: 'rocket-bench-' + i, createdAt: now, isNapalm: true,
+    createsFirePool: true, firePoolDuration: 4000, firePoolDamage: 1.6, burnDamage: 1.2,
+  }));
+  const world = { players: [rocketTarget, rocketAI], projectiles, hazardZones: [], attackHitboxes: [],
+    platforms: api.MAPS.wasteland.platforms, mapId: 'wasteland', now, deltaTime: 1000 / 60,
+    isOvertime: false, roundTimeRemaining: 60, sandstormActive: false, sandstormDirection: 'right',
+    sandstormTimer: 0, lightningStrikes: [], soulZones: [], vineShields: [] };
+  const model = api.createOpponentModel();
+  return { homingRockets: count, current: measure(() => api.decideAI(api.prepareAIFrame(world), rocketAI, model)) };
+});
 mkdirSync('docs', { recursive: true });
-writeFileSync('docs/ai-performance.json', JSON.stringify(report, null, 2) + '\n');
+writeFileSync(process.env.AI_BENCH_OUTPUT ?? 'docs/ai-performance.json', JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report, null, 2));

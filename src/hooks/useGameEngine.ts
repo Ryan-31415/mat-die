@@ -11,7 +11,7 @@ import { activeVine } from './ai/world';
 import { createDifficultyRuntime, createDifficultySession, stepDifficulty } from './ai/difficulty';
 import type { AISettings } from '@/types/ai';
 import { createAIRoundState, resetAILearningObservations, type AILearningSession, type AIRoundState } from './ai/state';
-import { advanceProjectile, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, platformCollision, playerMoveSpeed, sandstormImpulse, shieldFacesX, VINE_FADE_MS } from '@/types/combatPhysics';
+import { advanceProjectile, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, platformCollision, playerMoveSpeed, sandstormImpulse, shieldFacesX, VINE_FADE_MS, ROCKET_SPEED, HOMING_ROCKET_SPEED, NAPALM_DURATION_MS, NAPALM_POOL_DURATION_MS, isRocket } from '@/types/combatPhysics';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
 const ARCHER_BURST_COUNT = 8;
@@ -459,11 +459,19 @@ export const useGameEngine = (
     };
     updatePacketBlockStatus();
 
-    // Burn damage (from Mage ultimate)
+    updatedPlayer.napalmDuration = Math.max(0, (updatedPlayer.napalmDuration ?? 0) - deltaTime);
+
+    // Burn damage (from Mage or Rocketeer ultimate)
     if (updatedPlayer.isBurning && updatedPlayer.burnDuration > 0) {
       updatedPlayer.burnDuration -= deltaTime;
       // Apply burn damage every 250ms
-      if (now - updatedPlayer.lastBurnTick >= 250) {
+      if (updatedPlayer.burnIsNapalm) {
+        const through = now + Math.min(0, updatedPlayer.burnDuration);
+        while (through - updatedPlayer.lastBurnTick >= 250) {
+          updatedPlayer.health = Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick);
+          updatedPlayer.lastBurnTick += 250;
+        }
+      } else if (now - updatedPlayer.lastBurnTick >= 250) {
         updatedPlayer.health = Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick);
         updatedPlayer.lastBurnTick = now;
       }
@@ -471,6 +479,7 @@ export const useGameEngine = (
         updatedPlayer.isBurning = false;
         updatedPlayer.burnDuration = 0;
         updatedPlayer.burnDamagePerTick = 0;
+        updatedPlayer.burnIsNapalm = false;
         updatedPlayer.burnOwner = null;
       }
     }
@@ -718,6 +727,25 @@ export const useGameEngine = (
       updatedPlayer.archerBurstCooldown = (updatedPlayer.archerBurstCooldown ?? 0) - deltaTime;
     }
 
+    // Snapshot napalm before either attack when inputs arrive together.
+    if (character.id === 'rocketeer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && updatedPlayer.napalmDuration <= 0) {
+      updatedPlayer.mana -= 100;
+      updatedPlayer.napalmDuration = NAPALM_DURATION_MS;
+      updatedPlayer.isUsingUltimate = true;
+    }
+    const launchRocket = (type: 'rocket' | 'homing-rocket', speed: number, damage: number) => {
+      const rocket = createProjectile(type, player.id, updatedPlayer.x + PLAYER_SIZE / 2,
+        updatedPlayer.y + PLAYER_SIZE / 2, (updatedPlayer.facingRight ? 1 : -1) * speed, 0, damage);
+      if (updatedPlayer.napalmDuration > 0) {
+        rocket.isNapalm = true;
+        rocket.createsFirePool = true;
+        rocket.firePoolDuration = NAPALM_POOL_DURATION_MS;
+        rocket.firePoolDamage = damage * 0.1;
+        rocket.burnDamage = damage * 0.075;
+      }
+      newProjectiles.push(rocket);
+    };
+
     // Give a ready archer ultimate priority over a simultaneous basic attack.
     const startingArcherBurst = character.id === 'archer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced;
     // Basic Attack
@@ -752,6 +780,9 @@ export const useGameEngine = (
       const baseDamage = character.attackDamage * (1 + damageBoost) * damageMultiplier;
 
       switch (character.id) {
+        case 'rocketeer':
+          launchRocket('rocket', ROCKET_SPEED, baseDamage);
+          break;
         case 'gladiator':
           newHitboxes.push(createAttackHitbox(
             player.id,
@@ -902,6 +933,10 @@ export const useGameEngine = (
         const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
 
         switch (character.id) {
+          case 'rocketeer':
+            launchRocket('homing-rocket', HOMING_ROCKET_SPEED,
+              character.attackDamage * (1 + updatedPlayer.damageBoost - (updatedPlayer.isHacked ? 0.2 : 0)) * damageMultiplier);
+            break;
           case 'archer':
             updatedPlayer.poisonArrowsRemaining = 3;
             break;
@@ -1190,7 +1225,7 @@ export const useGameEngine = (
 
     // Ultimate
     // Block if Silenced
-    if (ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && !(updatedPlayer.archerBurstRemaining > 0)) {
+    if (character.id !== 'rocketeer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && !(updatedPlayer.archerBurstRemaining > 0)) {
       updatedPlayer.mana = 0;
       updatedPlayer.isUsingUltimate = true;
 
@@ -1492,7 +1527,7 @@ export const useGameEngine = (
       const coilDamageMap = new Map<string, number>();
 
       // Update projectiles
-      projectiles = projectiles.map(proj => advanceProjectile(proj, players[proj.ownerId - 1], now, deltaTime / 1000));
+      projectiles = projectiles.map(proj => advanceProjectile(proj, players[proj.ownerId - 1], now, deltaTime / 1000, players[proj.ownerId === 1 ? 1 : 0]));
 
       const newlySpawnedProjectiles: Projectile[] = [];
       const explosionEffects = prev.explosionEffects.filter(effect => now - effect.createdAt < effect.duration);
@@ -1507,12 +1542,23 @@ export const useGameEngine = (
         const centerY = start.y + (proj.y - start.y) * hitTime + proj.height / 2;
         // Clamp to the struck surface, including hits that cross it within a tick.
         const bounds = target ?? { x: 0, y: 0, width: ARENA.width, height: ARENA.height - ARENA.padding };
-        explosionEffects.push(createExplosionEffect(
+        const effect = createExplosionEffect(
           proj,
           Math.max(bounds.x, Math.min(centerX, bounds.x + bounds.width)),
           Math.max(bounds.y, Math.min(centerY, bounds.y + bounds.height)),
           now
-        ));
+        );
+        explosionEffects.push(effect);
+        if (proj.isNapalm) {
+          const pool = createHazardZone('fire-pool', proj.ownerId, 0, 0,
+            proj.firePoolDamage ?? proj.damage * 0.1, proj.firePoolDuration);
+          pool.width = effect.radius * 2;
+          pool.height = effect.radius * 2;
+          pool.x = effect.x - pool.width / 2;
+          pool.y = effect.y - pool.height / 2;
+          pool.isNapalm = true;
+          hazardZones.push(pool);
+        }
       };
 
       // Check projectile collisions
@@ -1650,7 +1696,7 @@ export const useGameEngine = (
               }
 
               hazardZones.push(blizzard);
-            } else if (proj.isExplosive && proj.createsFirePool) {
+            } else if (proj.isExplosive && proj.createsFirePool && !proj.isNapalm) {
               const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
               const isToxic = proj.type === 'flask';
               const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
@@ -1703,7 +1749,7 @@ export const useGameEngine = (
           emitExplosion(proj, hitCoil);
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
 
-          if (proj.createsFirePool) {
+          if (proj.createsFirePool && !proj.isNapalm) {
             const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
             const isToxic = proj.type === 'flask';
             const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
@@ -2003,10 +2049,20 @@ export const useGameEngine = (
                 }
               }
 
+              if (proj.isNapalm && damageRes.dealt > 0) {
+                currentTarget.isBurning = true;
+                currentTarget.burnDuration = 3000;
+                currentTarget.burnDamagePerTick = proj.burnDamage ?? proj.damage * 0.075;
+                currentTarget.burnIsNapalm = true;
+                currentTarget.burnOwner = proj.ownerId;
+                currentTarget.lastBurnTick = now;
+              }
+
               // Mage Ultimate: Apply burn effect on any attack
               if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
                 currentTarget.isBurning = true;
                 currentTarget.burnDuration = 3000; // 3 seconds
+                currentTarget.burnIsNapalm = false;
                 currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.10; // 10% of mage attack per tick (40% per second)
                 currentTarget.burnOwner = proj.ownerId;
                 currentTarget.lastBurnTick = now;
@@ -2105,7 +2161,7 @@ export const useGameEngine = (
 
               if (proj.isHackUltimate) return false;
 
-              if (proj.createsFirePool) {
+              if (proj.createsFirePool && !proj.isNapalm) {
                 const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
                 const isToxic = proj.type === 'flask';
                 const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
@@ -2239,6 +2295,7 @@ export const useGameEngine = (
           if (players[ownerIndex].character?.id === 'mage' && players[ownerIndex].mageUltimateDuration > 0 && damageRes.dealt > 0) {
             currentTarget.isBurning = true;
             currentTarget.burnDuration = 3000; // 3.0 seconds
+            currentTarget.burnIsNapalm = false;
             currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.075;
             currentTarget.burnOwner = hitbox.ownerId;
             currentTarget.lastBurnTick = now;
@@ -2296,6 +2353,21 @@ export const useGameEngine = (
           }
         }
 
+        if (zoneCopy.isNapalm) {
+          const through = Math.min(now, zoneCopy.createdAt + zoneCopy.duration);
+          while (through - zoneCopy.lastTick >= zoneCopy.tickRate) {
+            zoneCopy.lastTick += zoneCopy.tickRate;
+            for (let i = 0; i < 2; i++) {
+              if (i !== zoneCopy.ownerId - 1 && checkCollision(zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
+                players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE)) players[i] = applyDamage(players[i], zoneCopy.damage, true).player;
+            }
+            nextClones.forEach((clone, index) => {
+              if (clone.id !== zoneCopy.ownerId && checkCollision(zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
+                clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) nextClones[index] = applyDamage(clone, zoneCopy.damage, true).player;
+            });
+          }
+          return now - zoneCopy.createdAt > zoneCopy.duration ? null : zoneCopy;
+        }
         if (now - zoneCopy.createdAt > zoneCopy.duration) {
           if (zoneCopy.type === 'tesla-coil') {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
@@ -2694,6 +2766,7 @@ export const useGameEngine = (
               // Apply burn
               players[i].isBurning = true;
               players[i].burnDuration = 3000;
+              players[i].burnIsNapalm = false;
               players[i].burnDamagePerTick = 2;
               players[i].burnOwner = null;
               players[i].lastBurnTick = now;
@@ -2767,9 +2840,16 @@ export const useGameEngine = (
   }, [createInitialEngineState]);
 
   const togglePause = useCallback(() => {
-    setGameState(prev => ({ ...prev, isPaused: !prev.isPaused,
-      aiState: { ...prev.aiState, learning: resetAILearningObservations(prev.aiState.learning) },
-    }));
+    setGameState(prev => {
+      const pausedMs = prev.isPaused && pausedAtRef.current !== null ? Date.now() - pausedAtRef.current : 0;
+      return { ...prev, isPaused: !prev.isPaused,
+        projectiles: pausedMs ? prev.projectiles.map(p => isRocket(p) ? { ...p, createdAt: p.createdAt + pausedMs } : p) : prev.projectiles,
+        hazardZones: pausedMs ? prev.hazardZones.map(z => z.isNapalm ? { ...z, createdAt: z.createdAt + pausedMs, lastTick: z.lastTick + pausedMs } : z) : prev.hazardZones,
+        players: pausedMs ? prev.players.map(p => p.isBurning ? { ...p, lastBurnTick: p.lastBurnTick + pausedMs } : p) as [Player, Player] : prev.players,
+        clones: pausedMs ? prev.clones.map(p => p.isBurning ? { ...p, lastBurnTick: p.lastBurnTick + pausedMs } : p) : prev.clones,
+        aiState: { ...prev.aiState, learning: resetAILearningObservations(prev.aiState.learning) },
+      };
+    });
   }, []);
 
   return {

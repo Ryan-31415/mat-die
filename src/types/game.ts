@@ -3,7 +3,7 @@ import { createAISettings, type AISettings } from './ai';
 
 export type GameScreen = 'menu' | 'character-select' | 'ai-settings' | 'map-select' | 'game' | 'result';
 
-export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage' | 'hacker';
+export type CharacterType = 'gladiator' | 'archer' | 'mage' | 'ninja' | 'scientist' | 'hunter' | 'reaper' | 'ice-mage' | 'hacker' | 'rocketeer';
 
 export type GameMode = 'single' | 'multi';
 
@@ -97,9 +97,11 @@ export interface Player {
   isBurning: boolean;
   burnDuration: number;
   burnDamagePerTick: number;
+  burnIsNapalm?: boolean;
   burnOwner: 1 | 2 | null;
   lastBurnTick: number;
   mageUltimateDuration: number;
+  napalmDuration: number;
   isClone: boolean;
   aiControllerId?: string;
   createdAt: number;
@@ -393,6 +395,34 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       cooldown: 0,
     },
   },
+  rocketeer: {
+    id: 'rocketeer',
+    name: 'Rocketeer',
+    nameKo: '로켓티어',
+    color: '#f97316',
+    colorClass: 'bg-orange-500',
+    maxHealth: 110,
+    maxMana: 100,
+    manaRegen: 6.4,
+    speed: 4.8,
+    attackDamage: 16, 
+    attackRange: 600, 
+    attackCooldown: 1200,
+    attackDescription: '전방으로 로켓을 발사합니다.',
+    passive: '로켓은 발사 후 1초 동안 가속하여 발사 탄속의 160%까지 빨라집니다.',
+    skill: {
+      name: '유도 로켓',
+      manaCost: 30,
+      cooldown: 3000,
+      description: '상대를 추적하는 유도 로켓을 발사합니다. 일반 로켓보다 탄속이 20% 빠릅니다.',
+    },
+    ultimate: {
+      name: '네이팜',
+      manaCost: 100,
+      cooldown: 0,
+      description: '6초간 로켓이 적중 지점에 4초간 화염 장판을 남깁니다. 로켓 직격 시 3초간 발화 효과(지속 피해)를 부여합니다.',
+    },
+  },
 };
 
 // Arena dimensions
@@ -474,9 +504,11 @@ export const createInitialPlayer = (id: 1 | 2, character: Character | null): Pla
   isBurning: false,
   burnDuration: 0,
   burnDamagePerTick: 0,
+  burnIsNapalm: false,
   burnOwner: null,
   lastBurnTick: 0,
   mageUltimateDuration: 0,
+  napalmDuration: 0,
   isClone: false,
   createdAt: Date.now(),
   skillChargeStartTime: undefined,

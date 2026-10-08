@@ -12,6 +12,18 @@ export const VINE_FADE_MS = 700;
 export const DEFAULT_PROJECTILE_LIFETIME_MS = 3000;
 export const HUNTER_BULLET_LIFETIME_MS = 240;
 export const POOL_SIZE = { 'toxic-pool': 150, 'fire-pool': 225, blizzard: 400 } as const;
+export const ROCKET_SPEED = 550;
+export const ROCKET_WIDTH = 48;
+export const ROCKET_HEIGHT = 32;
+export const ROCKET_EXPLOSION_RADIUS = 75;
+export const HOMING_ROCKET_SPEED = 660;
+export const ROCKET_ACCELERATION_MS = 1000;
+export const ROCKET_MAX_SPEED_FACTOR = 1.6;
+export const ROCKET_TURN_RATE = Math.PI * 2;
+export const NAPALM_DURATION_MS = 6000;
+export const NAPALM_POOL_DURATION_MS = 4000;
+export const isRocket = (projectile: Pick<Projectile, 'type'>) => projectile.type === 'rocket' || projectile.type === 'homing-rocket';
+export type ProjectileTarget = Pick<Player, 'x' | 'y' | 'isInvisible'>;
 export const clampPlayerX = (x: number) => Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, x));
 export const shieldFacesX = (defender: Pick<Player, 'x' | 'facingRight' | 'isShielding'>, sourceCenterX: number) =>
   defender.isShielding && (sourceCenterX - defender.x - PLAYER_SIZE / 2) * (defender.facingRight ? 1 : -1) > 0;
@@ -51,12 +63,31 @@ export function fallStep(point: { x: number; y: number }, velocityY: number, dt:
 }
 
 /** A return phase is a fact, never inferred from horizontal speed or projectile age. */
-export function advanceProjectile(projectile: Projectile, owner: Pick<Player, 'x' | 'y'>, now: number, dt: number): Projectile {
-  return stepProjectileMotion({ ...projectile }, owner, now, dt);
+export function advanceProjectile(projectile: Projectile, owner: Pick<Player, 'x' | 'y'>, now: number, dt: number, target?: ProjectileTarget): Projectile {
+  return stepProjectileMotion({ ...projectile }, owner, now, dt, target);
 }
 
 /** Mutates only a caller-owned simulation copy; avoids per-step projectile allocations. */
-export function stepProjectileMotion(next: Projectile, owner: Pick<Player, 'x' | 'y'>, now: number, dt: number): Projectile {
+export function stepProjectileMotion(next: Projectile, owner: Pick<Player, 'x' | 'y'>, now: number, dt: number, target?: ProjectileTarget): Projectile {
+  if (isRocket(next)) {
+    const initialSpeed = next.initialSpeed ?? (next.type === 'rocket' ? ROCKET_SPEED : HOMING_ROCKET_SPEED);
+    next.initialSpeed = initialSpeed;
+    next.flightTimeMs = (next.flightTimeMs ?? 0) + Math.max(0, dt) * 1000;
+    const speed = initialSpeed * (1 + (ROCKET_MAX_SPEED_FACTOR - 1) * Math.min(1, next.flightTimeMs / ROCKET_ACCELERATION_MS));
+    let angle = Math.atan2(next.velocityY, next.velocityX);
+    if (next.type === 'homing-rocket' && target && !target.isInvisible) {
+      const dx = target.x + PLAYER_SIZE / 2 - next.x - next.width / 2;
+      const dy = target.y + PLAYER_SIZE / 2 - next.y - next.height / 2;
+      if (Math.hypot(dx, dy) > 0) {
+        const desired = Math.atan2(dy, dx);
+        const difference = Math.atan2(Math.sin(desired - angle), Math.cos(desired - angle));
+        const limit = ROCKET_TURN_RATE * Math.max(0, dt);
+        angle += Math.max(-limit, Math.min(limit, difference));
+      }
+    }
+    next.velocityX = Math.cos(angle) * speed;
+    next.velocityY = Math.sin(angle) * speed;
+  }
   if (next.isReturning) {
     const age = now - next.createdAt;
     const nextX = next.x + next.velocityX * dt;

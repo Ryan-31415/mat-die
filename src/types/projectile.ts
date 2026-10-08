@@ -1,7 +1,7 @@
-import { DEFAULT_PROJECTILE_LIFETIME_MS, HUNTER_BULLET_LIFETIME_MS, POOL_SIZE } from './combatPhysics';
+import { DEFAULT_PROJECTILE_LIFETIME_MS, HUNTER_BULLET_LIFETIME_MS, POOL_SIZE, ROCKET_WIDTH, ROCKET_HEIGHT, ROCKET_EXPLOSION_RADIUS } from './combatPhysics';
 // Projectile Types
 
-export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile' | 'hacking';
+export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile' | 'hacking' | 'rocket' | 'homing-rocket';
 
 export interface Projectile {
   id: string;
@@ -39,6 +39,11 @@ export interface Projectile {
   hasHitReturn?: boolean; // Track if projectile has hit on return path
   lastHitTime: Record<number, number>; // Track timestamp of last hit per player ID
   chargeLevel?: number; // 0-1 (or >1 for overcharge visuals)
+  initialSpeed?: number;
+  flightTimeMs?: number;
+  isNapalm?: boolean;
+  firePoolDamage?: number;
+  burnDamage?: number;
 }
 
 export const getProjectileCollisionTime = (
@@ -117,6 +122,7 @@ export interface HazardZone {
   damage: number;
   tickRate: number; // damage every X ms
   lastTick: number;
+  isNapalm?: boolean;
   duration: number;
   createdAt: number;
   // Tesla coil specific
@@ -190,6 +196,14 @@ export const createProjectile = (
   let result: Projectile = { ...baseProjectile };
 
   switch (type) {
+    case 'rocket':
+    case 'homing-rocket':
+      result = {
+        ...baseProjectile, width: ROCKET_WIDTH, height: ROCKET_HEIGHT,
+        isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS,
+        initialSpeed: Math.hypot(velocityX, velocityY), flightTimeMs: 0,
+      };
+      break;
     case 'arrow':
       result = {
         ...baseProjectile,

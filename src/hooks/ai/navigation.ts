@@ -18,7 +18,7 @@ export function hazardRisk(point: Point, zone: HazardZone) {
     return distance < (nearExplosion ? 165 : zone.attackRange ?? 225) + 12 ? nearExplosion ? 320 : 180 : 0;
   }
   if (!overlapsPlayer(point, zone, 8)) return 0;
-  return zone.type === 'packet-block-zone' ? 65 : zone.type === 'bear-trap' ? 180 : zone.type === 'blizzard' ? 160 : 120;
+  return zone.isNapalm ? Math.max(120, zone.damage * 1000 / zone.tickRate * 12) : zone.type === 'packet-block-zone' ? 65 : zone.type === 'bear-trap' ? 180 : zone.type === 'blizzard' ? 160 : 120;
 }
 
 // Geometry is immutable for a map. Cache minimum speeds, not character reachability.
@@ -104,6 +104,7 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   let strategy: Strategy = low || winningClock || opponent.isInvulnerable ? 'kite' : distance < character.attackRange ? 'pressure' : 'approach';
   let preferred = isMelee(character.id) ? character.attackRange * 0.65 : character.id === 'hunter' ? player.hunterFocusedDuration ? 240 : 180 : low ? 340 : 270;
   const genericPreferred = isMelee(character.id) ? character.attackRange * 0.65 : low ? 340 : 270;
+  if (character.id === 'rocketeer') preferred = low ? 360 : 300;
   if (strategy === 'kite') preferred = Math.max(330, preferred);
   if (opponent.isFrozen || opponent.rootDuration > 0 || opponent.isStunned) { strategy = 'pressure'; preferred *= 0.8; }
   if (character.id === 'ice-mage' && opponent.freezeGauge >= 3) { strategy = 'pressure'; preferred = 210; }
@@ -158,7 +159,7 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   const escapeDanger = memory.goal && (zoneRisk(memory.goal) > 0 || frame.world.lightningStrikes.some(s => !s.struck &&
     now - s.warningStart > 800 && Math.abs(memory.goal!.x + PLAYER_SIZE / 2 - s.x) < 60));
   if (escapeDanger) { memory.escapeUntil = now; memory.goalUntil = 0; }
-  const signature = `${frame.signature}:${strategy}:${Math.round(target.x / 50)}:${Math.round(target.y / 40)}:${support(player, frame.world.platforms)?.id}:${player.isFlying}:${player.rootDuration > 0}:${player.isSlowed}:${player.freezeGauge}:${opponent.isShielding}:${opponent.facingRight}:${opponent.isChargingSkill}:${opponent.archerBurstRemaining > 0}`;
+  const signature = `${frame.signature}:${strategy}:${Math.round(target.x / 50)}:${Math.round(target.y / 40)}:${support(player, frame.world.platforms)?.id}:${player.isFlying}:${player.rootDuration > 0}:${player.isSlowed}:${player.freezeGauge}:${opponent.isShielding}:${opponent.facingRight}:${opponent.isChargingSkill}:${opponent.archerBurstRemaining > 0}:${opponent.napalmDuration > 0}`;
   const reuse = memory.goal && now < memory.goalUntil && memory.goalSignature === signature && !danger;
   let goal = reuse ? memory.goal! :
     direct ? target : navigationGoal(player, target, frame, preferred, memory.failedPlatform);

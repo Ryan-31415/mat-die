@@ -209,8 +209,10 @@ describe('difficulty scheduling and compatibility', () => {
       const w = world(character, map);
       w.projectiles = [projectile()]; w.hazardZones = [trap()];
       w.vineShields = [{ id: 'dead', x: 300, y: 0, width: 30, height: 400, createdAt: 9000, duration: 12000, hp: 0, destroyedAt: 9500 }];
-      const legacy = decideAI(prepareAIFrame(w), w.players[1], createOpponentModel());
       const settings = neutral(createAISettings('perfect'));
+      // Compare raw and perceived worlds with the same forecast horizon (perfect uses 2s).
+      const legacy = decideAI(prepareAIFrame(w, { forecasts: settings.parameters.forecasts, random: () => 0.5 }),
+        w.players[1], createOpponentModel(), undefined, { parameters: settings.parameters, traits: NEUTRAL_AI_TRAITS, random: () => 0.5 });
       const runtime = stepDifficulty(w, settings, createDifficultyRuntime(createDifficultySession(731)));
       expect(runtime.keys).toEqual(legacy.keys);
       expect(runtime.memory).toEqual(legacy.memory);
