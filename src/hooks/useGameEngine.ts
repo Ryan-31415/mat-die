@@ -477,7 +477,7 @@ export const useGameEngine = (
 
     // Poison damage
     if (updatedPlayer.isPoisoned) {
-      const poisonDamage = (updatedPlayer.maxHealth * 0.025) * (deltaTime / 1000);
+      const poisonDamage = (updatedPlayer.maxHealth * 0.0125) * (deltaTime / 1000);
       updatedPlayer.health = Math.max(0, updatedPlayer.health - poisonDamage);
     }
 

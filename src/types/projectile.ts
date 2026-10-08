@@ -208,7 +208,7 @@ export const createProjectile = (
         gravity: 190,
         isPoisonous: true,
         poisonDuration: 5000,
-        slowAmount: 0.33,
+        slowAmount: 0.25,
         slowDuration: 5000,
       };
       break;

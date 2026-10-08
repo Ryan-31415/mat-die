@@ -188,9 +188,9 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     passive: '장거리 공격 시 데미지가 15% 상승합니다.',
     skill: {
       name: '독화살',
-      description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 33% 감소, 지속 피해)를 부여합니다.',
+      description: '다음 3발의 기본 공격을 독 화살로 강화합니다. 피격 시 5초간 독 효과(이동속도 25% 감소, 지속 피해)를 부여합니다.',
       manaCost: 45,
-      cooldown: 5000,
+      cooldown: 5500,
     },
     ultimate: {
       name: '속사',
@@ -217,11 +217,11 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '대형 파이어볼',
       description: '상대 위치에 커다란 파이어볼을 투하합니다. 명중 지점에는 4초간 지속되는 화염 영역이 생성되며, 적에게 명중 시 작은 파이어볼 5개가 추가적으로 투하됩니다.',
       manaCost: 40,
-      cooldown: 4000,
+      cooldown: 3500,
     },
     ultimate: {
       name: '각성',
-      description: '5초간 공격력이 30%, 마나 재생력이 50% 상승하며, 모든 공격이 3초간 발화 효과를 부여하여 추가 데미지를 가합니다. 또한 주변에 화염 고리가 형성되어 주위의 적에게 피해를 입힙니다.',
+      description: '5초간 공격력이 30%, 마나 재생력이 50% 상승하며, 모든 공격이 3초간 발화 효과(지속 피해)를 부여합니다. 또한 주변에 화염 고리가 형성되어 주위의 적에게 피해를 입힙니다.',
       manaCost: 100,
       cooldown: 0,
     },
@@ -273,7 +273,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '전자총',
       description: '스킬 버튼을 길게 눌러 에너지를 충전합니다. 충전 시간에 비례해 전기 구체의 화력이 증가합니다. 완충 시 피격된 적을 기절시킵니다. 과충전하면 자폭으로 데미지를 받습니다.',
       manaCost: 45,
-      cooldown: 5500,
+      cooldown: 5000,
     },
     ultimate: {
       name: '테슬라 코일',
@@ -300,7 +300,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '그물 투척',
       description: '투척형 그물을 던져 적중 시 적을 플레이어 쪽으로 약간 끌어오고, 6초간 표식을 부여합니다. 표식 대상은 사냥꾼에게 받는 피해가 20% 증가하며, 피격 시 1초간 이동속도가 20% 감소합니다.',
       manaCost: 40,
-      cooldown: 4000,
+      cooldown: 4500,
     },
     ultimate: {
       name: '집중 사격',
@@ -327,8 +327,8 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '박쥐',
       description: '부메랑처럼 돌아오는 박쥐를 내보냅니다. 돌아올 때 스킬로 입힌 피해의 60%를 추가적으로 회복합니다.',
-      manaCost: 45,
-      cooldown: 5000,
+      manaCost: 40,
+      cooldown: 4000,
     },
     ultimate: {
       name: '유체화',
