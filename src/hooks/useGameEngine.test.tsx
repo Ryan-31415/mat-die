@@ -282,6 +282,29 @@ describe('Tesla coil fall physics', () => {
     expect(updatedCoil?.y).toBe(290);
     expect(result.current.gameState.players[1].health).toBeLessThan(initialHealth);
   });
+
+  it('keeps a bat projectile after it damages an enemy Tesla coil', () => {
+    const keys = { current: emptyKeys() };
+    const { result } = renderHook(() => useGameEngine(
+      CHARACTERS.reaper, CHARACTERS.scientist, 60, vi.fn(), 'multi'
+    ));
+    act(() => result.current.setKeysRef(keys));
+
+    const coil = createHazardZone('tesla-coil', 2, 400, 400, 5, 10000);
+    result.current.gameState.hazardZones.push(coil);
+    const bat = createProjectile('bat', 1, 400, 400, 0, 0, 12);
+    result.current.gameState.projectiles.push(bat);
+
+    act(() => { vi.advanceTimersByTime(17); });
+
+    expect(result.current.gameState.projectiles.some(projectile => projectile.id === bat.id)).toBe(true);
+    expect(result.current.gameState.hazardZones.find(zone => zone.id === coil.id)?.health).toBe(coil.health! - bat.damage);
+
+    act(() => { vi.advanceTimersByTime(17); });
+
+    expect(result.current.gameState.projectiles.some(projectile => projectile.id === bat.id)).toBe(true);
+    expect(result.current.gameState.hazardZones.find(zone => zone.id === coil.id)?.health).toBe(coil.health! - bat.damage);
+  });
 });
 
 describe('round timer pause behavior', () => {

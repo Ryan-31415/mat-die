@@ -1742,7 +1742,9 @@ export const useGameEngine = (
         }
 
         // Check collision with Tesla Coils
-        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !proj.isHackUltimate && checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
+        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !proj.isHackUltimate &&
+          !(proj.type === 'bat' && proj.hitCoilIds?.includes(z.id)) &&
+          checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
         if (hitCoil) {
           emitExplosion(proj, hitCoil);
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
@@ -1762,6 +1764,10 @@ export const useGameEngine = (
             pool.x = proj.x + proj.width / 2 - pool.width / 2;
             pool.y = hitCoil.y + hitCoil.height - pool.height / 2;
             hazardZones.push(pool);
+          }
+          if (proj.type === 'bat') {
+            proj.hitCoilIds = [...(proj.hitCoilIds || []), hitCoil.id];
+            return true;
           }
           return false;
         }

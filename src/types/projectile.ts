@@ -37,6 +37,7 @@ export interface Projectile {
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
   hasHitReturn?: boolean; // Track if projectile has hit on return path
+  hitCoilIds?: string[];
   lastHitTime: Record<number, number>; // Track timestamp of last hit per player ID
   chargeLevel?: number; // 0-1 (or >1 for overcharge visuals)
   initialSpeed?: number;
