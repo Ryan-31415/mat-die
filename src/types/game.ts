@@ -414,13 +414,13 @@ export const CHARACTERS: Record<CharacterType, Character> = {
       name: '유도 로켓',
       manaCost: 30,
       cooldown: 3000,
-      description: '상대를 추적하는 유도 로켓을 발사합니다. 일반 로켓보다 탄속이 20% 빠릅니다.',
+      description: '상대를 추적하는 유도 로켓을 발사합니다.',
     },
     ultimate: {
       name: '네이팜',
       manaCost: 100,
       cooldown: 0,
-      description: '6초간 로켓이 적중 지점에 4초간 화염 장판을 남깁니다. 로켓 직격 시 3초간 발화 효과(지속 피해)를 부여합니다.',
+      description: '6초간 로켓이 적중 지점에 4초간 지속되는 화염 영역을 남깁니다. 로켓 직격 시 3초간 발화 효과(지속 피해)를 부여합니다.',
     },
   },
 };

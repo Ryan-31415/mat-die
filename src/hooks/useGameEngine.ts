@@ -740,7 +740,7 @@ export const useGameEngine = (
         rocket.isNapalm = true;
         rocket.createsFirePool = true;
         rocket.firePoolDuration = NAPALM_POOL_DURATION_MS;
-        rocket.firePoolDamage = damage * 0.1;
+        rocket.firePoolDamage = damage * 0.075;
         rocket.burnDamage = damage * 0.075;
       }
       newProjectiles.push(rocket);
