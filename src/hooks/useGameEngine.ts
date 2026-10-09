@@ -731,7 +731,6 @@ export const useGameEngine = (
     if (character.id === 'rocketeer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && updatedPlayer.napalmDuration <= 0) {
       updatedPlayer.mana -= 100;
       updatedPlayer.napalmDuration = NAPALM_DURATION_MS;
-      updatedPlayer.isUsingUltimate = true;
     }
     const launchRocket = (type: 'rocket' | 'homing-rocket', speed: number, damage: number) => {
       const rocket = createProjectile(type, player.id, updatedPlayer.x + PLAYER_SIZE / 2,
