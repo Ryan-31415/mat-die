@@ -181,7 +181,7 @@ const PlayerRenderer = ({ player, character }: PlayerRendererProps) => {
             {(() => {
               const chargeTime = now - player.skillChargeStartTime;
               const chargeRatio = Math.min(1, chargeTime / 1750);
-              const overchargeRatio = Math.max(0, (chargeTime - 1750) / 3000);
+              const overchargeRatio = Math.max(0, (chargeTime - 1750) / 2000);
 
               // Color: Yellow -> Red as it overcharges
               let barColor = '#fbbf24'; // Amber-400

@@ -1080,7 +1080,7 @@ export const useGameEngine = (
         } else {
           const chargeDuration = now - (updatedPlayer.skillChargeStartTime || now);
           const fullChargeTime = 1500;
-          const overchargeTime = fullChargeTime + 3000; // 3 seconds after full charge
+          const overchargeTime = fullChargeTime + 2000; // 2 seconds after full charge
 
           // Overcharge Self-Destruct
           if (chargeDuration > overchargeTime) {
@@ -1088,10 +1088,10 @@ export const useGameEngine = (
             updatedPlayer.skillChargeStartTime = undefined;
             updatedPlayer.skillCooldownRemaining = character.skill.cooldown;
 
-            // Self Damage: 3.25x Attack Damage
+            // Self Damage: 3.5x Attack Damage
             const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
             const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
-            const selfDamage = baseDamage * 3.25;
+            const selfDamage = baseDamage * 3.5;
 
             // Apply Self Damage
             const selfDamageResult = applyDamage(updatedPlayer, selfDamage);
@@ -1114,7 +1114,7 @@ export const useGameEngine = (
 
             // Area Damage to enemies
             // 2.5x Damage, Slow 30% 5s, Knockback 220
-            const explosionDamage = baseDamage * 4;
+            const explosionDamage = baseDamage * 2.5;
             const explosion = createHazardZone(
               'electric-explosion',
               player.id,
@@ -1174,8 +1174,8 @@ export const useGameEngine = (
         const damageScale = 1.25 + (1.25 * chargeRatio);
         const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * damageScale;
 
-        // Knockback: 100 to 220
-        const knockback = 100 + (120 * chargeRatio);
+        // Knockback: 80 to 220
+        const knockback = 80 + (140 * chargeRatio);
 
         // Status: Slow -20% 4s (Base)
         // If >= 50% charge: Slow -30% 5s
@@ -1210,10 +1210,9 @@ export const useGameEngine = (
         projectile.stunDuration = stunDuration;
         projectile.chargeLevel = chargeRatio; // For visuals
 
-        // Scale projectile size based on charge?
-        // Base size 33, max size 52
-        projectile.width = 33 + (19 * chargeRatio);
-        projectile.height = 33 + (19 * chargeRatio);
+        // Base size 33, max size 50
+        projectile.width = 33 + (17 * chargeRatio);
+        projectile.height = 33 + (17 * chargeRatio);
         // Adjust center after resize
         projectile.x = updatedPlayer.x + PLAYER_SIZE / 2 - projectile.width / 2;
         projectile.y = updatedPlayer.y + PLAYER_SIZE / 2 - projectile.height / 2;
