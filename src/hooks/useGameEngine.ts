@@ -1273,7 +1273,7 @@ export const useGameEngine = (
             player.id,
             updatedPlayer.x,
             updatedPlayer.y,
-            baseDamage * 0.15,
+            baseDamage * 0.1,
             30000
           ));
           break;
@@ -2403,6 +2403,29 @@ export const useGameEngine = (
         }
 
         if (zoneCopy.type === 'tesla-coil') {
+          if (!zoneCopy.isGrounded) {
+            zoneCopy.velocityY = Math.min(MAX_FALL_SPEED, (zoneCopy.velocityY || 0) + GRAVITY * (deltaTime / 1000));
+            const nextY = zoneCopy.y + zoneCopy.velocityY * (deltaTime / 1000);
+            const landingPlatform = prev.platforms.find(platform =>
+              zoneCopy.x + zoneCopy.width > platform.x &&
+              zoneCopy.x < platform.x + platform.width &&
+              zoneCopy.y + zoneCopy.height <= platform.y + (platform.type === 'one-way' ? 10 : 0) &&
+              nextY + zoneCopy.height >= platform.y
+            );
+
+            if (landingPlatform) {
+              zoneCopy.y = landingPlatform.y - zoneCopy.height;
+              zoneCopy.velocityY = 0;
+              zoneCopy.isGrounded = true;
+            } else {
+              zoneCopy.y = Math.min(ARENA.height - ARENA.padding - zoneCopy.height, nextY);
+              if (zoneCopy.y >= ARENA.height - ARENA.padding - zoneCopy.height) {
+                zoneCopy.velocityY = 0;
+                zoneCopy.isGrounded = true;
+              }
+            }
+          }
+
           const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
           const target = players[targetIndex];
           const dist = Math.hypot(

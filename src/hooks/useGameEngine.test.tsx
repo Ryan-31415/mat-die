@@ -254,6 +254,36 @@ describe('explosive projectile impact effects', () => {
   });
 });
 
+describe('Tesla coil fall physics', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-04T00:00:00Z'));
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('falls onto platforms and moves its attack range with it', () => {
+    const keys = { current: emptyKeys() };
+    const { result } = renderHook(() => useGameEngine(
+      CHARACTERS.hacker, CHARACTERS.gladiator, 60, vi.fn(), 'multi'
+    ));
+    act(() => result.current.setKeysRef(keys));
+
+    const target = result.current.gameState.players[1];
+    target.x = 100;
+    target.y = 430;
+    target.isGrounded = true;
+    const initialHealth = target.health;
+    const coil = createHazardZone('tesla-coil', 1, 100, 100, 5, 10000);
+    result.current.gameState.hazardZones.push(coil);
+
+    act(() => { vi.advanceTimersByTime(500); });
+
+    const updatedCoil = result.current.gameState.hazardZones.find(zone => zone.id === coil.id);
+    expect(updatedCoil?.y).toBe(290);
+    expect(result.current.gameState.players[1].health).toBeLessThan(initialHealth);
+  });
+});
+
 describe('round timer pause behavior', () => {
   beforeEach(() => {
     vi.useFakeTimers();

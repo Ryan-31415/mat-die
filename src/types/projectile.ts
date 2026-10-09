@@ -133,6 +133,8 @@ export interface HazardZone {
   lastAttack?: number;
   lastAttackTarget?: { x: number, y: number }; // For visual lightning effect
   lastSelfDamage?: number; // For tesla coil self-damage
+  velocityY?: number;
+  isGrounded?: boolean;
 }
 
 export interface AttackHitbox {
@@ -413,8 +415,8 @@ export const createHazardZone = (
       ...base,
       width: 40,
       height: 60,
-      health: 240,
-      maxHealth: 240,
+      health: 175,
+      maxHealth: 175,
       attackRange: 225,
       attackCooldown: 100,
       lastAttack: Date.now(),
