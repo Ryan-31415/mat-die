@@ -1,7 +1,56 @@
-import { DEFAULT_PROJECTILE_LIFETIME_MS, HUNTER_BULLET_LIFETIME_MS, POOL_SIZE, ROCKET_WIDTH, ROCKET_HEIGHT, ROCKET_EXPLOSION_RADIUS } from './combatPhysics';
+import { DEFAULT_PROJECTILE_LIFETIME_MS, HUNTER_BULLET_LIFETIME_MS, POOL_SIZE, ROCKET_SPEED, ROCKET_WIDTH, ROCKET_HEIGHT, ROCKET_EXPLOSION_RADIUS } from './combatPhysics';
+import { PLAYER_SIZE, type CharacterType, type Player } from './game';
 // Projectile Types
 
 export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fireball' | 'flask' | 'electric-orb' | 'meteor' | 'bullet' | 'super-bullet' | 'bat' | 'snowball' | 'large-snowball' | 'blizzard-stone' | 'net' | 'hacker-missile' | 'hacking' | 'rocket' | 'homing-rocket';
+
+export interface ProjectileLaunch { type: ProjectileType; velocityX: number; velocityY: number; damage: number }
+export interface ProjectileSpawn extends ProjectileLaunch { x: number; y: number }
+export function scientistOrbLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, chargeDuration: number, baseDamage: number) {
+  const chargeLevel = Math.min(1, chargeDuration / 1500);
+  return { type: 'electric-orb' as const, x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2,
+    velocityX: (player.facingRight ? 1 : -1) * 850, velocityY: 0,
+    damage: baseDamage * (1.25 + 1.25 * chargeLevel), width: 33 + 17 * chargeLevel, height: 33 + 17 * chargeLevel,
+    knockback: 80 + 140 * chargeLevel, slowAmount: chargeLevel >= 0.5 ? 0.3 : 0.2,
+    slowDuration: chargeLevel >= 0.5 ? 5000 : 4000, stunDuration: chargeLevel >= 1 ? 1500 : 0, chargeLevel };
+}
+/** Net's center starts at the owner's top edge, unlike a centered basic shot. */
+export function hunterNetLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, baseDamage: number): ProjectileSpawn {
+  return { type: 'net', x: player.x + PLAYER_SIZE / 2, y: player.y,
+    velocityX: (player.facingRight ? 1 : -1) * 750, velocityY: -115, damage: baseDamage * 0.2 };
+}
+const BASIC_PROJECTILE_RULES: Record<CharacterType, Readonly<{
+  type: ProjectileType; speed: number; velocityY: number; damageMultiplier: number;
+}> | null> = {
+  gladiator: null, ninja: null, reaper: null, hunter: null,
+  archer: { type: 'arrow', speed: 1000, velocityY: -80, damageMultiplier: 1 },
+  mage: { type: 'fireball', speed: 780, velocityY: 0, damageMultiplier: 1 },
+  scientist: { type: 'flask', speed: 640, velocityY: -105, damageMultiplier: 0.5 },
+  'ice-mage': { type: 'snowball', speed: 700, velocityY: 0, damageMultiplier: 1 },
+  hacker: { type: 'hacker-missile', speed: 800, velocityY: 0, damageMultiplier: 1 },
+  rocketeer: { type: 'rocket', speed: ROCKET_SPEED, velocityY: 0, damageMultiplier: 1 },
+};
+/** Pure launch rules; the caller supplies damage after buffs and attaches runtime effects/IDs. */
+export function basicProjectileLaunches(player: Pick<Player, 'character' | 'facingRight' | 'poisonArrowsRemaining' | 'hunterFocusedDuration'>, baseDamage: number): ProjectileLaunch[] {
+  if (!player.character) return [];
+  const direction = player.facingRight ? 1 : -1;
+  if (player.character.id === 'hunter') {
+    const focused = (player.hunterFocusedDuration || 0) > 0;
+    const spreadFactor = focused ? 0.33 : 1.0, speedMultiplier = focused ? 1.25 : 1.0;
+    const damageMultiplier = focused ? 1.33 : 1.0;
+    return Array.from({ length: 5 }, (_, index) => {
+      const spreadAngle = (index - 2) * 8 * spreadFactor;
+      const radians = spreadAngle * (Math.PI / 180);
+      return { type: focused ? 'super-bullet' : 'bullet',
+        velocityX: direction * 1250 * speedMultiplier * Math.cos(radians), velocityY: 875 * Math.sin(radians),
+        damage: baseDamage * 0.3 * damageMultiplier };
+    });
+  }
+  const rule = BASIC_PROJECTILE_RULES[player.character.id];
+  if (!rule) return [];
+  return [{ type: player.character.id === 'archer' && player.poisonArrowsRemaining > 0 ? 'poison-arrow' : rule.type,
+    velocityX: direction * rule.speed, velocityY: rule.velocityY, damage: baseDamage * rule.damageMultiplier }];
+}
 
 export interface Projectile {
   id: string;
@@ -154,6 +203,43 @@ export interface AttackHitbox {
 }
 
 // Helper function to create projectiles
+export interface EntityCreationContext { now: number; random: () => number }
+
+export type ProjectileProperties = Omit<Projectile,
+  'id' | 'ownerId' | 'x' | 'y' | 'velocityX' | 'velocityY' | 'damage' | 'createdAt' | 'lastHitTime'>;
+const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties>> = {
+  rocket: { width: ROCKET_WIDTH, height: ROCKET_HEIGHT, isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS },
+  'homing-rocket': { width: ROCKET_WIDTH, height: ROCKET_HEIGHT, isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS },
+  arrow: { width: 56, height: 12, hasGravity: true, gravity: 190 },
+  'poison-arrow': { width: 56, height: 12, hasGravity: true, gravity: 190, isPoisonous: true, poisonDuration: 5000, slowAmount: 0.25, slowDuration: 5000 },
+  fireball: { width: 24, height: 24, isExplosive: true, explosionRadius: 50, canBeDeflected: true },
+  'large-fireball': { width: 42, height: 42, isExplosive: true, explosionRadius: 200, createsFirePool: true, firePoolDuration: 4000, canBeDeflected: false },
+  meteor: { width: 20, height: 20, hasGravity: false, isExplosive: true, explosionRadius: 40, canBeDeflected: false },
+  flask: { width: 18, height: 18, hasGravity: true, gravity: 220, isExplosive: true, explosionRadius: 45, createsFirePool: true, firePoolDuration: 3200 },
+  'electric-orb': { width: 33, height: 33, isExplosive: true, explosionRadius: 125, knockback: 160, slowAmount: 0.4, slowDuration: 4000, stunDuration: 1000, canBeDeflected: false },
+  bullet: { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 10 },
+  'super-bullet': { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 15 },
+  bat: { width: 75, height: 75, lifetime: 3600, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasHitReturn: false },
+  snowball: { width: 24, height: 24, canBeDeflected: true },
+  'large-snowball': { width: 33, height: 33, knockback: 150, lifetime: 1400, canBeDeflected: true },
+  'blizzard-stone': { width: 45, height: 45, hasGravity: true, gravity: 600 }, // Heavy gravity for arcing.
+  net: { width: 48, height: 48, hasGravity: true, gravity: 360, lifetime: 3500, canBeDeflected: false },
+  'hacker-missile': { width: 24, height: 24, canBeDeflected: true },
+  hacking: { width: 1, height: 1, canBeDeflected: false, lifetime: 100 },
+};
+/** Public initial rules without IDs, clocks or random draws. Launch velocity only sets rocket flight speed. */
+export function projectileProperties(type: ProjectileType, velocityX = 0, velocityY = 0): ProjectileProperties {
+  const properties: ProjectileProperties = {
+    type, width: 10, height: 10, hasGravity: false, gravity: 0, isExplosive: false, explosionRadius: 0,
+    lifetime: DEFAULT_PROJECTILE_LIFETIME_MS, isPoisonous: false, poisonDuration: 0,
+    slowAmount: 0, slowDuration: 0, stunDuration: 0, knockback: 0, createsFirePool: false, firePoolDuration: 0,
+    canBeDeflected: true, isReturning: false, damageAccumulated: 0, hasHitForward: false, hasHitReturn: false,
+    ...PROJECTILE_PROPERTIES[type],
+  };
+  return type === 'rocket' || type === 'homing-rocket'
+    ? { ...properties, initialSpeed: Math.hypot(velocityX, velocityY), flightTimeMs: 0 } : properties;
+}
+
 export const createProjectile = (
   type: ProjectileType,
   ownerId: 1 | 2,
@@ -161,232 +247,32 @@ export const createProjectile = (
   y: number,
   velocityX: number,
   velocityY: number,
-  damage: number
+  damage: number,
+  context?: EntityCreationContext
 ): Projectile => {
-  const baseProjectile: Projectile = {
-    id: `${type}-${Date.now()}-${Math.random()}`,
-    type,
-    ownerId,
-    x,
-    y,
-    velocityX,
-    velocityY,
-    damage,
-    width: 10,
-    height: 10,
-    hasGravity: false,
-    gravity: 0,
-    isExplosive: false,
-    explosionRadius: 0,
-    createdAt: Date.now(),
-    lifetime: DEFAULT_PROJECTILE_LIFETIME_MS,
-    isPoisonous: false,
-    poisonDuration: 0,
-    slowAmount: 0,
-    slowDuration: 0,
-    stunDuration: 0,
-    knockback: 0,
-    createsFirePool: false,
-    firePoolDuration: 0,
-    canBeDeflected: true,
-    isReturning: false,
-    damageAccumulated: 0,
-    hasHitForward: false,
-    hasHitReturn: false,
-    lastHitTime: {},
-  };
-
-  let result: Projectile = { ...baseProjectile };
-
-  switch (type) {
-    case 'rocket':
-    case 'homing-rocket':
-      result = {
-        ...baseProjectile, width: ROCKET_WIDTH, height: ROCKET_HEIGHT,
-        isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS,
-        initialSpeed: Math.hypot(velocityX, velocityY), flightTimeMs: 0,
-      };
-      break;
-    case 'arrow':
-      result = {
-        ...baseProjectile,
-        width: 56,
-        height: 12,
-        hasGravity: true,
-        gravity: 190,
-      };
-      break;
-    case 'poison-arrow':
-      result = {
-        ...baseProjectile,
-        width: 56,
-        height: 12,
-        hasGravity: true,
-        gravity: 190,
-        isPoisonous: true,
-        poisonDuration: 5000,
-        slowAmount: 0.25,
-        slowDuration: 5000,
-      };
-      break;
-    case 'fireball':
-      result = {
-        ...baseProjectile,
-        width: 24,
-        height: 24,
-        isExplosive: true,
-        explosionRadius: 50,
-        canBeDeflected: true,
-      };
-      break;
-    case 'large-fireball':
-      result = {
-        ...baseProjectile,
-        width: 42,
-        height: 42,
-        isExplosive: true,
-        explosionRadius: 200,
-        createsFirePool: true,
-        firePoolDuration: 4000,
-        canBeDeflected: false,
-      };
-      break;
-    case 'meteor':
-      result = {
-        ...baseProjectile,
-        width: 20,
-        height: 20,
-        hasGravity: false,
-        isExplosive: true,
-        explosionRadius: 40,
-        canBeDeflected: false,
-      };
-      break;
-    case 'flask':
-      result = {
-        ...baseProjectile,
-        width: 18,
-        height: 18,
-        hasGravity: true,
-        gravity: 220,
-        isExplosive: true,
-        explosionRadius: 45,
-        createsFirePool: true,
-        firePoolDuration: 3200,
-      };
-      break;
-    case 'electric-orb':
-      result = {
-        ...baseProjectile,
-        width: 33,
-        height: 33,
-        isExplosive: true,
-        explosionRadius: 125,
-        knockback: 160,
-        slowAmount: 0.4,
-        slowDuration: 4000,
-        stunDuration: 1000,
-        canBeDeflected: false,
-      };
-      break;
-    case 'bullet':
-      result = {
-        ...baseProjectile,
-        width: 10,
-        height: 8,
-        lifetime: HUNTER_BULLET_LIFETIME_MS,
-        knockback: 10,
-      };
-      break;
-    case 'super-bullet':
-      result = {
-        ...baseProjectile,
-        width: 10,
-        height: 8,
-        lifetime: HUNTER_BULLET_LIFETIME_MS,
-        knockback: 15,
-      };
-      break;
-    case 'bat':
-      result = {
-        ...baseProjectile,
-        width: 75,
-        height: 75,
-        lifetime: 3600,
-        canBeDeflected: false,
-        isReturning: true,
-        returnPhase: 'outbound',
-        hasHitForward: false,
-        hasHitReturn: false,
-      };
-      break;
-    case 'snowball':
-      result = {
-        ...baseProjectile,
-        width: 24,
-        height: 24,
-        canBeDeflected: true,
-      };
-      break;
-    case 'large-snowball':
-      result = {
-        ...baseProjectile,
-        width: 33,
-        height: 33,
-        knockback: 150,
-        lifetime: 1400,
-        canBeDeflected: true,
-      };
-      break;
-    case 'blizzard-stone':
-      result = {
-        ...baseProjectile,
-        width: 45,
-        height: 45,
-        hasGravity: true,
-        gravity: 600, // Heavy gravity for arcing
-      };
-      break;
-    case 'net':
-      result = {
-        ...baseProjectile,
-        width: 48,
-        height: 48,
-        hasGravity: true,
-        gravity: 360,
-        lifetime: 3500,
-        canBeDeflected: false,
-      };
-      break;
-    case 'hacker-missile':
-      result = {
-        ...baseProjectile,
-        width: 24,
-        height: 24,
-        canBeDeflected: true,
-      };
-      break;
-    case 'hacking':
-      result = {
-        ...baseProjectile,
-        width: 1,
-        height: 1,
-        canBeDeflected: false,
-        lifetime: 100,
-      };
-      break;
-    default:
-      result = baseProjectile;
-      break;
-  }
-
-  // Treat provided x,y as the projectile center. Store as top-left for engine consistency.
-  result.x = x - result.width / 2;
-  result.y = y - result.height / 2;
-
-  return result;
+  // Preserve the original default clock/random call order.
+  const id = `${type}-${context?.now ?? Date.now()}-${context ? context.random() : Math.random()}`;
+  const createdAt = context?.now ?? Date.now();
+  const properties = projectileProperties(type, velocityX, velocityY);
+  // The supplied location is the center; engine motion/collision stores top-left.
+  return { id, type, ownerId, x: x - properties.width / 2, y: y - properties.height / 2,
+    velocityX, velocityY, damage, ...properties, createdAt, lastHitTime: {} };
 };
 
+export type HazardProperties = Pick<HazardZone, 'width' | 'height' | 'tickRate' | 'health' | 'maxHealth' | 'attackRange' | 'attackCooldown'>;
+const HAZARD_PROPERTIES: Record<HazardZone['type'], Partial<HazardProperties>> = {
+  'fire-pool': {}, 'electric-explosion': {},
+  'toxic-pool': { width: POOL_SIZE['toxic-pool'], height: POOL_SIZE['toxic-pool'] },
+  'tesla-coil': { width: 40, height: 60, health: 175, maxHealth: 175, attackRange: 225, attackCooldown: 100 },
+  'bear-trap': { width: 45, height: 20 },
+  blizzard: { width: POOL_SIZE.blizzard, height: POOL_SIZE.blizzard },
+  'fire-ring': { width: 180, height: 180 },
+  'packet-block-zone': { width: 250, height: 250 },
+};
+/** Public defaults only; active damage, duration, timers and motion belong to the observed instance. */
+export function hazardProperties(type: HazardZone['type']): HazardProperties {
+  return { width: POOL_SIZE['fire-pool'], height: POOL_SIZE['fire-pool'], tickRate: 100, ...HAZARD_PROPERTIES[type] };
+}
 
 export const createHazardZone = (
   type: 'fire-pool' | 'toxic-pool' | 'tesla-coil' | 'electric-explosion' | 'bear-trap' | 'blizzard' | 'fire-ring' | 'packet-block-zone',
@@ -395,68 +281,32 @@ export const createHazardZone = (
   y: number,
   damage: number,
   duration: number,
+  context?: EntityCreationContext,
 ): HazardZone => {
+  const properties = hazardProperties(type);
   const base: HazardZone = {
-    id: `${type}-${Date.now()}-${Math.random()}`,
+    id: `${type}-${context?.now ?? Date.now()}-${context ? context.random() : Math.random()}`,
     type,
     ownerId,
     x,
     y,
-    width: type === 'toxic-pool' ? POOL_SIZE['toxic-pool'] : POOL_SIZE['fire-pool'],
-    height: type === 'toxic-pool' ? POOL_SIZE['toxic-pool'] : POOL_SIZE['fire-pool'],
+    width: properties.width,
+    height: properties.height,
     damage,
-    tickRate: 100, // Increased frequency (5x), damage per tick adjusted in useGameEngine
-    lastTick: Date.now(),
+    tickRate: properties.tickRate,
+    lastTick: context?.now ?? Date.now(),
     duration,
-    createdAt: Date.now(),
+    createdAt: context?.now ?? Date.now(),
   };
 
   if (type === 'tesla-coil') {
     return {
       ...base,
-      width: 40,
-      height: 60,
-      health: 175,
-      maxHealth: 175,
-      attackRange: 225,
-      attackCooldown: 100,
-      lastAttack: Date.now(),
-    };
-  }
-
-  if (type === 'bear-trap') {
-    return {
-      ...base,
-      width: 45,
-      height: 20,
-      tickRate: 100,
-    };
-  }
-
-  if (type === 'blizzard') {
-    return {
-      ...base,
-      width: POOL_SIZE.blizzard, // Circular area diameter
-      height: POOL_SIZE.blizzard,
-      tickRate: 100,
-    };
-  }
-
-  if (type === 'fire-ring') {
-    return {
-      ...base,
-      width: 180, // fire ring diameter
-      height: 180,
-      tickRate: 100, // 0.1 second tick
-    };
-  }
-
-  if (type === 'packet-block-zone') {
-    return {
-      ...base,
-      width: 250,
-      height: 250,
-      tickRate: 100, // Fast tick to ensure silence is applied
+      health: properties.health,
+      maxHealth: properties.maxHealth,
+      attackRange: properties.attackRange,
+      attackCooldown: properties.attackCooldown,
+      lastAttack: context?.now ?? Date.now(),
     };
   }
 
@@ -472,9 +322,10 @@ export const createAttackHitbox = (
   damage: number,
   duration: number,
   canDeflect: boolean = false,
-  sourceX?: number
+  sourceX?: number,
+  context?: EntityCreationContext
 ): AttackHitbox => ({
-  id: `attack-${Date.now()}-${Math.random()}`,
+  id: `attack-${context?.now ?? Date.now()}-${context ? context.random() : Math.random()}`,
   ownerId,
   x,
   y,
@@ -482,7 +333,7 @@ export const createAttackHitbox = (
   height,
   damage,
   duration,
-  createdAt: Date.now(),
+  createdAt: context?.now ?? Date.now(),
   knockback: 50,
   canDeflectProjectiles: canDeflect,
   sourceX,

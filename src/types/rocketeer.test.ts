@@ -10,10 +10,12 @@ describe('rocket motion', () => {
   it.each([['rocket', 550], ['homing-rocket', 660]] as const)('%s accelerates to 160%% without losing speed in turns', (type, speed) => {
     let shot = createProjectile(type, 1, 100, 100, speed, 0, 16);
     shot = advanceProjectile(shot, owner, shot.createdAt + 500, 0.5, target);
-    expect(Math.hypot(shot.velocityX, shot.velocityY)).toBeCloseTo(speed * 1.3);
+    expect(Math.hypot(shot.velocityX, shot.velocityY)).toBeCloseTo(speed * 1.25);
     shot = advanceProjectile(shot, owner, shot.createdAt + 1000, 0.5, target);
+    expect(Math.hypot(shot.velocityX, shot.velocityY)).toBeCloseTo(speed * 1.5);
+    shot = advanceProjectile(shot, owner, shot.createdAt + 1200, 0.2, target);
     expect(Math.hypot(shot.velocityX, shot.velocityY)).toBeCloseTo(speed * 1.6);
-    shot = advanceProjectile(shot, owner, shot.createdAt + 2000, 1, target);
+    shot = advanceProjectile(shot, owner, shot.createdAt + 2000, 0.8, target);
     expect(Math.hypot(shot.velocityX, shot.velocityY)).toBeCloseTo(speed * 1.6);
   });
   it('limits homing turns and preserves straight flight while the target is invisible', () => {
@@ -27,13 +29,13 @@ describe('rocket motion', () => {
     expect(shot.flightTimeMs).toBe(0);
   });
   it('retargets after reflection without resetting acceleration', () => {
-    const shot = { ...createProjectile('homing-rocket', 1, 400, 100, 1056, 0, 16), initialSpeed: 660, flightTimeMs: 1000 };
+    const shot = { ...createProjectile('homing-rocket', 1, 400, 100, 1056, 0, 16), initialSpeed: 660, flightTimeMs: 1200 };
     const reflected = { ...shot, ownerId: 2 as const, velocityX: -shot.velocityX };
-    const next = advanceProjectile(reflected, target, shot.createdAt + 1017, 1 / 60, { ...owner, x: 100, y: 250 });
+    const next = advanceProjectile(reflected, target, shot.createdAt + 1217, 1 / 60, { ...owner, x: 100, y: 250 });
     expect(next.ownerId).toBe(2);
     expect(next.velocityX).toBeLessThan(0);
     expect(next.velocityY).toBeGreaterThan(0);
     expect(Math.hypot(next.velocityX, next.velocityY)).toBeCloseTo(1056);
-    expect(next.flightTimeMs).toBeGreaterThan(1000);
+    expect(next.flightTimeMs).toBeGreaterThan(1200);
   });
 });

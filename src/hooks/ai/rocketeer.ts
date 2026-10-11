@@ -1,12 +1,13 @@
 import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
 import { getProjectileCollisionTime, type Projectile } from '@/types/projectile';
-import { HOMING_ROCKET_SPEED, ROCKET_SPEED, ROCKET_WIDTH, ROCKET_HEIGHT, stepProjectileMotion, shieldFacesX } from '@/types/combatPhysics';
+import { HOMING_ROCKET_SPEED, ROCKET_SPEED, ROCKET_WIDTH, ROCKET_HEIGHT, stepProjectileMotion, shieldFacesX, findProjectileCoilContact } from '@/types/combatPhysics';
 import { AI_DT, type AIFrame } from './world';
 import type { Point } from './navigation';
+import { advanceCoilForecast } from './coil';
 
 /** Simulate a prospective shot using only the caller's perceived opponent forecast. */
 export function rocketeerShot(frame: AIFrame, player: Player, opponent: Player, targetAt: (time: number) => Point,
-  homing: boolean, facing: number, allowLongRange = false): 'target' | 'vine' | null {
+  homing: boolean, facing: number, allowLongRange = false): 'target' | 'vine' | 'coil' | null {
   if (opponent.isInvisible || (!allowLongRange && Math.hypot(opponent.x - player.x, opponent.y - player.y) > player.character!.attackRange)) return null;
   const speed = homing ? HOMING_ROCKET_SPEED : ROCKET_SPEED;
   const shot: Projectile = {
@@ -20,21 +21,29 @@ export function rocketeerShot(frame: AIFrame, player: Player, opponent: Player, 
     createsFirePool: false, firePoolDuration: 0, canBeDeflected: true,
     isReturning: false, damageAccumulated: 0, lastHitTime: {},
   };
-  for (let time = AI_DT; time <= shot.lifetime / 1000; time += AI_DT) {
+  let coils = frame.world.hazardZones.filter(zone => zone.type === 'tesla-coil').map(zone => ({ ...zone }));
+  const firstDt = Math.max(0.001, frame.world.deltaTime / 1000);
+  for (let time = firstDt; time <= shot.lifetime / 1000; time += AI_DT) {
+    const dt = time === firstDt ? firstDt : AI_DT;
+    const now = frame.world.now + (time - firstDt) * 1000;
     const before = { x: shot.x, y: shot.y };
     const target = { ...targetAt(time), isInvisible: opponent.isInvisible };
-    stepProjectileMotion(shot, player, frame.world.now + time * 1000, AI_DT, target);
+    stepProjectileMotion(shot, player, now, dt, target);
     const body = getProjectileCollisionTime(shot, before, { ...target, width: PLAYER_SIZE, height: PLAYER_SIZE });
-    const until = body ?? Infinity;
-    if (frame.hitboxes.some(h => h.ownerId === opponent.id && h.canDeflectProjectiles &&
-      frame.world.now + time * 1000 - h.createdAt <= h.duration &&
-      (getProjectileCollisionTime(shot, before, h) ?? Infinity) < until)) return null;
-    if (frame.vines.some(v => frame.world.now + time * 1000 - v.createdAt <= v.duration &&
-      (getProjectileCollisionTime(shot, before, v) ?? Infinity) < until)) return 'vine';
+    const sword = frame.hitboxes.reduce((first, h) => h.ownerId === opponent.id && h.canDeflectProjectiles &&
+      now - h.createdAt <= h.duration
+      ? Math.min(first, getProjectileCollisionTime(shot, before, h) ?? Infinity) : first, Infinity);
+    if (frame.world.mapId === 'jungle' && frame.vines.some(v => now - v.createdAt <= v.duration &&
+      (getProjectileCollisionTime(shot, before, v) ?? Infinity) < Math.min(body ?? Infinity, sword))) return 'vine';
+    // Endpoint contact wins even over an earlier swept body/sword contact.
+    // Own coils pass through; clearing an enemy coil is a distinct outcome.
+    if (findProjectileCoilContact(shot, coils)) return 'coil';
+    if (sword < (body ?? Infinity)) return null;
     if (body !== null) {
       return shieldFacesX({ ...opponent, ...target }, before.x + shot.width / 2) ? null : 'target';
     }
     if (shot.x + shot.width < 0 || shot.x > ARENA.width || shot.y + shot.height < 0 || shot.y > ARENA.height) return null;
+    if (coils.length) coils = advanceCoilForecast(coils, frame.world.platforms, now, dt * 1000);
   }
   return null;
 }

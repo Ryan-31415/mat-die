@@ -20,6 +20,7 @@ export interface AIMemory {
   failedPlatform?: string;
   lastKeys?: KeyboardState;
   rangedHold?: boolean;
+  movement?: { direction: -1 | 0 | 1; selectedAt: number; score: number; goalSignature: string };
 }
 export interface AILearningSession {
   opponents: Record<1 | 2, OpponentModel>;

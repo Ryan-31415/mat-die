@@ -1,7 +1,7 @@
 import { ARENA, PLAYER_SIZE, type CharacterType, type Player } from '@/types/game';
 import { GRAVITY, JUMP_FORCE, type Platform } from '@/types/platform';
 import type { HazardZone } from '@/types/projectile';
-import { clampPlayerX, FLOOR_Y, playerMoveSpeed } from '@/types/combatPhysics';
+import { basicMeleeGeometry, clampPlayerX, FLOOR_Y, playerMoveSpeed, shieldFacesX } from '@/types/combatPhysics';
 import { overlapsPlayer, type AIFrame } from './world';
 import { createAIMemory, type AIMemory, type Strategy } from './state';
 import { matchupTactics } from './matchup';
@@ -101,7 +101,25 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   const distance = Math.hypot(player.x - opponent.x, player.y - opponent.y);
   const low = player.health < player.maxHealth * 0.35 * traits.recovery;
   const winningClock = roundTimeRemaining < 12 && player.health > opponent.health + 5;
-  let strategy: Strategy = low || winningClock || opponent.isInvulnerable ? 'kite' : distance < character.attackRange ? 'pressure' : 'approach';
+  const geometry = basicMeleeGeometry({ ...player, facingRight: opponent.x >= player.x });
+  // A conservative one-hit finish can be safer than giving a recovering enemy
+  // another turn. Ignore positive mark/freeze/overtime bonuses; allow for HUD
+  // health rounding and the enemy's known regeneration before contact.
+  const damageFloor = character.attackDamage * Math.min(1, Math.max(0, 1 + player.damageBoost)) * Math.max(0, 1 - opponent.damageReduction);
+  const healthCeiling = opponent.health + 1 + (opponent.regenDuration > 0 ? Math.max(0, opponent.healthRegen) : 0) * frame.world.deltaTime / 1000;
+  const selfSupport = mapId === 'volcano' ? support(player, frame.world.platforms) : undefined;
+  const enemySupport = mapId === 'volcano' ? support(opponent, frame.world.platforms) : undefined;
+  const finishWindow = characterWeight >= 0.5 && traits.aggression > 0 && geometry &&
+    (mapId !== 'volcano' || (selfSupport && selfSupport.id !== 'ground' && enemySupport && enemySupport.id !== 'ground')) &&
+    player.attackCooldownRemaining <= frame.world.deltaTime && !player.isStunned && !player.isFrozen &&
+    !opponent.isInvulnerable && !opponent.isEvading && !opponent.dodgesRemaining && !opponent.isChargingSkill &&
+    damageFloor >= healthCeiling && overlapsPlayer(opponent, geometry) && !shieldFacesX(opponent, geometry.sourceX) &&
+    opponent.attackCooldownRemaining > geometry.duration + frame.world.deltaTime &&
+    (opponent.skillCooldownRemaining > geometry.duration + frame.world.deltaTime || opponent.mana < opponent.character!.skill.manaCost) &&
+    opponent.mana < opponent.character!.ultimate.manaCost &&
+    !frame.paths.some(path => path.projectile.ownerId !== player.id) && !frame.hitboxes.some(hitbox => hitbox.ownerId !== player.id) &&
+    !frame.zones.some(zone => zone.ownerId !== player.id) && !frame.world.lightningStrikes.some(strike => !strike.struck);
+  let strategy: Strategy = ((low || winningClock) && !finishWindow) || opponent.isInvulnerable ? 'kite' : distance < character.attackRange ? 'pressure' : 'approach';
   let preferred = isMelee(character.id) ? character.attackRange * 0.65 : character.id === 'hunter' ? player.hunterFocusedDuration ? 240 : 180 : low ? 340 : 270;
   const genericPreferred = isMelee(character.id) ? character.attackRange * 0.65 : low ? 340 : 270;
   if (character.id === 'rocketeer') preferred = low ? 360 : 300;
@@ -112,6 +130,14 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   preferred = characterWeight === 1 ? matchup.preferred : genericPreferred + (matchup.preferred - genericPreferred) * characterWeight;
   if (characterWeight >= 0.5) strategy = matchup.strategy;
   preferred *= traits.spacing;
+  const enemyMelee = basicMeleeGeometry(opponent);
+  const recoverySpacing = characterWeight >= 0.5 && traits.defense > 0 && isMelee(character.id) && enemyMelee &&
+    player.attackCooldownRemaining > Math.max(opponent.attackCooldownRemaining,
+      opponent.isStunned ? opponent.stunDuration : 0, opponent.isFrozen ? opponent.frozenDuration : 0) + frame.world.deltaTime;
+  if (recoverySpacing) {
+    const enemyReach = Math.max(opponent.x + PLAYER_SIZE - enemyMelee.x, enemyMelee.x + enemyMelee.width - opponent.x);
+    preferred = Math.max(preferred, enemyReach + playerMoveSpeed(player, now) * frame.world.deltaTime / 1000);
+  }
   let target: Point = matchup.flank && characterWeight >= 0.5 ? matchup.flank : opponent;
   let direct = false;
   const zoneRisk = (p: Point) => frame.zones.reduce((r, z) => r + (z.ownerId !== player.id ? hazardRisk(p, z) : 0), 0);
@@ -159,7 +185,7 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   const escapeDanger = memory.goal && (zoneRisk(memory.goal) > 0 || frame.world.lightningStrikes.some(s => !s.struck &&
     now - s.warningStart > 800 && Math.abs(memory.goal!.x + PLAYER_SIZE / 2 - s.x) < 60));
   if (escapeDanger) { memory.escapeUntil = now; memory.goalUntil = 0; }
-  const signature = `${frame.signature}:${strategy}:${Math.round(target.x / 50)}:${Math.round(target.y / 40)}:${support(player, frame.world.platforms)?.id}:${player.isFlying}:${player.rootDuration > 0}:${player.isSlowed}:${player.freezeGauge}:${opponent.isShielding}:${opponent.facingRight}:${opponent.isChargingSkill}:${opponent.archerBurstRemaining > 0}:${opponent.napalmDuration > 0}`;
+  const signature = `${frame.signature}:${strategy}:${Math.round(target.x / 50)}:${Math.round(target.y / 40)}:${support(player, frame.world.platforms)?.id}:${player.isFlying}:${player.rootDuration > 0}:${player.isSlowed}:${player.freezeGauge}:${opponent.isShielding}:${opponent.facingRight}:${opponent.isChargingSkill}:${opponent.archerBurstRemaining > 0}:${opponent.napalmDuration > 0}:${!!recoverySpacing}`;
   const reuse = memory.goal && now < memory.goalUntil && memory.goalSignature === signature && !danger;
   let goal = reuse ? memory.goal! :
     direct ? target : navigationGoal(player, target, frame, preferred, memory.failedPlatform);

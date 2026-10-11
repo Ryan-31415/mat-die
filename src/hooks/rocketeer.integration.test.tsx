@@ -15,7 +15,7 @@ function setup(id: 1 | 2 = 1, map: MapId = 'wasteland') {
 }
 const step = (ms = 17) => act(() => { vi.advanceTimersByTime(ms); });
 function napalm(shot: Projectile): Projectile {
-  return { ...shot, isNapalm: true, createsFirePool: true, firePoolDuration: 4000, firePoolDamage: shot.damage * 0.1, burnDamage: shot.damage * 0.075 };
+  return { ...shot, isNapalm: true, createsFirePool: true, firePoolDuration: 4000, firePoolDamage: shot.damage * 0.075, burnDamage: shot.damage * 0.075 };
 }
 
 describe('Rocketeer combat', () => {
@@ -46,7 +46,7 @@ describe('Rocketeer combat', () => {
     expect(result.current.gameState.players[id - 1].napalmDuration).toBe(6000);
     expect(result.current.gameState.players[id - 1].mana).toBe(0);
     expect(result.current.gameState.projectiles).toHaveLength(1);
-    expect(result.current.gameState.projectiles[0]).toMatchObject({ type: 'rocket', isNapalm: true, firePoolDamage: 1.6, burnDamage: 1.2 });
+    expect(result.current.gameState.projectiles[0]).toMatchObject({ type: 'rocket', isNapalm: true, firePoolDamage: 1.2, burnDamage: 1.2 });
   });
   it('does not retroactively enhance rockets and preserves armed rockets after buff expiry', () => {
     const { result, keys, targetIndex } = setup();
@@ -69,7 +69,7 @@ describe('Rocketeer combat', () => {
     expect(result.current.gameState.projectiles).toHaveLength(2);
     for (const shot of result.current.gameState.projectiles) {
       expect(shot.damage).toBeCloseTo(33.6);
-      expect(shot.firePoolDamage).toBeCloseTo(3.36);
+      expect(shot.firePoolDamage).toBeCloseTo(2.52);
       expect(shot.burnDamage).toBeCloseTo(2.52);
     }
   });

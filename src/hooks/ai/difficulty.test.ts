@@ -288,7 +288,7 @@ describe('granular AI controls', () => {
       const frame = prepareAIFrame(w, { forecasts, random: () => 0.5 });
       expect(frame.steps).toBe(Math.max(1, Math.ceil(horizonMs / (1000 / 60))));
       expect(frame.paths[0].x).toHaveLength(frame.steps + 1);
-      expect(frame.times[frame.steps]).toBeCloseTo(horizonMs ? horizonMs / 1000 : 1 / 60);
+      expect(frame.times[frame.steps]).toBeCloseTo(Math.max(horizonMs / 1000, w.deltaTime / 1000));
       expect(Array.from(frame.paths[0].x).every(Number.isFinite)).toBe(true);
     }
   });

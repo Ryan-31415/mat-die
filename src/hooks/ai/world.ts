@@ -1,10 +1,11 @@
-import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
+import { ARENA, type Player } from '@/types/game';
 import type { AIForecasts } from '@/types/ai';
 import { forecastPoint, forecastTime, sampleForecastError, type ForecastError } from './forecast';
 import type { MapId } from '@/types/map';
 import type { Platform } from '@/types/platform';
 import { checkProjectileCollision, getProjectileCollisionTime, type AttackHitbox, type HazardZone, type Projectile } from '@/types/projectile';
-import { stepProjectileMotion, POOL_SIZE } from '@/types/combatPhysics';
+import { stepProjectileMotion, stepCoilMotion, playerOverlapsRect, POOL_SIZE, findProjectileCoilContact } from '@/types/combatPhysics';
+import { advanceCoilForecast } from './coil';
 
 export interface LightningWarning { x: number; warningStart: number; struck: boolean }
 export interface SoulZone { id: string; x: number; y: number; width: number; height: number; createdAt: number; duration: number }
@@ -35,6 +36,7 @@ export interface ProjectilePath {
   y: Float64Array;
   returning: Uint8Array;
   endStep: number;
+  coilContacts: { coilId: string; step: number; rawDamage: number }[];
   forecastError?: ForecastError;
 }
 export interface PredictedPool { ownerId: 1 | 2; x: number; y: number; width: number; height: number; impactTime: number; damage?: number; duration?: number; sourceProjectileId?: string }
@@ -51,18 +53,20 @@ export interface AIFrame {
   times: Float64Array;
   forecasts?: AIForecasts;
   environmentErrors: Map<string, ForecastError>;
+  coilPaths: Map<string, Float64Array>;
+  coilSnapshots: ReadonlyMap<number, readonly HazardZone[]>;
   opponentError?: ForecastError;
 }
 export const activeVine = (v: VineShield, now: number) => v.hp > 0 && v.destroyedAt === undefined && now - v.createdAt <= v.duration;
-export const overlapsPlayer = (point: { x: number; y: number }, rect: { x: number; y: number; width: number; height: number }, margin = 0) =>
-  point.x + PLAYER_SIZE + margin > rect.x && point.x - margin < rect.x + rect.width &&
-  point.y + PLAYER_SIZE + margin > rect.y && point.y - margin < rect.y + rect.height;
+export const overlapsPlayer = playerOverlapsRect;
 
 /** Compile each trajectory once, shared by every action and controller in this tick. */
 export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecasts; random: () => number }): AIFrame {
   const { now } = world;
-  const firstDt = Math.min(0.05, Math.max(0.001, world.deltaTime / 1000));
-  const horizon = options ? Math.max(...Object.values(options.forecasts).map(f => f.horizonMs)) / 1000 : (AI_STEPS - 1) * AI_DT + firstDt;
+  const firstDt = Math.max(0.001, world.deltaTime / 1000);
+  // The first step is the callback currently being decided, even when a future
+  // forecast is disabled or shorter than that callback. Never truncate its motion.
+  const horizon = options ? Math.max(firstDt, ...Object.values(options.forecasts).map(f => f.horizonMs / 1000)) : (AI_STEPS - 1) * AI_DT + firstDt;
   const steps = options ? Math.max(1, 1 + Math.ceil(Math.max(0, horizon - firstDt) / AI_DT - 1e-9)) : AI_STEPS;
   const times = new Float64Array(steps + 1);
   for (let i = 1; i <= steps; i++) times[i] = options ? Math.min(horizon || firstDt, firstDt + (i - 1) * AI_DT) : firstDt + (i - 1) * AI_DT;
@@ -74,10 +78,25 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
   }
   const vines = world.vineShields.filter(v => activeVine(v, now));
   const zones = world.hazardZones.filter(z => now - z.createdAt <= z.duration);
+  const coilPaths = new Map<string, Float64Array>();
+  for (const zone of world.hazardZones) if (zone.type === 'tesla-coil') {
+    const copy = { ...zone }, y = new Float64Array(steps + 1);
+    y[0] = copy.y;
+    let previousTime = 0;
+    const environment = options?.forecasts.environment, error = environmentErrors.get(zone.id);
+    for (let step = 1; step <= steps; step++) {
+      const time = environment && error ? forecastTime(environment, error, times[step]) : times[step];
+      if (!(copy.health !== undefined && copy.health <= 0) && now + Math.max(0, time - firstDt) * 1000 - copy.createdAt <= copy.duration) {
+        stepCoilMotion(copy, world.platforms, (time - previousTime) * 1000);
+      }
+      y[step] = copy.y; previousTime = time;
+    }
+    coilPaths.set(zone.id, y);
+  }
   const paths: ProjectilePath[] = world.projectiles.filter(p => now - p.createdAt <= p.lifetime).map(projectile => {
     const x = new Float64Array(steps + 1), y = new Float64Array(steps + 1);
     x[0] = projectile.x; y[0] = projectile.y;
-    return { projectile, x, y, returning: new Uint8Array(steps + 1), endStep: options ? Math.max(1, Array.from(times).filter(t => t > 0 && t * 1000 <= options.forecasts.projectiles.horizonMs + 1e-6).length) : AI_STEPS };
+    return { projectile, x, y, returning: new Uint8Array(steps + 1), coilContacts: [], endStep: options ? Math.max(1, Array.from(times).filter(t => t > 0 && t * 1000 <= options.forecasts.projectiles.horizonMs + 1e-6).length) : AI_STEPS };
   });
   const errors = options ? paths.map(() => sampleForecastError(options.forecasts.projectiles, options.random)) : [];
   paths.forEach((path, index) => { path.forecastError = errors[index]; });
@@ -85,10 +104,22 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
   const simulated = paths.map(path => ({ ...path.projectile }));
   const pools: PredictedPool[] = [];
   const destroyedVines = new Set<string>();
+  let coils = world.hazardZones.filter(zone => zone.type === 'tesla-coil').map(zone => ({ ...zone }));
+  const coilDamage = new Map<string, number>();
+  const coilSnapshots = new Map<number, readonly HazardZone[]>();
   // Step first, so a vine absorbs only one projectile rather than becoming infinite cover.
   for (let step = 1; step <= steps; step++) {
     const t = times[step];
     const dt = times[step] - times[step - 1];
+    coilDamage.clear();
+    const environment = options?.forecasts.environment;
+    const contactCoils = coils.length && (!environment || step === 1 || t * 1000 <= environment.horizonMs)
+      ? coils.map(coil => {
+        const error = environmentErrors.get(coil.id);
+        const point = { ...coil, y: coilPaths.get(coil.id)?.[step - 1] ?? coil.y };
+        return environment && error ? forecastPoint(point, environment, error, t) : point;
+      }) : [];
+    if (contactCoils.length) coilSnapshots.set(step, contactCoils);
     for (let index = 0; index < paths.length; index++) {
       const path = paths[index];
       if (step > path.endStep) continue;
@@ -96,13 +127,14 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
       const sampleTime = options && options.forecasts.projectiles.horizonMs > 0 ? forecastTime(options.forecasts.projectiles, errors[index], t) : options ? 0 : t;
       const motionDt = options ? sampleTime - simulatedTimes[index] : dt;
       const target = world.players[simulated[index].ownerId === 1 ? 1 : 0];
-      const p = stepProjectileMotion(simulated[index], world.players[simulated[index].ownerId - 1], now + sampleTime * 1000, motionDt,
+      const sampleNow = now + Math.max(0, sampleTime - firstDt) * 1000;
+      const p = stepProjectileMotion(simulated[index], world.players[simulated[index].ownerId - 1], sampleNow, motionDt,
         { x: target.x + target.velocityX * sampleTime, y: target.y + target.velocityY * sampleTime, isInvisible: target.isInvisible });
       simulatedTimes[index] = sampleTime;
       const projected = options ? forecastPoint(p, options.forecasts.projectiles, errors[index], t) : p;
       path.x[step] = projected.x; path.y[step] = projected.y;
       path.returning[step] = p.returnPhase === 'returning' ? 1 : 0;
-      if (now + sampleTime * 1000 - p.createdAt > p.lifetime) { path.endStep = step - 1; continue; }
+      if (sampleNow - p.createdAt > p.lifetime) { path.endStep = step - 1; continue; }
       const surface = p.hasGravity && p.type !== 'meteor'
         ? world.platforms.find(platform => checkProjectileCollision(projected, previous, platform)) : undefined;
       let vine: VineShield | undefined, vineTime = Infinity;
@@ -130,11 +162,34 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
           pools.push({ ownerId: p.ownerId, x, y: (surface?.y ?? previous.y + (projected.y - previous.y) * contact + p.height / 2) - size / 2,
             width: size, height: size, impactTime: t, damage: p.isNapalm ? p.firePoolDamage : undefined, duration: p.firePoolDuration, sourceProjectileId: p.id });
         }
+        continue;
+      }
+      // Endpoint contact occurs after surfaces/vines, before sword/body and
+      // before ALL same-callback coil damage, expiry, decay and falling.
+      const coil = contactCoils.length ? findProjectileCoilContact(projected, contactCoils) : undefined;
+      if (coil) {
+        path.coilContacts.push({ coilId: coil.id, step, rawDamage: p.damage });
+        coilDamage.set(coil.id, (coilDamage.get(coil.id) ?? 0) + p.damage);
+        if (p.isNapalm || p.createsFirePool) {
+          const size = p.isNapalm ? Math.max(p.explosionRadius, p.width / 2, p.height / 2) * 2 : POOL_SIZE[p.type === 'flask' ? 'toxic-pool' : 'fire-pool'];
+          const contact = getProjectileCollisionTime(projected, previous, coil) ?? 1;
+          const impactX = previous.x + (projected.x - previous.x) * contact + p.width / 2;
+          const impactY = previous.y + (projected.y - previous.y) * contact + p.height / 2;
+          pools.push({ ownerId: p.ownerId,
+            x: (p.isNapalm ? Math.max(coil.x, Math.min(impactX, coil.x + coil.width)) : projected.x + p.width / 2) - size / 2,
+            y: (p.isNapalm ? Math.max(coil.y, Math.min(impactY, coil.y + coil.height)) : coil.y + coil.height) - size / 2,
+            width: size, height: size, impactTime: t,
+            damage: p.isNapalm ? p.firePoolDamage ?? p.damage * 0.1 : p.damage * (p.type === 'flask' ? 0.2 : 0.03),
+            duration: p.firePoolDuration, sourceProjectileId: p.id });
+        }
+        if (p.type === 'bat') p.hitCoilIds = [...(p.hitCoilIds ?? []), coil.id];
+        else path.endStep = step - 1;
       }
     }
+    if (coils.length) coils = advanceCoilForecast(coils, world.platforms, now + Math.max(0, t - firstDt) * 1000, dt * 1000, coilDamage);
   }
   return {
-    world, paths, pools, vines, zones, steps, times, forecasts: options?.forecasts, environmentErrors,
+    world, paths, pools, vines, zones, steps, times, forecasts: options?.forecasts, environmentErrors, coilPaths, coilSnapshots,
     opponentError: options ? sampleForecastError(options.forecasts.opponent, options.random) : undefined,
     souls: world.soulZones.filter(z => now - z.createdAt <= z.duration),
     hitboxes: world.attackHitboxes.filter(h => now - h.createdAt <= h.duration),

@@ -158,7 +158,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     speed: 4.8,
     attackDamage: 15,
     attackRange: 90,
-    attackCooldown: 850,
+    attackCooldown: 875,
     attackDescription: '전방으로 검을 휘둘러 근접한 적을 공격합니다.',
     skill: {
       name: '방어',

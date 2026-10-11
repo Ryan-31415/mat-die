@@ -13,6 +13,7 @@ import { emptyAIKeys } from './controller';
 import { createAIMemory } from './state';
 import { overlapsPlayer, type AIFrame, type AIWorld } from './world';
 import type { getAIKeys } from '../gameAI';
+import { runDeterministicEvaluation } from '@/test/aiEvaluationRunner';
 
 const switcher = vi.hoisted(() => ({ baseline: false, legacy: undefined as typeof getAIKeys | undefined }));
 vi.mock('../gameAI', async importOriginal => {
@@ -36,7 +37,7 @@ interface Result {
 }
 
 // Deliberately opt-in: this compares hundreds of full games, not the normal fast suite.
-describe.skipIf(process.env.RUN_AI_EVALUATION !== '1')('seeded before/after combat evaluation', () => {
+describe.skipIf(process.env.RUN_AI_EVALUATION !== '1' || !!process.env.AI_EVAL_MODE)('seeded before/after combat evaluation', () => {
   it('compares the original controller with the current controller in the same engine', async () => {
     const baselinePath = process.env.AI_BASELINE_PATH ?? 'scripts/fixtures/gameAI-baseline.ts';
     const baselineSha256 = createHash('sha256').update(readFileSync(baselinePath)).digest('hex');
@@ -123,4 +124,8 @@ describe.skipIf(process.env.RUN_AI_EVALUATION !== '1')('seeded before/after comb
     expect(results.length).toBe(characters.length * maps.length * 3 * seeds.length * 2);
     expect(results.every(r => Number.isFinite(r.meanTickMs) && r.winner !== null)).toBe(true);
   }, 900000);
+});
+
+describe.skipIf(process.env.RUN_AI_EVALUATION !== '1' || !process.env.AI_EVAL_MODE)('deterministic frozen/current evaluation', () => {
+  it('runs every manifest condition with checkpoint provenance and complete HP accounting', runDeterministicEvaluation, 86400000);
 });

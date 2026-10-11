@@ -63,10 +63,10 @@ describe('AI difficulty controls', () => {
   it('exposes control adaptation under judgment and replaces it with presets', () => {
     render(<Harness />); fireEvent.click(screen.getByText('세부 AI 옵션')); fireEvent.click(screen.getByText('판단력'));
     const adaptation = screen.getByLabelText('조작 반전 대응력');
-    expect(adaptation).toHaveValue(60);
+    expect(adaptation).toHaveValue(50);
     fireEvent.change(adaptation, { target: { value: '30' } });
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuetext', '사용자 지정');
-    fireEvent.click(screen.getByRole('button', { name: '하급' })); expect(adaptation).toHaveValue(25);
+    fireEvent.click(screen.getByRole('button', { name: '하급' })); expect(adaptation).toHaveValue(15);
     fireEvent.click(screen.getByRole('button', { name: '상급' })); expect(adaptation).toHaveValue(100);
   });
   it('offers temporary memory and marks it as custom until a preset is selected', () => {

@@ -1,6 +1,6 @@
 import { AI_TRAIT_LABELS, AI_INPUT_LABELS, NEUTRAL_AI_TRAITS, type AISettings, type AITraits, type AITrait, type AIInputKey } from '@/types/ai';
 import type { KeyboardState } from '../useKeyboard';
-import { decideAI, emptyAIKeys } from './controller';
+import { decideAI, emptyAIKeys, type PositionDecision } from './controller';
 import { createOpponentModel, observeOpponent, resetObservation, type OpponentModel } from './learning';
 import { createPerceptionMemory, perceiveWorld, type PerceptionMemory } from './perception';
 import { gaussian, seededRandom } from './random';
@@ -48,6 +48,9 @@ export const createDifficultyRuntime = (session: DifficultySession): DifficultyR
 const inputGroups: (keyof KeyboardState)[][] = [
   ['arrowLeft', 'arrowRight'], ['arrowUp', 'arrowDown'], ['shift'], ['enter'], ['backslash'],
 ];
+const playerOneInputGroups: (keyof KeyboardState)[][] = [
+  ['a', 'd'], ['w', 's'], ['f'], ['g'], ['h'],
+];
 function flushInputs(inputs: PendingInput[], keys: KeyboardState, now: number) {
   const remaining: PendingInput[] = [];
   for (const input of inputs) {
@@ -58,7 +61,8 @@ function flushInputs(inputs: PendingInput[], keys: KeyboardState, now: number) {
 }
 
 /** Pure transition. Every random draw and queue update is local to the returned state. */
-export function stepDifficulty(world: AIWorld, settings: AISettings, previous: DifficultyRuntime): DifficultyRuntime {
+export function stepDifficulty(world: AIWorld, settings: AISettings, previous: DifficultyRuntime, observerId: 1 | 2 = 2,
+  diagnosePosition?: (decision: PositionDecision) => void): DifficultyRuntime {
   const parameters = settings.parameters;
   const activeTime = previous.activeTime + Math.max(0, world.deltaTime);
   const rng = seededRandom(previous.session.randomState);
@@ -69,7 +73,7 @@ export function stepDifficulty(world: AIWorld, settings: AISettings, previous: D
   let lastObservedAt = previous.lastObservedAt;
   let observationsTaken = previous.observationsTaken;
   if (activeTime - lastObservedAt >= parameters.observationInterval) {
-    const sample = perceiveWorld(world, parameters, perception, activeTime, rng.next);
+    const sample = perceiveWorld(world, parameters, perception, activeTime, rng.next, observerId);
     perception = sample.memory;
     const delay = parameters.reactionMin + rng.next() * (parameters.reactionMax - parameters.reactionMin);
     const readyAt = Math.max(activeTime + delay, observations[observations.length - 1]?.readyAt ?? 0);
@@ -83,7 +87,7 @@ export function stepDifficulty(world: AIWorld, settings: AISettings, previous: D
     const sample = observations.shift();
     latest = sample.world;
     // Only matured observations teach P2; clone learning is never used here.
-    model = observeOpponent(model, latest.players[0], latest.players[1], latest.now, parameters.learningOptions);
+    model = observeOpponent(model, latest.players[observerId === 1 ? 1 : 0], latest.players[observerId - 1], latest.now, parameters.learningOptions);
   }
   let memory = previous.memory;
   let decisionsMade = previous.decisionsMade;
@@ -93,10 +97,10 @@ export function stepDifficulty(world: AIWorld, settings: AISettings, previous: D
       projectiles: { ...parameters.forecasts.projectiles, horizonMs: 0 },
       environment: { ...parameters.forecasts.environment, horizonMs: 0 },
     };
-    const decision = decideAI(prepareAIFrame(latest, { forecasts, random: rng.next }), latest.players[1], model, memory, { parameters, traits: resolveTraits(settings, previous.session), random: rng.next });
+    const decision = decideAI(prepareAIFrame(latest, { forecasts, random: rng.next }), latest.players[observerId - 1], model, memory, { parameters, traits: resolveTraits(settings, previous.session), random: rng.next }, diagnosePosition);
     memory = decision.memory;
     decisionsMade++;
-    inputGroups.forEach((group, index) => {
+    (observerId === 1 ? playerOneInputGroups : inputGroups).forEach((group, index) => {
       const kind = (Object.keys(AI_INPUT_LABELS) as AIInputKey[])[index];
       const input = parameters.inputs[kind];
       const min = input.useCommonPrecision ? parameters.precisionMin : input.precisionMin;

@@ -1,10 +1,30 @@
-import { ARENA, PLAYER_SIZE, type Player } from './game';
-import { GRAVITY, MAX_FALL_SPEED, type Platform } from './platform';
-import type { Projectile } from './projectile';
+import { ARENA, PLAYER_SIZE, type CharacterType, type Player } from './game';
+import { COYOTE_TIME, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, type Platform } from './platform';
+import type { AttackHitbox, HazardZone, Projectile } from './projectile';
 
 export const FLOOR_Y = ARENA.height - ARENA.padding - PLAYER_SIZE;
 export const NINJA_DASH_DISTANCE = 280;
 export const NINJA_PARRY_MS = 120;
+const BASIC_MELEE_RULES: Record<CharacterType, Readonly<{
+  xOffset: number; yOffset: number; extraWidth: number; height: number; duration: number; canDeflectProjectiles: boolean;
+}> | null> = {
+  gladiator: { xOffset: 0, yOffset: 0, extraWidth: PLAYER_SIZE, height: PLAYER_SIZE, duration: 200, canDeflectProjectiles: false },
+  ninja: { xOffset: 0, yOffset: -10, extraWidth: PLAYER_SIZE, height: PLAYER_SIZE * 1.1, duration: NINJA_PARRY_MS, canDeflectProjectiles: true },
+  reaper: { xOffset: -10, yOffset: -10, extraWidth: PLAYER_SIZE + 20, height: PLAYER_SIZE + 20, duration: 250, canDeflectProjectiles: false },
+  archer: null, mage: null, scientist: null, hunter: null, 'ice-mage': null, hacker: null, rocketeer: null,
+};
+export interface BasicMeleeGeometry {
+  x: number; y: number; width: number; height: number; duration: number; canDeflectProjectiles: boolean; sourceX: number;
+}
+/** Pure public rules. The original attacks include the fighter's body for overlapping targets. */
+export function basicMeleeGeometry(player: Pick<Player, 'character' | 'x' | 'y' | 'facingRight'>): BasicMeleeGeometry | null {
+  if (!player.character) return null;
+  const rule = BASIC_MELEE_RULES[player.character.id];
+  if (!rule) return null;
+  return { x: (player.facingRight ? player.x : player.x - player.character.attackRange) + rule.xOffset,
+    y: player.y + rule.yOffset, width: player.character.attackRange + rule.extraWidth, height: rule.height,
+    duration: rule.duration, canDeflectProjectiles: rule.canDeflectProjectiles, sourceX: player.x + PLAYER_SIZE / 2 };
+}
 export const BAT_RETURN_FRACTION = 0.35;
 export const LIGHTNING_WARNING_MS = 1500;
 export const LIGHTNING_RADIUS = 40;
@@ -27,6 +47,73 @@ export type ProjectileTarget = Pick<Player, 'x' | 'y' | 'isInvisible'>;
 export const clampPlayerX = (x: number) => Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, x));
 export const shieldFacesX = (defender: Pick<Player, 'x' | 'facingRight' | 'isShielding'>, sourceCenterX: number) =>
   defender.isShielding && (sourceCenterX - defender.x - PLAYER_SIZE / 2) * (defender.facingRight ? 1 : -1) > 0;
+
+export const playerOverlapsRect = (point: { x: number; y: number }, rect: { x: number; y: number; width: number; height: number }, margin = 0) =>
+  point.x + PLAYER_SIZE + margin > rect.x && point.x - margin < rect.x + rect.width &&
+  point.y + PLAYER_SIZE + margin > rect.y && point.y - margin < rect.y + rect.height;
+
+type CombatRect = { x: number; y: number; width: number; height: number };
+type CoilContactZone = Pick<HazardZone, 'id' | 'type' | 'ownerId' | 'x' | 'y' | 'width' | 'height'>;
+const overlapsCombatRect = (a: CombatRect, b: CombatRect) =>
+  a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+
+/** Endpoint overlap, before coil motion/removal. Keep array order and the bat's per-coil exception. */
+export function findProjectileCoilContact<T extends CoilContactZone>(
+  projectile: Pick<Projectile, 'type' | 'ownerId' | 'x' | 'y' | 'width' | 'height' | 'isHackUltimate' | 'hitCoilIds'>,
+  zones: readonly T[]
+): T | undefined {
+  return zones.find(zone => zone.type === 'tesla-coil' && zone.ownerId !== projectile.ownerId && !projectile.isHackUltimate &&
+    !(projectile.type === 'bat' && projectile.hitCoilIds?.includes(zone.id)) && overlapsCombatRect(projectile, zone));
+}
+
+/** Contact only: melee remains active and may also hit a fighter in the same phase. */
+export function findMeleeCoilContact<T extends CoilContactZone>(
+  hitbox: Pick<AttackHitbox, 'ownerId' | 'x' | 'y' | 'width' | 'height'>, zones: readonly T[]
+): T | undefined {
+  return zones.find(zone => zone.type === 'tesla-coil' && zone.ownerId !== hitbox.ownerId && overlapsCombatRect(hitbox, zone));
+}
+
+export function fireRingOverlapsPlayer(ring: Pick<HazardZone, 'x' | 'y' | 'width' | 'height'>, target: { x: number; y: number }) {
+  const centerX = ring.x + ring.width / 2, centerY = ring.y + ring.height / 2;
+  const nearestX = Math.max(target.x, Math.min(centerX, target.x + PLAYER_SIZE));
+  const nearestY = Math.max(target.y, Math.min(centerY, target.y + PLAYER_SIZE));
+  const nearestDistance = Math.hypot(centerX - nearestX, centerY - nearestY);
+  const farthestDistance = Math.max(
+    Math.hypot(centerX - target.x, centerY - target.y),
+    Math.hypot(centerX - (target.x + PLAYER_SIZE), centerY - target.y),
+    Math.hypot(centerX - target.x, centerY - (target.y + PLAYER_SIZE)),
+    Math.hypot(centerX - (target.x + PLAYER_SIZE), centerY - (target.y + PLAYER_SIZE))
+  );
+  const outerRadius = ring.width / 2;
+  return nearestDistance <= outerRadius && farthestDistance >= outerRadius - 6;
+}
+
+export const reaperContactGeometry = (point: { x: number; y: number }) => ({
+  x: point.x - 30, y: point.y - 30, width: PLAYER_SIZE + 60, height: PLAYER_SIZE + 60,
+});
+
+/** The destruction rectangle is intentionally offset and larger than the expiry rectangle. */
+export function coilExplosionGeometry(coil: Pick<HazardZone, 'x' | 'y' | 'width' | 'height'>, reason: 'destroyed' | 'expired') {
+  return { x: coil.x + coil.width / 2 - 100, y: coil.y + coil.height / 2 - 100,
+    width: reason === 'destroyed' ? 240 : 200, height: reason === 'destroyed' ? 240 : 200,
+    damageMultiplier: 32, knockbackX: reason === 'destroyed' ? 720 : 500, knockbackY: reason === 'destroyed' ? -200 : -180 };
+}
+
+/** Mutates only the supplied coil copy; damage and expiry remain in the engine's original phase. */
+export function stepCoilMotion(next: HazardZone, platforms: readonly Platform[], deltaTime: number) {
+  if (next.isGrounded) return next;
+  next.velocityY = Math.min(MAX_FALL_SPEED, (next.velocityY || 0) + GRAVITY * (deltaTime / 1000));
+  const nextY = next.y + next.velocityY * (deltaTime / 1000);
+  const landing = platforms.find(platform => next.x + next.width > platform.x && next.x < platform.x + platform.width &&
+    next.y + next.height <= platform.y + (platform.type === 'one-way' ? 10 : 0) && nextY + next.height >= platform.y);
+  if (landing) {
+    next.y = landing.y - next.height; next.velocityY = 0; next.isGrounded = true;
+  } else {
+    next.y = Math.min(ARENA.height - ARENA.padding - next.height, nextY);
+    if (next.y >= ARENA.height - ARENA.padding - next.height) { next.velocityY = 0; next.isGrounded = true; }
+  }
+  return next;
+}
 
 /** World units per second; matches the engine's original speed * dt / 16 * 1.2. */
 export function playerMoveSpeed(player: Player, now: number): number {
@@ -54,6 +141,89 @@ export function platformCollision(point: { x: number; y: number }, newY: number,
     }
   }
   return { y: newY, isGrounded: false, platform: null };
+}
+
+export interface PlayerMovementInput {
+  left: boolean; right: boolean; jump: boolean; down: boolean;
+}
+
+/** Mutates a caller-owned copy after status timers, before shield upkeep and movement. */
+export function stepPlayerForces(next: Player, deltaTime: number) {
+  if (!next.isFlying && (!next.isGrounded || next.velocityY < 0)) {
+    next.velocityY += GRAVITY * (deltaTime / 1000);
+    next.velocityY = Math.min(MAX_FALL_SPEED, next.velocityY);
+  } else if (next.isFlying) next.velocityY = 0;
+  for (const key of ['knockbackVelocityX', 'knockbackVelocityY'] as const) {
+    if (Math.abs(next[key]) > 10) next[key] *= Math.pow(0.9, deltaTime / 16);
+    else next[key] = 0;
+  }
+  return next;
+}
+
+/** Post-force movement with already resolved controls and shield/charge state. No action or status updates. */
+export function stepPlayerMovement(next: Player, input: Readonly<PlayerMovementInput>, platforms: readonly Platform[],
+  inBlizzard: boolean, now: number, deltaTime: number) {
+  if (next.isStunned || next.isFrozen) {
+    next.x = clampPlayerX(next.x + next.knockbackVelocityX * (deltaTime / 1000));
+    let newY = next.y + (next.velocityY + next.knockbackVelocityY) * (deltaTime / 1000);
+    const result = !next.isFlying ? platformCollision(next, newY, next.velocityY + next.knockbackVelocityY, platforms) : null;
+    if (result?.isGrounded && !next.isFlying) {
+      newY = result.y;
+      next.velocityY = 0; next.knockbackVelocityY = 0; next.isGrounded = true;
+    } else next.isGrounded = false;
+    // Preserve this branch's original floor/coyote bookkeeping, distinct from normal movement.
+    next.y = Math.max(ARENA.padding, Math.min(FLOOR_Y, newY));
+    return next;
+  }
+
+  const speed = playerMoveSpeed(next, now) / 75;
+  let dx = Number(input.right) - Number(input.left), dy = 0;
+  if (next.isFlying) {
+    dy = Number(input.down) - Number(input.jump);
+    if (dx === 0) dx = next.facingRight ? 1 : -1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length > 0) { dx /= length; dy /= length; }
+  }
+  if (dx > 0) next.facingRight = true;
+  else if (dx < 0) next.facingRight = false;
+  const moveAmount = speed * (deltaTime / 16) * 1.2;
+  if (inBlizzard) {
+    next.velocityX += dx * (speed * 100) * (deltaTime / 1000);
+    next.velocityX *= Math.pow(0.99, deltaTime / 16);
+    let newX = next.x + next.velocityX * (deltaTime / 1000);
+    newX += next.knockbackVelocityX * (deltaTime / 1000);
+    next.x = clampPlayerX(newX);
+    if (next.x <= ARENA.padding || next.x >= ARENA.width - ARENA.padding - PLAYER_SIZE) next.velocityX *= -0.5;
+  } else {
+    let newX = next.x + dx * moveAmount;
+    newX += next.knockbackVelocityX * (deltaTime / 1000);
+    next.x = clampPlayerX(newX);
+    next.velocityX = 0;
+  }
+  const canJump = next.isGrounded || now - next.lastGroundedTime < COYOTE_TIME;
+  if (input.jump && canJump && !next.isJumping) {
+    next.velocityY = JUMP_FORCE; next.isJumping = true; next.isGrounded = false;
+  }
+  if (!input.jump) next.isJumping = false;
+  let newY = next.y;
+  if (next.isFlying) newY += dy * moveAmount;
+  else newY += next.velocityY * (deltaTime / 1000);
+  newY += next.knockbackVelocityY * (deltaTime / 1000);
+  const result = !next.isFlying ? platformCollision(next, newY, next.velocityY + next.knockbackVelocityY, platforms) : null;
+  if (result?.isGrounded) {
+    newY = result.y;
+    next.velocityY = 0; next.knockbackVelocityY = 0; next.isGrounded = true; next.lastGroundedTime = now;
+    if (input.down && result.platform?.type === 'one-way' && !next.isJumping) {
+      next.isGrounded = false; newY += 25; next.velocityY = 300;
+    }
+  } else next.isGrounded = false;
+  newY = Math.max(ARENA.padding, Math.min(FLOOR_Y, newY));
+  if (newY >= FLOOR_Y) {
+    newY = FLOOR_Y;
+    next.velocityY = 0; next.knockbackVelocityY = 0; next.isGrounded = true; next.lastGroundedTime = now;
+  }
+  next.y = newY;
+  return next;
 }
 
 export function fallStep(point: { x: number; y: number }, velocityY: number, dt: number, platforms: readonly Platform[]) {
@@ -121,5 +291,107 @@ export function stepProjectileMotion(next: Projectile, owner: Pick<Player, 'x' |
     }
   }
   if (next.hasGravity) next.velocityY += next.gravity * dt;
+  return next;
+}
+
+/** Shared pre-movement phase; mutates a caller-owned player. */
+export function stepPlayerSlowAndRoot(next: Player, deltaTime: number) {
+  if (next.slowDuration > 0) {
+    next.slowDuration -= deltaTime;
+    if (next.slowDuration <= 0) {
+      next.isSlowed = false;
+      next.slowDuration = 0;
+      next.slowAmount = 0;
+    }
+  }
+  if (next.rootDuration > 0) {
+    next.rootDuration -= deltaTime;
+    if (next.rootDuration <= 0) {
+      next.rootDuration = 0;
+    }
+  }
+  return next;
+}
+
+/** Shared pre-movement phase; mutates a caller-owned player. */
+export function stepPlayerCrowdControl(next: Player, opponent: Player, zones: readonly HazardZone[], now: number, deltaTime: number) {
+  if (next.stunDuration > 0) {
+    next.stunDuration -= deltaTime;
+    if (next.stunDuration <= 0) {
+      next.isStunned = false;
+      next.stunDuration = 0;
+    }
+  }
+  if (next.frozenDuration > 0) {
+    next.frozenDuration -= deltaTime;
+    if (next.frozenDuration <= 0) {
+      next.isFrozen = false;
+      next.frozenDuration = 0;
+    }
+  }
+
+  // Ice Mage Passive - check for freeze and decay
+  // This logic applies to the player being updated, if their opponent is an Ice Mage
+  if (opponent.character?.id === 'ice-mage') {
+    if (next.freezeGauge >= 5) {
+      next.isFrozen = true;
+      let freezeDur = 1000;
+
+      // Ice Mage Blizzard: Increased freeze duration
+      const inBlizzard = zones.some(z =>
+        z.type === 'blizzard' &&
+        playerOverlapsRect(next, z)
+      );
+      if (inBlizzard) {
+        freezeDur *= 1.5;
+      }
+
+      next.frozenDuration = freezeDur;
+      next.freezeGauge = 0;
+    } else if (next.freezeGauge > 0 && now - next.lastHitByIceMage > 4000) {
+      if (now - (next.lastFreezeGaugeDecay || 0) > 1500) {
+        next.freezeGauge = Math.max(0, next.freezeGauge - 1);
+        next.lastFreezeGaugeDecay = now;
+      }
+    }
+  }
+  return next;
+}
+
+/** Shared pre-movement phase; mutates a caller-owned player. */
+export function stepPlayerMobilityBuffs(next: Player, deltaTime: number) {
+  if (next.invisibleDuration > 0) {
+    next.invisibleDuration -= deltaTime;
+    if (next.invisibleDuration <= 0) {
+      next.isInvisible = false;
+      next.invisibleDuration = 0;
+      next.dodgesRemaining = 0;
+      // Reset ninja ultimate buffs
+      next.damageBoost = 0;
+      next.speedBoost = 0;
+    }
+  }
+  if (next.buffDuration > 0) {
+    next.buffDuration -= deltaTime;
+    if (next.buffDuration <= 0) {
+      next.damageBoost = 0;
+      next.speedBoost = 0;
+      next.damageReduction = 0;
+      next.buffDuration = 0;
+    }
+  }
+  if (next.invulnerableDuration > 0) {
+    next.invulnerableDuration -= deltaTime;
+    if (next.invulnerableDuration <= 0) {
+      next.isInvulnerable = false;
+      next.invulnerableDuration = 0;
+      next.isFlying = false;
+      // Reset reaper ultimate speed boost
+      if (next.character?.id === 'reaper') {
+        next.speedBoost = 0;
+        next.trailPositions = [];
+      }
+    }
+  }
   return next;
 }

@@ -82,11 +82,14 @@ describe('Rocketeer AI operation and counters', () => {
     frame.paths[0].x.fill(0); frame.paths[0].y.fill(0); frame.paths[0].endStep = 0;
     const decision = decideAI(frame, ai);
     const idle = decideAI(prepareAIFrame(world(ai, enemy)), ai);
-    expect(decision.risk).toBeGreaterThan(idle.risk);
+    // Risk describes the selected escape, so a correctly avoided threat can score zero.
+    // The companion engine replay proves that idle/no-threat inputs take damage.
+    expect(decision.keys).not.toEqual(idle.keys);
+    expect(decision.keys.arrowUp).toBe(true);
     expect(shot.flightTimeMs).toBe(0);
   });
   it('gladiator faces an incoming rocket arriving from behind', () => {
-    const ai = player(2, 'gladiator', { x: 480, facingRight: false }), enemy = player(1, 'rocketeer');
+    const ai = player(2, 'gladiator', { x: 480, facingRight: false, rootDuration: 10000 }), enemy = player(1, 'rocketeer');
     const shot = { ...createProjectile('rocket', 1, 555, 460, -550, 0, 16), createdAt: now };
     const decision = decideAI(prepareAIFrame(world(ai, enemy, { projectiles: [shot] })), ai);
     expect(decision.keys.enter).toBe(true);

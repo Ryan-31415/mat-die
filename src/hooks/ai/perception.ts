@@ -1,9 +1,10 @@
 import { CHARACTERS, PLAYER_SIZE, createInitialPlayer, type Player } from '@/types/game';
 import type { AIParameters } from '@/types/ai';
 import type { Projectile, HazardZone, AttackHitbox } from '@/types/projectile';
+import { hazardProperties } from '@/types/projectile';
 import type { AIWorld } from './world';
 import { estimateNumber } from './estimation';
-import { playerMoveSpeed, ROCKET_EXPLOSION_RADIUS } from '@/types/combatPhysics';
+import { basicMeleeGeometry, playerMoveSpeed, ROCKET_EXPLOSION_RADIUS, ROCKET_SPEED, HOMING_ROCKET_SPEED, ROCKET_ACCELERATION_MS, ROCKET_MAX_SPEED_FACTOR } from '@/types/combatPhysics';
 import { GRAVITY, MAX_FALL_SPEED } from '@/types/platform';
 
 export interface PerceptionMemory {
@@ -17,7 +18,7 @@ const durations: Record<HazardZone['type'], number> = {
   'bear-trap': 10000, blizzard: 5000, 'fire-ring': 5000, 'packet-block-zone': 5000,
 };
 
-function visiblePlayer(raw: Player, world: AIWorld, previous: AIWorld | undefined, parameters: AIParameters, random: () => number, inferred: Player[]): Player {
+function visiblePlayer(raw: Player, world: AIWorld, previous: AIWorld | undefined, parameters: AIParameters, random: () => number, inferred: Player[], observerId: 1 | 2): Player {
   const now = world.now;
   const character = raw.character ? CHARACTERS[raw.character.id] : null;
   const old = previous?.players[raw.id - 1];
@@ -34,7 +35,7 @@ function visiblePlayer(raw: Player, world: AIWorld, previous: AIWorld | undefine
     p.velocityX = (p.x - old.x) / dt;
     p.velocityY = (p.y - old.y) / dt;
   }
-  const own = raw.id === 2;
+  const own = raw.id === observerId;
   if (own || parameters.information.health) {
     p.health = Math.floor(raw.health); p.maxHealth = raw.maxHealth;
 
@@ -105,6 +106,12 @@ function visiblePlayer(raw: Player, world: AIWorld, previous: AIWorld | undefine
   for (const key of ['attackCooldownRemaining', 'skillCooldownRemaining'] as const) p[key] = cooldowns.mode === 'exact' ? raw[key] : estimateNumber(p[key], cooldowns, random);
   const duration = parameters.estimation.durations;
   for (const key of timers) p[key] = duration.mode === 'exact' ? raw[key] : estimateNumber(p[key] ?? 0, duration, random);
+  // Current passive timer origins belong to the existing exact-duration group,
+  // with the same status/timer masks. They are not future hits or enemy inputs.
+  if (duration.mode === 'exact' && (own || parameters.information.statuses && parameters.information.statusTimers)) {
+    p.lastHitByIceMage = raw.lastHitByIceMage;
+    p.lastFreezeGaugeDecay = raw.lastFreezeGaugeDecay;
+  }
   if (p.isChargingSkill) p.skillChargeStartTime = duration.mode === 'exact' ? raw.skillChargeStartTime : now - estimateNumber(now - (p.skillChargeStartTime ?? now), duration, random);
   const effects = parameters.estimation.effects;
   for (const key of ['slowAmount', 'speedBoost', 'damageBoost', 'damageReduction', 'healthRegen'] as const) p[key] = effects.mode === 'exact' ? raw[key] : estimateNumber(p[key], effects, random, key === 'healthRegen' ? p.maxHealth / 100 : 0.01);
@@ -134,11 +141,13 @@ function visibleProjectile(p: Projectile, world: AIWorld, previous: AIWorld | un
   const speeds: Record<Projectile['type'], number> = {
     arrow: 1000, 'poison-arrow': 1000, fireball: 780, 'large-fireball': 750, flask: 640, 'electric-orb': 850,
     meteor: 750, bullet: 1250, 'super-bullet': 1562.5, bat: 550, snowball: 700, 'large-snowball': 920,
-    'blizzard-stone': 600, net: 750, 'hacker-missile': 800, hacking: 0, rocket: 550, 'homing-rocket': 660,
+    'blizzard-stone': 600, net: 750, 'hacker-missile': 800, hacking: 0, rocket: ROCKET_SPEED, 'homing-rocket': HOMING_ROCKET_SPEED,
   };
   const estimate = parameters.estimation.properties.mode === 'estimated';
-  // Orientation is rendered for arrows and bats. Speed magnitude comes from displacement, never the engine velocity.
-  const angle = ['arrow', 'poison-arrow', 'bat', 'rocket', 'homing-rocket'].includes(p.type) ? Math.atan2(p.velocityY, p.velocityX) : p.ownerId === 1 ? 0 : Math.PI;
+  // Rendered orientation supplies angle only. Otherwise facing is an uncertain first-sighting estimate;
+  // subsequent displacement supersedes it. Player identity never implies a physical launch direction.
+  const angle = ['arrow', 'poison-arrow', 'bat', 'rocket', 'homing-rocket', 'bullet', 'super-bullet'].includes(p.type)
+    ? Math.atan2(p.velocityY, p.velocityX) : world.players[p.ownerId - 1].facingRight ? 0 : Math.PI;
   const velocityX = estimate ? old && dt > 0 ? (p.x - old.x) / dt : Math.cos(angle) * speeds[p.type] : 0;
   const velocityY = estimate ? old && dt > 0 ? (p.y - old.y) / dt : Math.sin(angle) * speeds[p.type] : 0;
   const gravity = estimate ? p.type === 'arrow' || p.type === 'poison-arrow' ? 190 : p.type === 'flask' ? 220 : p.type === 'net' ? 360 : p.type === 'blizzard-stone' ? 600 : 0 : 0;
@@ -160,7 +169,8 @@ function visibleProjectile(p: Projectile, world: AIWorld, previous: AIWorld | un
   };
   if (p.type === 'rocket' || p.type === 'homing-rocket') {
     observed.initialSpeed = speeds[p.type];
-    observed.flightTimeMs = Math.min(1000, Math.max(0, (Math.hypot(velocityX, velocityY) / speeds[p.type] - 1) / 0.6 * 1000));
+    observed.flightTimeMs = Math.min(ROCKET_ACCELERATION_MS, Math.max(0,
+      (Math.hypot(velocityX, velocityY) / speeds[p.type] - 1) / (ROCKET_MAX_SPEED_FACTOR - 1) * ROCKET_ACCELERATION_MS));
     if (observed.isNapalm) {
       observed.firePoolDamage = observed.damage * 0.1;
       observed.burnDamage = observed.damage * 0.075;
@@ -178,6 +188,7 @@ function visibleProjectile(p: Projectile, world: AIWorld, previous: AIWorld | un
     observed.createsFirePool = p.createsFirePool; observed.canBeDeflected = p.canBeDeflected;
     observed.isReturning = p.isReturning; observed.returnPhase = p.returnPhase; observed.hasHitForward = p.hasHitForward;
     observed.hasHitReturn = p.hasHitReturn; observed.isSwapMissile = p.isSwapMissile; observed.lastHitTime = { ...p.lastHitTime };
+    observed.hitCoilIds = p.hitCoilIds && [...p.hitCoilIds];
   }
   const duration = parameters.estimation.durations;
   for (const key of ['lifetime', 'poisonDuration', 'slowDuration', 'stunDuration', 'firePoolDuration'] as const) observed[key] = duration.mode === 'exact' ? p[key] : estimateNumber(observed[key], duration, random);
@@ -187,11 +198,11 @@ function visibleProjectile(p: Projectile, world: AIWorld, previous: AIWorld | un
 
 /** The only restricted-AI boundary that may read engine state. */
 
-export function perceiveWorld(world: AIWorld, parameters: AIParameters, memory: PerceptionMemory, observationTime = world.now, random: () => number = () => 0.5): { world: AIWorld; memory: PerceptionMemory } {
+export function perceiveWorld(world: AIWorld, parameters: AIParameters, memory: PerceptionMemory, observationTime = world.now, random: () => number = () => 0.5, observerId: 1 | 2 = 2): { world: AIWorld; memory: PerceptionMemory } {
   const inferred: Player[] = [];
   const players: [Player, Player] = [
-    visiblePlayer(world.players[0], world, memory.last, parameters, random, inferred),
-    visiblePlayer(world.players[1], world, memory.last, parameters, random, inferred),
+    visiblePlayer(world.players[0], world, memory.last, parameters, random, inferred, observerId),
+    visiblePlayer(world.players[1], world, memory.last, parameters, random, inferred, observerId),
   ];
   const projectiles = parameters.information.projectiles ? world.projectiles
     .filter(p => p.type !== 'hacking' || parameters.hiddenAttacks === 'exact')
@@ -204,12 +215,14 @@ export function perceiveWorld(world: AIWorld, parameters: AIParameters, memory: 
   if (parameters.information.hazards) for (const z of world.hazardZones) {
     if (z.type === 'bear-trap' && (parameters.hidden === 'none' || (parameters.hidden !== 'all' && world.now - z.createdAt > 1500))) continue;
     const old = memory.last?.hazardZones.find(s => s.id === z.id);
+    const coilProperties = z.type === 'tesla-coil' ? hazardProperties(z.type) : undefined;
+    const coilMaxHealth = coilProperties?.maxHealth;
     const observed: HazardZone = {
       id: z.id, type: z.type, ownerId: z.ownerId, x: z.x, y: z.y, width: z.width, height: z.height,
       isNapalm: z.isNapalm === true,
       damage: z.isNapalm ? (players[z.ownerId - 1].character?.attackDamage ?? 16) * 0.1 : 10, tickRate: 100, lastTick: world.now, createdAt: old?.createdAt ?? world.now, duration: durations[z.type],
-      health: z.type === 'tesla-coil' ? Math.round((z.health ?? 240) / (z.maxHealth ?? 240) * 100) / 100 * 240 : undefined,
-      maxHealth: z.type === 'tesla-coil' ? 240 : undefined, attackRange: z.type === 'tesla-coil' ? 225 : undefined,
+      health: coilMaxHealth === undefined ? undefined : Math.round((z.health ?? coilMaxHealth) / (z.maxHealth ?? coilMaxHealth) * 100) / 100 * coilMaxHealth,
+      maxHealth: coilMaxHealth, attackRange: coilProperties?.attackRange,
     };
     const properties = parameters.estimation.properties;
     for (const key of ['damage', 'tickRate', 'health', 'maxHealth', 'attackRange'] as const) {
@@ -217,6 +230,20 @@ export function perceiveWorld(world: AIWorld, parameters: AIParameters, memory: 
       observed[key] = properties.mode === 'exact' ? z[key] : base === undefined ? undefined : estimateNumber(base, properties, random, Math.max(1, base) / 100);
     }
     if (properties.mode === 'exact') { observed.lastTick = z.lastTick; observed.lastAttackTarget = z.lastAttackTarget && { ...z.lastAttackTarget }; }
+    if (z.type === 'tesla-coil') {
+      // Exact groups already permit current motion/properties/cooldowns/times, never future events.
+      const movement = parameters.estimation.movement;
+      const grounded = world.platforms.some(platform => Math.abs(z.y + z.height - platform.y) < 2 &&
+        z.x + z.width > platform.x && z.x < platform.x + platform.width);
+      const dt = memory.last ? (world.now - memory.last.now) / 1000 : 0;
+      const velocity = movement.mode !== 'estimated' || grounded ? 0 : old && dt > 0 && dt <= 1.1 ? Math.max(0, (z.y - old.y) / dt) : 0;
+      observed.velocityY = movement.mode === 'exact' ? z.velocityY : estimateNumber(velocity, movement, random, 1, true);
+      observed.isGrounded = movement.mode === 'exact' ? z.isGrounded : grounded;
+      observed.attackCooldown = properties.mode === 'exact' ? z.attackCooldown
+        : estimateNumber(coilProperties.attackCooldown, properties, random);
+      if (parameters.estimation.cooldowns.mode === 'exact') observed.lastAttack = z.lastAttack;
+      if (parameters.estimation.durations.mode === 'exact') observed.lastSelfDamage = z.lastSelfDamage;
+    }
     const duration = parameters.estimation.durations;
     observed.duration = duration.mode === 'exact' ? z.duration : estimateNumber(observed.duration, duration, random);
     if (duration.mode === 'exact') observed.createdAt = z.createdAt;
@@ -229,15 +256,26 @@ export function perceiveWorld(world: AIWorld, parameters: AIParameters, memory: 
   hazards.push(...traps.map(t => ({ ...t.zone, createdAt: world.now - (t.zone.duration - (t.expiresAt - observationTime)) })));
   const hitboxes: AttackHitbox[] = !parameters.information.meleeHitboxes || parameters.hiddenAttacks === 'none' ? []
     : parameters.hiddenAttacks === 'exact' ? world.attackHitboxes.map(h => ({ ...h }))
-    : players.filter(p => p.isAttacking && ['gladiator', 'ninja', 'reaper'].includes(p.character?.id)).map(p => ({
-      id: 'observed-attack-' + p.id, ownerId: p.id, x: p.facingRight ? p.x : p.x - p.character.attackRange,
-      y: p.y - 10, width: p.character.attackRange + PLAYER_SIZE, height: PLAYER_SIZE,
-      damage: p.character.attackDamage, duration: 120, createdAt: world.now, knockback: 50, canDeflectProjectiles: p.character.id === 'ninja',
-    }));
+    : players.flatMap(p => {
+      const geometry = basicMeleeGeometry(p);
+      if (!geometry || !p.character) return [];
+      const id = 'observed-attack-' + p.id;
+      const old = memory.last?.attackHitboxes.find(h => h.id === id);
+      const onset = p.isAttacking && !memory.last?.players[p.id - 1].isAttacking;
+      // Actual hitboxes stay at their launch position; animation and active duration differ.
+      // First sighting estimates onset, never reads the hidden instance's creation time.
+      if (!p.isAttacking && (!old || world.now - old.createdAt > Math.max(geometry.duration, old.duration))) return [];
+      return [{ ...geometry, id, ownerId: p.id,
+        x: old && !onset ? old.x : geometry.x, y: old && !onset ? old.y : geometry.y,
+        sourceX: old && !onset ? old.sourceX : geometry.sourceX,
+        createdAt: old && !onset ? old.createdAt : world.now,
+        damage: p.character.attackDamage, knockback: 50,
+      }];
+    });
   for (const h of hitboxes) {
     const duration = parameters.estimation.durations, properties = parameters.estimation.properties;
-    h.duration = duration.mode === 'exact' ? h.duration : estimateNumber(120, duration, random);
-    if (duration.mode !== 'exact') h.createdAt = memory.last?.attackHitboxes.find(old => old.id === h.id)?.createdAt ?? world.now;
+    h.duration = duration.mode === 'exact' ? h.duration : estimateNumber(h.duration, duration, random);
+    if (parameters.hiddenAttacks === 'exact' && duration.mode !== 'exact') h.createdAt = memory.last?.attackHitboxes.find(old => old.id === h.id)?.createdAt ?? world.now;
     const damage = players[h.ownerId - 1].character?.attackDamage ?? 10;
     h.damage = properties.mode === 'exact' ? h.damage : estimateNumber(damage, properties, random, damage / 100);
     h.knockback = properties.mode === 'exact' ? h.knockback : estimateNumber(50, properties, random, 0.5);

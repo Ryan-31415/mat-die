@@ -1,17 +1,21 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
-import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, createProjectile, createHazardZone, createAttackHitbox, checkProjectileCollision, getProjectileCollisionTime, createExplosionEffect } from '@/types/projectile';
-import { Platform, PLATFORMS, GRAVITY, JUMP_FORCE, MAX_FALL_SPEED, COYOTE_TIME } from '@/types/platform';
+import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, basicProjectileLaunches, hunterNetLaunch, scientistOrbLaunch, checkProjectileCollision, getProjectileCollisionTime, createExplosionEffect } from '@/types/projectile';
+import { Platform, PLATFORMS } from '@/types/platform';
 import { MapId, MAPS } from '@/types/map';
 import { KeyboardState } from './useKeyboard';
 import { decideAI, emptyAIKeys, prepareAIFrame } from './gameAI';
 import { observeOpponent } from './ai/learning';
-import { createCombatDiagnostics, nextCombatDiagnostics, recordHit, type CombatDiagnostics } from './ai/diagnostics';
-import { activeVine } from './ai/world';
+import { createCombatDiagnostics, nextCombatDiagnostics, recordHit, recordHealthChange, recordAction, diagnosticPlayerKey,
+  recordEntityAction, entityDamageSource, recordBlocked,
+  recordMeleeCreation, recordMeleeContact, recordMeleeDeflection, finishMeleeTrials,
+  type CombatDiagnostics, type CombatAction, type DamageSource } from './ai/diagnostics';
+import { activeVine, type AIWorld } from './ai/world';
 import { createDifficultyRuntime, createDifficultySession, stepDifficulty } from './ai/difficulty';
 import type { AISettings } from '@/types/ai';
+import { createTickRandom, createEngineEntities, createEngineEvaluationState, type EngineEvaluationState, type EngineRuntimeOptions } from '@/types/engineRuntime';
 import { createAIRoundState, resetAILearningObservations, type AILearningSession, type AIRoundState } from './ai/state';
-import { advanceProjectile, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, platformCollision, playerMoveSpeed, sandstormImpulse, shieldFacesX, VINE_FADE_MS, ROCKET_SPEED, HOMING_ROCKET_SPEED, NAPALM_DURATION_MS, NAPALM_POOL_DURATION_MS, isRocket } from '@/types/combatPhysics';
+import { advanceProjectile, basicMeleeGeometry, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, stepPlayerForces, stepPlayerMovement, stepPlayerSlowAndRoot, stepPlayerCrowdControl, stepPlayerMobilityBuffs, stepCoilMotion, coilExplosionGeometry, fireRingOverlapsPlayer, playerOverlapsRect, reaperContactGeometry, findProjectileCoilContact, findMeleeCoilContact, sandstormImpulse, shieldFacesX, VINE_FADE_MS, HOMING_ROCKET_SPEED, NAPALM_DURATION_MS, NAPALM_POOL_DURATION_MS, isRocket } from '@/types/combatPhysics';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
 const ARCHER_BURST_COUNT = 8;
@@ -19,6 +23,7 @@ const ARCHER_BURST_INTERVAL = 80;
 const ARCHER_BURST_SPREAD = 10 * Math.PI / 180;
 
 interface GameEngineState {
+  evaluationState?: EngineEvaluationState;
   aiState: AIRoundState;
   diagnostics?: CombatDiagnostics;
   players: [Player, Player];
@@ -83,13 +88,15 @@ export const useGameEngine = (
   mapId: MapId = 'default',
   learningSessionRef?: React.MutableRefObject<AILearningSession>,
   collectDiagnostics = false,
-  aiSettings?: AISettings
+  aiSettings?: AISettings,
+  runtime?: EngineRuntimeOptions
 ) => {
   const map = MAPS[mapId];
   const now0 = Date.now();
   const [initialDifficultySession] = useState(() => gameMode === 'single' && aiSettings ? learningSessionRef?.current.difficulty ?? createDifficultySession() : undefined);
 
-  const createInitialEngineState = useCallback((): GameEngineState => {
+  const createInitialEngineState = useCallback((previousEvaluationState?: EngineEvaluationState): GameEngineState => {
+    const random = createTickRandom(runtime?.random, 'initial', Date.now());
     const players: [Player, Player] = [
       createInitialPlayer(1, player1Character),
       createInitialPlayer(2, player2Character),
@@ -112,6 +119,7 @@ export const useGameEngine = (
     }
 
     return {
+      ...(runtime?.controllers || runtime?.cloneControllers ? { evaluationState: createEngineEvaluationState(runtime, previousEvaluationState) } : {}),
       aiState: {
         ...createAIRoundState(learningSessionRef?.current),
         ...(initialDifficultySession ? { difficulty: createDifficultyRuntime(initialDifficultySession) } : {}),
@@ -133,17 +141,17 @@ export const useGameEngine = (
       sandstormActive: false,
       sandstormDirection: 'right',
       sandstormTimer: 0,
-      nextSandstormTime: Date.now() + 8000 + Math.random() * 7000,
+      nextSandstormTime: Date.now() + 8000 + random('environment') * 7000,
       lightningStrikes: [],
-      nextLightningTime: Date.now() + 6000 + Math.random() * 6000,
+      nextLightningTime: Date.now() + 6000 + random('environment') * 6000,
       soulZones: [],
-      nextSoulZoneTime: Date.now() + 10000 + Math.random() * 8000,
+      nextSoulZoneTime: Date.now() + 10000 + random('environment') * 8000,
       vineShields: [],
-      nextVineTime: Date.now() + 7000 + Math.random() * 8000,
+      nextVineTime: Date.now() + 7000 + random('environment') * 8000,
       lastLavaDamage: [0, 0],
       fallingLeaves: [],
     };
-  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId, map, learningSessionRef, collectDiagnostics, initialDifficultySession]);
+  }, [player1Character, player2Character, roundTimeLimit, isOvertimeProp, mapId, map, learningSessionRef, collectDiagnostics, initialDifficultySession, runtime]);
 
   const [gameState, setGameState] = useState<GameEngineState>(createInitialEngineState);
 
@@ -185,11 +193,7 @@ export const useGameEngine = (
     return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
   };
 
-  // Check platform collision and return the platform player is standing on
-  const checkPlatformCollision = (player: Player, newY: number, velocityY: number, platforms: Platform[]) =>
-    platformCollision(player, newY, velocityY, platforms);
-
-  const applyDamage = (player: Player, damage: number, isHazard: boolean = false): { player: Player; dealt: number } => {
+  const applyDamageRaw = (player: Player, damage: number, isHazard: boolean = false): { player: Player; dealt: number } => {
     // If truly invulnerable (Reaper ult), block everything
     if (player.isInvulnerable) return { player, dealt: 0 };
 
@@ -242,9 +246,34 @@ export const useGameEngine = (
     otherPlayer: Player,
     shieldManaTick: number,
     hazardZones: HazardZone[],
-    platforms: Platform[]
+    platforms: Platform[],
+    diagnostics?: CombatDiagnostics,
+    randomScope?: string
   ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newClones: Player[]; newShieldTick: number } => {
     const now = Date.now();
+    const random = createTickRandom(runtime?.random, randomScope ?? player.aiControllerId ?? 'player:' + player.id, now);
+    let activeAction: CombatAction = 'attack';
+    const playerKey = diagnosticPlayerKey(player);
+    const recordPlayerAction = (action: CombatAction, mana = 0) => {
+      recordAction(diagnostics, player.id, action, mana, player.isClone);
+      if (diagnostics) diagnostics.activeActionIds[playerKey + ':' + action] = playerKey + ':' + now + ':' + action;
+    };
+    const { createProjectile, createHazardZone, createAttackHitbox } = createEngineEntities(
+      runtime?.random ? { now, random: () => random('id') } : undefined,
+      diagnostics ? (entity, kind) => {
+        recordEntityAction(diagnostics, entity, activeAction,
+          diagnostics.activeActionIds[playerKey + ':' + activeAction] ?? playerKey + ':' + now + ':' + activeAction, player.isClone);
+        if (kind === 'melee' && activeAction === 'attack' && !player.isClone) recordMeleeCreation(diagnostics, entity);
+      } : undefined);
+    const applyDamage = (target: Player, damage: number, isHazard = false, source: DamageSource = { kind: 'self', ownerId: player.id, action: 'skill' }) => {
+      const result = applyDamageRaw(target, damage, isHazard);
+      recordHealthChange(diagnostics, target, target.health, result.player.health, source);
+      return result;
+    };
+    const setHealth = (target: Player, health: number, source: DamageSource) => {
+      recordHealthChange(diagnostics, target, target.health, health, source);
+      target.health = health;
+    };
     const isP1 = player.id === 1;
     const character = player.character!;
     const manaMultiplier = gameState.isOvertime ? 2.0 : 1.0;
@@ -292,102 +321,18 @@ export const useGameEngine = (
         updatedPlayer.poisonDuration = 0;
       }
     }
-    if (updatedPlayer.slowDuration > 0) {
-      updatedPlayer.slowDuration -= deltaTime;
-      if (updatedPlayer.slowDuration <= 0) {
-        updatedPlayer.isSlowed = false;
-        updatedPlayer.slowDuration = 0;
-        updatedPlayer.slowAmount = 0;
-      }
-    }
-    if (updatedPlayer.rootDuration > 0) {
-      updatedPlayer.rootDuration -= deltaTime;
-      if (updatedPlayer.rootDuration <= 0) {
-        updatedPlayer.rootDuration = 0;
-      }
-    }
+    stepPlayerSlowAndRoot(updatedPlayer, deltaTime);
     if (updatedPlayer.regenDuration > 0) {
       updatedPlayer.regenDuration -= deltaTime;
       const regenAmount = updatedPlayer.healthRegen * (deltaTime / 1000);
-      updatedPlayer.health = Math.min(updatedPlayer.maxHealth, updatedPlayer.health + regenAmount);
+      setHealth(updatedPlayer, Math.min(updatedPlayer.maxHealth, updatedPlayer.health + regenAmount), { kind: 'direct', ownerId: player.id, action: 'ultimate' });
       if (updatedPlayer.regenDuration <= 0) {
         updatedPlayer.regenDuration = 0;
         updatedPlayer.healthRegen = 0;
       }
     }
-    if (updatedPlayer.stunDuration > 0) {
-      updatedPlayer.stunDuration -= deltaTime;
-      if (updatedPlayer.stunDuration <= 0) {
-        updatedPlayer.isStunned = false;
-        updatedPlayer.stunDuration = 0;
-      }
-    }
-    if (updatedPlayer.frozenDuration > 0) {
-      updatedPlayer.frozenDuration -= deltaTime;
-      if (updatedPlayer.frozenDuration <= 0) {
-        updatedPlayer.isFrozen = false;
-        updatedPlayer.frozenDuration = 0;
-      }
-    }
-
-    // Ice Mage Passive - check for freeze and decay
-    // This logic applies to the player being updated, if their opponent is an Ice Mage
-    if (otherPlayer.character?.id === 'ice-mage') {
-      if (updatedPlayer.freezeGauge >= 5) {
-        updatedPlayer.isFrozen = true;
-        let freezeDur = 1000;
-
-        // Ice Mage Blizzard: Increased freeze duration
-        const inBlizzard = hazardZones.some(z =>
-          z.type === 'blizzard' &&
-          checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
-        );
-        if (inBlizzard) {
-          freezeDur *= 1.5;
-        }
-
-        updatedPlayer.frozenDuration = freezeDur;
-        updatedPlayer.freezeGauge = 0;
-      } else if (updatedPlayer.freezeGauge > 0 && now - updatedPlayer.lastHitByIceMage > 4000) {
-        if (now - (updatedPlayer.lastFreezeGaugeDecay || 0) > 1500) {
-          updatedPlayer.freezeGauge = Math.max(0, updatedPlayer.freezeGauge - 1);
-          updatedPlayer.lastFreezeGaugeDecay = now;
-        }
-      }
-    }
-    if (updatedPlayer.invisibleDuration > 0) {
-      updatedPlayer.invisibleDuration -= deltaTime;
-      if (updatedPlayer.invisibleDuration <= 0) {
-        updatedPlayer.isInvisible = false;
-        updatedPlayer.invisibleDuration = 0;
-        updatedPlayer.dodgesRemaining = 0;
-        // Reset ninja ultimate buffs
-        updatedPlayer.damageBoost = 0;
-        updatedPlayer.speedBoost = 0;
-      }
-    }
-    if (updatedPlayer.buffDuration > 0) {
-      updatedPlayer.buffDuration -= deltaTime;
-      if (updatedPlayer.buffDuration <= 0) {
-        updatedPlayer.damageBoost = 0;
-        updatedPlayer.speedBoost = 0;
-        updatedPlayer.damageReduction = 0;
-        updatedPlayer.buffDuration = 0;
-      }
-    }
-    if (updatedPlayer.invulnerableDuration > 0) {
-      updatedPlayer.invulnerableDuration -= deltaTime;
-      if (updatedPlayer.invulnerableDuration <= 0) {
-        updatedPlayer.isInvulnerable = false;
-        updatedPlayer.invulnerableDuration = 0;
-        updatedPlayer.isFlying = false;
-        // Reset reaper ultimate speed boost
-        if (updatedPlayer.character?.id === 'reaper') {
-          updatedPlayer.speedBoost = 0;
-          updatedPlayer.trailPositions = [];
-        }
-      }
-    }
+    stepPlayerCrowdControl(updatedPlayer, otherPlayer, hazardZones, now, deltaTime);
+    stepPlayerMobilityBuffs(updatedPlayer, deltaTime);
     if (updatedPlayer.markDuration && updatedPlayer.markDuration > 0) {
       updatedPlayer.markDuration -= deltaTime;
       if (updatedPlayer.markDuration <= 0) {
@@ -463,16 +408,19 @@ export const useGameEngine = (
 
     // Burn damage (from Mage or Rocketeer ultimate)
     if (updatedPlayer.isBurning && updatedPlayer.burnDuration > 0) {
+      const origin = diagnostics?.dotSources['burn:' + playerKey];
+      const burnSource: DamageSource = origin && origin.ownerId === updatedPlayer.burnOwner ? origin
+        : { kind: 'burn', ownerId: updatedPlayer.burnOwner, action: updatedPlayer.burnIsNapalm ? 'ultimate' : undefined };
       updatedPlayer.burnDuration -= deltaTime;
       // Apply burn damage every 250ms
       if (updatedPlayer.burnIsNapalm) {
         const through = now + Math.min(0, updatedPlayer.burnDuration);
         while (through - updatedPlayer.lastBurnTick >= 250) {
-          updatedPlayer.health = Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick);
+          setHealth(updatedPlayer, Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick), burnSource);
           updatedPlayer.lastBurnTick += 250;
         }
       } else if (now - updatedPlayer.lastBurnTick >= 250) {
-        updatedPlayer.health = Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick);
+        setHealth(updatedPlayer, Math.max(0, updatedPlayer.health - updatedPlayer.burnDamagePerTick), burnSource);
         updatedPlayer.lastBurnTick = now;
       }
       if (updatedPlayer.burnDuration <= 0) {
@@ -487,7 +435,8 @@ export const useGameEngine = (
     // Poison damage
     if (updatedPlayer.isPoisoned) {
       const poisonDamage = (updatedPlayer.maxHealth * 0.0125) * (deltaTime / 1000);
-      updatedPlayer.health = Math.max(0, updatedPlayer.health - poisonDamage);
+      setHealth(updatedPlayer, Math.max(0, updatedPlayer.health - poisonDamage), diagnostics?.dotSources['poison:' + playerKey]
+        ?? { kind: 'poison', ownerId: diagnostics?.poisonOwners[playerKey] ?? null, action: 'skill' });
     }
 
     // Mana regeneration
@@ -504,54 +453,13 @@ export const useGameEngine = (
       updatedPlayer.attackCooldownRemaining = Math.max(0, updatedPlayer.attackCooldownRemaining - deltaTime);
     }
 
-    // Apply gravity even when stunned
-
-    // Apply gravity
-    if (!updatedPlayer.isFlying && (!updatedPlayer.isGrounded || updatedPlayer.velocityY < 0)) {
-      updatedPlayer.velocityY += GRAVITY * (deltaTime / 1000);
-      updatedPlayer.velocityY = Math.min(MAX_FALL_SPEED, updatedPlayer.velocityY);
-    } else if (updatedPlayer.isFlying) {
-      updatedPlayer.velocityY = 0; // No gravity while flying
-    }
-
-    // Apply knockback decay
-    if (Math.abs(updatedPlayer.knockbackVelocityX) > 10) {
-      updatedPlayer.knockbackVelocityX *= Math.pow(0.9, deltaTime / 16); // Decay ~10% per frame (60fps)
-    } else {
-      updatedPlayer.knockbackVelocityX = 0;
-    }
-    if (Math.abs(updatedPlayer.knockbackVelocityY) > 10) {
-      updatedPlayer.knockbackVelocityY *= Math.pow(0.9, deltaTime / 16);
-    } else {
-      updatedPlayer.knockbackVelocityY = 0;
-    }
+    stepPlayerForces(updatedPlayer, deltaTime);
 
     // Skip movement/actions if stunned or frozen (but gravity was already applied)
     if (updatedPlayer.isStunned || updatedPlayer.isFrozen) {
       updatedPlayer.archerBurstRemaining = 0;
       updatedPlayer.archerBurstCooldown = 0;
-      // Apply knockback even when stunned
-      let stunnedNewX = updatedPlayer.x + updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
-      stunnedNewX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, stunnedNewX));
-      updatedPlayer.x = stunnedNewX;
-
-      // Calculate new Y position for gravity even when stunned, including vertical knockback
-      let stunnedNewY = updatedPlayer.y + (updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY) * (deltaTime / 1000);
-
-      let stunnedPlatformResult = { y: stunnedNewY, isGrounded: false, platform: null as Platform | null };
-      if (!updatedPlayer.isFlying) {
-        stunnedPlatformResult = checkPlatformCollision(updatedPlayer, stunnedNewY, updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY, platforms);
-      }
-      if (stunnedPlatformResult.isGrounded && !updatedPlayer.isFlying) {
-        stunnedNewY = stunnedPlatformResult.y;
-        updatedPlayer.velocityY = 0;
-        updatedPlayer.knockbackVelocityY = 0;
-        updatedPlayer.isGrounded = true;
-      } else {
-        updatedPlayer.isGrounded = false;
-      }
-      stunnedNewY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, stunnedNewY));
-      updatedPlayer.y = stunnedNewY;
+      stepPlayerMovement(updatedPlayer, { left: effectiveMoveLeft, right: effectiveMoveRight, jump: effectiveJump, down: effectiveMoveDown }, platforms, false, now, deltaTime);
       updatePacketBlockStatus();
       return { player: updatedPlayer, newProjectiles, newHitboxes, newHazards, newClones, newShieldTick };
     }
@@ -559,9 +467,11 @@ export const useGameEngine = (
     // Shield handling for gladiator
     if (character.id === 'gladiator' && skillKey) {
       if (updatedPlayer.mana >= 5) {
+        if (!updatedPlayer.isShielding) recordPlayerAction('defense');
         updatedPlayer.isShielding = true;
         newShieldTick += deltaTime;
         if (newShieldTick >= 100) {
+          if (diagnostics) diagnostics.actions[player.id - 1].defense.mana += Math.min(2, updatedPlayer.mana);
           updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 2);
           newShieldTick = 0;
         }
@@ -572,149 +482,12 @@ export const useGameEngine = (
       updatedPlayer.isShielding = false;
     }
 
-    const speed = playerMoveSpeed(updatedPlayer, now) / 75;
-
-    // Horizontal Movement
-    let dx = 0;
-    if (effectiveMoveLeft) dx -= 1;
-    if (effectiveMoveRight) dx += 1;
-
-    let dy = 0;
-    if (updatedPlayer.isFlying) {
-      if (effectiveJump) dy -= 1;
-      if (effectiveMoveDown) dy += 1;
-
-      // Force horizontal movement if isFlying (Reaper constant movement)
-      // Even if moving vertically, add horizontal component to ensure no stopping
-      if (dx === 0) {
-        dx = updatedPlayer.facingRight ? 1 : -1;
-      }
-
-      // Normalize for constant speed
-      const length = Math.sqrt(dx * dx + dy * dy);
-      if (length > 0) {
-        dx /= length;
-        dy /= length;
-      }
-    }
-
-    // Update facing direction
-    if (dx > 0) updatedPlayer.facingRight = true;
-    else if (dx < 0) updatedPlayer.facingRight = false;
-
-
-
-    // Apply horizontal movement
-    const moveAmount = speed * (deltaTime / 16) * 1.2;
-
-    // Ice Mage Blizzard: Sliding physics
     const inBlizzard = hazardZones.some(z =>
       z.type === 'blizzard' &&
       z.ownerId !== updatedPlayer.id &&
       checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
     );
-
-    if (inBlizzard) {  // Preventing self-slide
-      // Sliding physics: use velocityX for movement with low friction
-      const acceleration = speed * 100; // Force applied when moving (increased to match normal speed)
-      const friction = 0.99; // Low friction for sliding
-
-      // Apply input force
-      updatedPlayer.velocityX += dx * acceleration * (deltaTime / 1000);
-
-      // Apply friction
-      updatedPlayer.velocityX *= Math.pow(friction, deltaTime / 16);
-
-      // Apply velocity to position
-      let newX = updatedPlayer.x + updatedPlayer.velocityX * (deltaTime / 1000);
-
-      // Combine with knockback (which is separate velocity)
-      newX += updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
-
-      // Boundary checking
-      newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
-      updatedPlayer.x = newX;
-
-      // Dampen velocity if hitting wall
-      if (newX <= ARENA.padding || newX >= ARENA.width - ARENA.padding - PLAYER_SIZE) {
-        updatedPlayer.velocityX *= -0.5; // Bounce slightly
-      }
-
-    } else {
-      // Normal physics: high friction (instant stop)
-      // moveAmount is already calculated above
-      let newX = updatedPlayer.x + dx * moveAmount;
-      newX += updatedPlayer.knockbackVelocityX * (deltaTime / 1000);
-
-      // Boundary checking
-      newX = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - PLAYER_SIZE, newX));
-      updatedPlayer.x = newX;
-
-      // Reset horizontal velocity when not sliding (except knockback which is handled separately)
-      updatedPlayer.velocityX = 0;
-    }
-
-    // Jumping logic
-    const canJump = updatedPlayer.isGrounded || (now - updatedPlayer.lastGroundedTime < COYOTE_TIME);
-
-    if (effectiveJump && canJump && !updatedPlayer.isJumping) {
-      updatedPlayer.velocityY = JUMP_FORCE;
-      updatedPlayer.isJumping = true;
-      updatedPlayer.isGrounded = false;
-    }
-
-    // Reset jump flag when key released
-    if (!effectiveJump) {
-      updatedPlayer.isJumping = false;
-    }
-
-    // Calculate new Y position
-    let newY = updatedPlayer.y;
-    if (updatedPlayer.isFlying) {
-      newY += dy * moveAmount;
-    } else {
-      newY += updatedPlayer.velocityY * (deltaTime / 1000);
-    }
-
-    // Apply vertical knockback to all modes
-    newY += updatedPlayer.knockbackVelocityY * (deltaTime / 1000);
-
-    // Platform collision detection
-    let platformResult = { y: newY, isGrounded: false, platform: null as Platform | null };
-    if (!updatedPlayer.isFlying) {
-      platformResult = checkPlatformCollision(updatedPlayer, newY, updatedPlayer.velocityY + updatedPlayer.knockbackVelocityY, platforms);
-    }
-
-    if (platformResult.isGrounded) {
-      newY = platformResult.y;
-      updatedPlayer.velocityY = 0;
-      updatedPlayer.knockbackVelocityY = 0;
-      updatedPlayer.isGrounded = true;
-      updatedPlayer.lastGroundedTime = now;
-
-      // Drop through one-way platform - only if NOT currently jumping
-      if (effectiveMoveDown && platformResult.platform?.type === 'one-way' && !updatedPlayer.isJumping) {
-        updatedPlayer.isGrounded = false;
-        newY += 25; // Push through platform
-        updatedPlayer.velocityY = 300; // Add downward velocity
-      }
-    } else {
-      updatedPlayer.isGrounded = false;
-    }
-
-    // Vertical boundary checking
-    newY = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - PLAYER_SIZE, newY));
-
-    // If hit bottom boundary, ground the player
-    if (newY >= ARENA.height - ARENA.padding - PLAYER_SIZE) {
-      newY = ARENA.height - ARENA.padding - PLAYER_SIZE;
-      updatedPlayer.velocityY = 0;
-      updatedPlayer.knockbackVelocityY = 0;
-      updatedPlayer.isGrounded = true;
-      updatedPlayer.lastGroundedTime = now;
-    }
-
-    updatedPlayer.y = newY;
+    stepPlayerMovement(updatedPlayer, { left: effectiveMoveLeft, right: effectiveMoveRight, jump: effectiveJump, down: effectiveMoveDown }, platforms, inBlizzard, now, deltaTime);
     // Movement can enter a zone on the same tick that the skill key is released.
     updatePacketBlockStatus();
 
@@ -729,6 +502,7 @@ export const useGameEngine = (
 
     // Snapshot napalm before either attack when inputs arrive together.
     if (character.id === 'rocketeer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && updatedPlayer.napalmDuration <= 0) {
+      recordPlayerAction('ultimate', 100);
       updatedPlayer.mana -= 100;
       updatedPlayer.napalmDuration = NAPALM_DURATION_MS;
     }
@@ -749,14 +523,9 @@ export const useGameEngine = (
     const startingArcherBurst = character.id === 'archer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced;
     // Basic Attack
     if (attackKey && updatedPlayer.attackCooldownRemaining <= 0 && !(updatedPlayer.archerBurstRemaining > 0) && !startingArcherBurst) {
+      recordPlayerAction('attack');
       updatedPlayer.attackCooldownRemaining = character.attackCooldown;
       updatedPlayer.isAttacking = true;
-
-      const attackDirection = updatedPlayer.facingRight ? 1 : -1;
-      // Start hitbox from the character's body edge (left if facing right, left-range if facing left)
-      // This includes the character's own width in the hitbox to hit overlapping enemies
-      const attackX = updatedPlayer.facingRight ? updatedPlayer.x : updatedPlayer.x - character.attackRange;
-      const attackY = updatedPlayer.y + PLAYER_SIZE / 4;
 
       const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
       let damageBoost = updatedPlayer.damageBoost;
@@ -778,134 +547,21 @@ export const useGameEngine = (
 
       const baseDamage = character.attackDamage * (1 + damageBoost) * damageMultiplier;
 
-      switch (character.id) {
-        case 'rocketeer':
-          launchRocket('rocket', ROCKET_SPEED, baseDamage);
-          break;
-        case 'gladiator':
-          newHitboxes.push(createAttackHitbox(
-            player.id,
-            attackX,
-            updatedPlayer.y, // Centered vertically for slash
-            character.attackRange + PLAYER_SIZE, // Extended width to cover self
-            PLAYER_SIZE, // Full height for slash
-            baseDamage,
-            200,
-            false,
-            updatedPlayer.x + PLAYER_SIZE / 2
-          ));
-          break;
-        case 'archer': {
-          const isPoisoned = updatedPlayer.poisonArrowsRemaining > 0;
-          newProjectiles.push(createProjectile(
-            isPoisoned ? 'poison-arrow' : 'arrow', player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 1000, -80, baseDamage
-          ));
-          if (isPoisoned) updatedPlayer.poisonArrowsRemaining--;
-          break;
-        }
-        case 'mage':
-          newProjectiles.push(createProjectile(
-            'fireball',
-            player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 780,
-            0,
-            baseDamage
-          ));
-          break;
-        case 'ninja':
-          newHitboxes.push(createAttackHitbox(
-            player.id,
-            attackX,
-            updatedPlayer.y - 10, // Slightly higher for katana slash
-            character.attackRange + PLAYER_SIZE, // Extended width to cover self
-            PLAYER_SIZE * 1.1, // Larger slash area
-            baseDamage,
-            NINJA_PARRY_MS,
-            true, // Can deflect projectiles
-            updatedPlayer.x + PLAYER_SIZE / 2
-          ));
-          break;
-        case 'scientist':
-          newProjectiles.push(createProjectile(
-            'flask',
-            player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 640,
-            -105,
-            baseDamage * 0.5
-          ));
-          break;
-        case 'hunter':
-          // Shotgun: 5 bullets (or 9 if Focused Fire) with spread
-          {
-          const isFocused = (updatedPlayer.hunterFocusedDuration || 0) > 0;
-          const bulletCount = isFocused ? 5 : 5;
-          const spreadFactor = isFocused ? 0.33 : 1.0; // Tighter spread if focused
-          const speedMultiplier = isFocused ? 1.25 : 1.0; // Faster bullets if focused
-          const damageMultiplier = isFocused ? 1.33 : 1.0; // Increased damage if focused
-
-          for (let i = 0; i < bulletCount; i++) {
-            const centerIndex = (bulletCount - 1) / 2;
-            const spreadAngle = (i - centerIndex) * 8 * spreadFactor;
-            const radians = spreadAngle * (Math.PI / 180);
-
-            newProjectiles.push(createProjectile(
-              isFocused ? 'super-bullet' : 'bullet',
-              player.id,
-              updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y + PLAYER_SIZE / 2,
-              attackDirection * 1250 * speedMultiplier * Math.cos(radians),
-              875 * Math.sin(radians),
-              baseDamage * 0.3 * damageMultiplier // Each bullet does 30% of base damage
-            ));
+      const melee = basicMeleeGeometry(updatedPlayer);
+      if (melee) newHitboxes.push(createAttackHitbox(player.id, melee.x, melee.y, melee.width, melee.height,
+        baseDamage, melee.duration, melee.canDeflectProjectiles, melee.sourceX));
+      else {
+        for (const launch of basicProjectileLaunches(updatedPlayer, baseDamage)) {
+          if (launch.type === 'rocket' || launch.type === 'homing-rocket') {
+            launchRocket(launch.type, Math.abs(launch.velocityX), launch.damage);
+          } else {
+            const projectile = createProjectile(launch.type, player.id, updatedPlayer.x + PLAYER_SIZE / 2,
+              updatedPlayer.y + PLAYER_SIZE / 2, launch.velocityX, launch.velocityY, launch.damage);
+            if (character.id === 'hacker') projectile.isSwapMissile = inOwnPacketBlock;
+            newProjectiles.push(projectile);
           }
-          break;
         }
-        case 'reaper':
-          newHitboxes.push(createAttackHitbox(
-            player.id,
-            attackX - 10,
-            updatedPlayer.y - 10,
-            character.attackRange + PLAYER_SIZE + 20,
-            PLAYER_SIZE + 20,
-            baseDamage,
-            250,
-            false,
-            updatedPlayer.x + PLAYER_SIZE / 2
-          ));
-          break;
-        case 'ice-mage':
-          newProjectiles.push(createProjectile(
-            'snowball',
-            player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 700, // Direct fire
-            0,
-            baseDamage
-          ));
-          break;
-        case 'hacker':
-          {
-          const missile = createProjectile(
-            'hacker-missile',
-            player.id,
-            updatedPlayer.x + PLAYER_SIZE / 2,
-            updatedPlayer.y + PLAYER_SIZE / 2,
-            attackDirection * 800,
-            0,
-            baseDamage
-          );
-          missile.isSwapMissile = inOwnPacketBlock;
-          newProjectiles.push(missile);
-          break;
-        }
+        if (character.id === 'archer' && updatedPlayer.poisonArrowsRemaining > 0) updatedPlayer.poisonArrowsRemaining--;
       }
 
       setTimeout(() => {
@@ -918,11 +574,13 @@ export const useGameEngine = (
       }, 200);
     }
 
+    activeAction = 'skill';
     // Skills (non-gladiator and non-scientist)
     // Also block skill if Silenced
     if (skillKey && !character.id.match(/^(gladiator|scientist)$/) && updatedPlayer.skillCooldownRemaining <= 0 && !updatedPlayer.isSilenced) {
       const manaCost = character.skill.manaCost;
       if (updatedPlayer.mana >= manaCost) {
+        recordPlayerAction('skill', manaCost);
         updatedPlayer.mana -= manaCost;
         updatedPlayer.skillCooldownRemaining = character.skill.cooldown;
         updatedPlayer.isUsingSkill = true;
@@ -969,17 +627,11 @@ export const useGameEngine = (
             }, 200);
             break;
           }
-          case 'hunter':
-            newProjectiles.push(createProjectile(
-              'net',
-              player.id,
-              updatedPlayer.x + PLAYER_SIZE / 2,
-              updatedPlayer.y,
-              attackDirection * 750,
-              -115,
-              baseDamage * 0.2 // Low damage, utility focus
-            ));
+          case 'hunter': {
+            const net = hunterNetLaunch(updatedPlayer, baseDamage);
+            newProjectiles.push(createProjectile(net.type, player.id, net.x, net.y, net.velocityX, net.velocityY, net.damage));
             break;
+          }
           case 'reaper':
             // Spawn bat slightly in front of the player to avoid initial overlap
             {
@@ -1009,6 +661,10 @@ export const useGameEngine = (
             for (let i = 0; i < 4; i++) {
               setTimeout(() => {
                 setGameState(prev => {
+                  const delayedNow = Date.now();
+                  const delayedRandom = createTickRandom(runtime?.random, `avalanche:${player.id}:${now}:${i}`, delayedNow);
+                  const { createProjectile } = createEngineEntities(
+                    runtime?.random ? { now: delayedNow, random: () => delayedRandom('id') } : undefined);
                   const projGap = 33;
                   const currentPlayer = prev.players[player.id - 1];
                   if (!currentPlayer) return prev;
@@ -1021,8 +677,11 @@ export const useGameEngine = (
                     0,
                     baseDamage * 0.15 // can does multy-hit. so damage is low.
                   );
+                  const delayedDiagnostics = nextCombatDiagnostics(prev.diagnostics, false);
+                  recordEntityAction(delayedDiagnostics, newProj, 'skill', playerKey + ':' + now + ':skill', player.isClone);
                   return {
                     ...prev,
+                    diagnostics: delayedDiagnostics,
                     projectiles: [...prev.projectiles, newProj],
                   };
                 });
@@ -1159,60 +818,37 @@ export const useGameEngine = (
       if (!skillKey && updatedPlayer.isChargingSkill) {
         const chargeStartTime = updatedPlayer.skillChargeStartTime || now;
         const chargeDuration = now - chargeStartTime;
-        const chargeRatio = Math.min(1, chargeDuration / 1500);
 
         updatedPlayer.isChargingSkill = false;
         updatedPlayer.skillChargeStartTime = undefined;
 
         // Consume Mana
+        recordPlayerAction('skill', manaCost);
         updatedPlayer.mana -= manaCost;
         updatedPlayer.skillCooldownRemaining = character.skill.cooldown;
 
         // Calculate Stats
         const damageMultiplier = gameState.isOvertime ? 2.0 : 1.0;
-        // Damage: 1.25x to 2.5x of Attack Damage
-        const damageScale = 1.25 + (1.25 * chargeRatio);
-        const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier * damageScale;
-
-        // Knockback: 80 to 220
-        const knockback = 80 + (140 * chargeRatio);
-
-        // Status: Slow -20% 4s (Base)
-        // If >= 50% charge: Slow -30% 5s
-        let slowAmount = 0.2;
-        let slowDuration = 4000;
-        if (chargeRatio >= 0.5) {
-          slowAmount = 0.3;
-          slowDuration = 5000;
-        }
-
-        // Stun: None base, 1.5s if 100% charge
-        let stunDuration = 0;
-        if (chargeRatio >= 1.0) {
-          stunDuration = 1500;
-        }
-
-        const attackDirection = updatedPlayer.facingRight ? 1 : -1;
+        const baseDamage = character.attackDamage * (1 + updatedPlayer.damageBoost) * damageMultiplier;
+        const shot = scientistOrbLaunch(updatedPlayer, chargeDuration, baseDamage);
 
         const projectile = createProjectile(
-          'electric-orb',
+          shot.type,
           player.id,
-          updatedPlayer.x + PLAYER_SIZE / 2,
-          updatedPlayer.y + PLAYER_SIZE / 2,
-          attackDirection * 850,
-          0,
-          baseDamage
+          shot.x,
+          shot.y,
+          shot.velocityX,
+          shot.velocityY,
+          shot.damage
         );
 
-        projectile.knockback = knockback;
-        projectile.slowAmount = slowAmount;
-        projectile.slowDuration = slowDuration;
-        projectile.stunDuration = stunDuration;
-        projectile.chargeLevel = chargeRatio; // For visuals
-
-        // Base size 33, max size 50
-        projectile.width = 33 + (17 * chargeRatio);
-        projectile.height = 33 + (17 * chargeRatio);
+        projectile.knockback = shot.knockback;
+        projectile.slowAmount = shot.slowAmount;
+        projectile.slowDuration = shot.slowDuration;
+        projectile.stunDuration = shot.stunDuration;
+        projectile.chargeLevel = shot.chargeLevel;
+        projectile.width = shot.width;
+        projectile.height = shot.height;
         // Adjust center after resize
         projectile.x = updatedPlayer.x + PLAYER_SIZE / 2 - projectile.width / 2;
         projectile.y = updatedPlayer.y + PLAYER_SIZE / 2 - projectile.height / 2;
@@ -1221,9 +857,11 @@ export const useGameEngine = (
       }
     }
 
+    activeAction = 'ultimate';
     // Ultimate
     // Block if Silenced
     if (character.id !== 'rocketeer' && ultimateKey && updatedPlayer.mana >= 100 && !updatedPlayer.isSilenced && !(updatedPlayer.archerBurstRemaining > 0)) {
+      recordPlayerAction('ultimate', updatedPlayer.mana);
       updatedPlayer.mana = 0;
       updatedPlayer.isUsingUltimate = true;
 
@@ -1339,7 +977,7 @@ export const useGameEngine = (
       while ((updatedPlayer.archerBurstRemaining ?? 0) > 0 && (updatedPlayer.archerBurstCooldown ?? 0) <= 0) {
         // Follow the archer's current facing while keeping each shot within a total ten-degree cone.
         const direction = updatedPlayer.facingRight ? 1 : -1;
-        const angle = Math.atan2(-80, 1000) + (Math.random() - 0.5) * ARCHER_BURST_SPREAD;
+        const angle = Math.atan2(-80, 1000) + (random('combat') - 0.5) * ARCHER_BURST_SPREAD;
         const speed = Math.hypot(1000, 80);
         const damageMultiplier = gameState.isOvertime ? 2 : 1;
         const damageBoost = updatedPlayer.damageBoost - (updatedPlayer.isHacked ? 0.20 : 0);
@@ -1373,6 +1011,57 @@ export const useGameEngine = (
     setGameState(prev => {
       if (!prev.isRoundActive || prev.isPaused) return prev;
       const diagnostics = nextCombatDiagnostics(prev.diagnostics);
+      const random = createTickRandom(runtime?.random, 'engine', now);
+      let diagnosticParent: DamageSource | undefined;
+      const { createProjectile, createHazardZone } = createEngineEntities(
+        runtime?.random ? { now, random: () => random('id') } : undefined,
+        diagnostics ? entity => {
+          if (diagnosticParent?.action) recordEntityAction(diagnostics, entity, diagnosticParent.action,
+            diagnosticParent.actionId ?? entity.id, diagnosticParent.isClone);
+        } : undefined);
+      const controllerWorld: AIWorld = {
+        players: prev.players, projectiles: prev.projectiles, hazardZones: prev.hazardZones,
+        attackHitboxes: prev.attackHitboxes, platforms: prev.platforms, mapId, now, deltaTime,
+        isOvertime: prev.isOvertime, roundTimeRemaining: prev.roundTimeRemaining,
+        sandstormActive: prev.sandstormActive, sandstormDirection: prev.sandstormDirection,
+        sandstormTimer: prev.sandstormTimer, lightningStrikes: prev.lightningStrikes,
+        soulZones: prev.soulZones, vineShields: prev.vineShields,
+      };
+      // Evaluation transitions belong to React state, just like the ordinary P2 runtime.
+      // Replaying an updater must start from the same observation queues and learning state.
+      const evaluationState = prev.evaluationState ? {
+        controllers: { ...prev.evaluationState.controllers }, cloneModels: { ...prev.evaluationState.cloneModels },
+      } : undefined;
+      const evaluateController = (side: 1 | 2) => {
+        const controller = runtime?.controllers?.[side];
+        if (!controller) return undefined;
+        if (typeof controller === 'function') return controller(controllerWorld);
+        const previous = prev.evaluationState?.controllers[side];
+        if (!previous || !evaluationState) throw new Error('Evaluation controller state is missing');
+        const result = controller.step(controllerWorld, previous);
+        evaluationState.controllers[side] = result.state;
+        return result.keys;
+      };
+      const overrideP1 = evaluateController(1);
+      const overrideP2 = evaluateController(2);
+      for (const side of [1, 2] as const) {
+        const controller = runtime?.cloneControllers?.[side];
+        if (!controller || !prev.clones.some(clone => clone.id === side && clone.health > 0 && now - clone.createdAt <= 6000)) continue;
+        const previous = prev.evaluationState?.cloneModels[side];
+        if (!previous || !evaluationState) throw new Error('Evaluation clone learning state is missing');
+        evaluationState.cloneModels[side] = controller.observe(controllerWorld, previous);
+      }
+      const applyDamage = (target: Player, damage: number, isHazard = false, source?: DamageSource) => {
+        const result = applyDamageRaw(target, damage, isHazard);
+        recordHealthChange(diagnostics, target, target.health, result.player.health,
+          source ?? { kind: isHazard ? 'zone' : 'direct', ownerId: target.id === 1 ? 2 : 1 });
+        return result;
+      };
+
+      const setHealth = (target: Player, health: number, source: DamageSource) => {
+        recordHealthChange(diagnostics, target, target.health, health, source);
+        target.health = health;
+      };
 
       // Update time
       const elapsedSeconds = (now - roundStartTimeRef.current) / 1000;
@@ -1384,7 +1073,7 @@ export const useGameEngine = (
       }
 
       // Get player 1 keys from keyboard input
-      const p1Keys = keysRefHolder.current?.current || {
+      const p1Keys = overrideP1 ?? keysRefHolder.current?.current ?? {
         a: false,
         d: false,
         w: false,
@@ -1404,20 +1093,21 @@ export const useGameEngine = (
 
 
       // Get player 2 keys from AI or keyboard
-      const needsUnrestrictedAI = (gameMode === 'single' && !aiSettings) || prev.clones.length > 0;
+      const needsUnrestrictedAI = (!overrideP2 && gameMode === 'single' && !aiSettings) ||
+        prev.clones.some(clone => !runtime?.cloneControllers?.[clone.id]);
       const aiFrame = needsUnrestrictedAI ? prepareAIFrame({ ...prev, mapId, now, deltaTime }) : null;
       const learning: AILearningSession = needsUnrestrictedAI ? { ...prev.aiState.learning, opponents: {
         1: observeOpponent(prev.aiState.learning.opponents[1], prev.players[0], prev.players[1], now),
         2: observeOpponent(prev.aiState.learning.opponents[2], prev.players[1], prev.players[0], now),
       } } : { ...prev.aiState.learning };
       const controllers: AIRoundState['controllers'] = {};
-      const difficulty = gameMode === 'single' && aiSettings && prev.aiState.difficulty
+      const difficulty = !overrideP2 && gameMode === 'single' && aiSettings && prev.aiState.difficulty
         ? stepDifficulty({ ...prev, mapId, now, deltaTime }, aiSettings, prev.aiState.difficulty) : undefined;
       if (difficulty) learning.difficulty = difficulty.session;
       const p2Decision = difficulty ? { keys: difficulty.keys, memory: difficulty.memory }
-        : gameMode === 'single' && aiFrame ? decideAI(aiFrame, prev.players[1], learning.opponents[1], prev.aiState.controllers.player2) : null;
+        : !overrideP2 && gameMode === 'single' && aiFrame ? decideAI(aiFrame, prev.players[1], learning.opponents[1], prev.aiState.controllers.player2) : null;
       if (p2Decision?.memory) controllers.player2 = p2Decision.memory;
-      const p2Keys = p2Decision?.keys ?? p1Keys;
+      const p2Keys = overrideP2 ?? p2Decision?.keys ?? p1Keys;
 
       // Update players
       const p1Result = updatePlayer(
@@ -1427,7 +1117,8 @@ export const useGameEngine = (
         prev.players[1],
         shieldManaTickRef.current[0],
         prev.hazardZones,
-        prev.platforms
+        prev.platforms,
+        diagnostics
       );
       const p2Result = updatePlayer(
         prev.players[1],
@@ -1436,7 +1127,8 @@ export const useGameEngine = (
         prev.players[0],
         shieldManaTickRef.current[1],
         prev.hazardZones,
-        prev.platforms
+        prev.platforms,
+        diagnostics
       );
 
       shieldManaTickRef.current = [p1Result.newShieldTick, p2Result.newShieldTick];
@@ -1458,7 +1150,10 @@ export const useGameEngine = (
 
         // Clone AI
         const controllerId = clone.aiControllerId ?? 'clone:' + clone.id + ':' + clone.createdAt + ':' + index;
-        const decision = aiFrame ? decideAI(aiFrame, clone, learning.opponents[target.id], prev.aiState.controllers[controllerId]) : null;
+        const cloneOverride = runtime?.cloneControllers?.[clone.id];
+        const decision = cloneOverride && evaluationState?.cloneModels[clone.id]
+          ? cloneOverride.decide(controllerWorld, clone, evaluationState.cloneModels[clone.id], prev.aiState.controllers[controllerId])
+          : aiFrame ? decideAI(aiFrame, clone, learning.opponents[target.id], prev.aiState.controllers[controllerId]) : null;
         if (decision) controllers[controllerId] = decision.memory;
         let aiKeys = decision?.keys ?? emptyAIKeys();
         // Disable skills/ultimate for clones
@@ -1471,7 +1166,9 @@ export const useGameEngine = (
           target,
           0,
           prev.hazardZones,
-          prev.platforms
+          prev.platforms,
+          diagnostics,
+          controllerId
         );
 
         nextClones.push({ ...cloneRes.player, aiControllerId: controllerId });
@@ -1561,6 +1258,7 @@ export const useGameEngine = (
 
       // Check projectile collisions
       projectiles = projectiles.filter(proj => {
+        diagnosticParent = entityDamageSource(diagnostics, proj, 'direct');
         // Check lifetime
         if (now - proj.createdAt > proj.lifetime) return false;
         const previousPosition = projectileStartPositions.get(proj.id) ?? { x: proj.x, y: proj.y };
@@ -1742,9 +1440,7 @@ export const useGameEngine = (
         }
 
         // Check collision with Tesla Coils
-        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== proj.ownerId && !proj.isHackUltimate &&
-          !(proj.type === 'bat' && proj.hitCoilIds?.includes(z.id)) &&
-          checkCollision(proj.x, proj.y, proj.width, proj.height, z.x, z.y, z.width, z.height));
+        const hitCoil = findProjectileCoilContact(proj, hazardZones);
         if (hitCoil) {
           emitExplosion(proj, hitCoil);
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
@@ -1774,10 +1470,14 @@ export const useGameEngine = (
 
         // Resolve a sword reached before the body; fast projectiles cannot tunnel past it.
         if (firstSword && swordTime < bodyTime) {
+          recordBlocked(diagnostics, { id: firstSword.ownerId, isClone: diagnostics?.entityClones[firstSword.id] }, proj.damage, 'attack');
           proj.x = previousPosition.x + (proj.x - previousPosition.x) * swordTime;
           proj.y = previousPosition.y + (proj.y - previousPosition.y) * swordTime;
           proj.velocityX *= -1;
           proj.ownerId = firstSword.ownerId;
+          recordMeleeDeflection(diagnostics, firstSword.id);
+          const source = entityDamageSource(diagnostics, firstSword, 'direct');
+          if (source.action) recordEntityAction(diagnostics, proj, source.action, source.actionId ?? firstSword.id, source.isClone);
           return true;
         }
 
@@ -1799,7 +1499,7 @@ export const useGameEngine = (
               { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
             )) {
               // Apply damage on return path
-              const damageRes = applyDamage(playerTarget, proj.damage);
+              const damageRes = applyDamage(playerTarget, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
               recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
               players[targetPlayerIndex] = damageRes.player;
               proj.hasHitReturn = true; // Mark as hit on return path
@@ -1808,10 +1508,10 @@ export const useGameEngine = (
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
-                players[ownerIndex].health = Math.min(
+                setHealth(players[ownerIndex], Math.min(
                   players[ownerIndex].maxHealth,
                   players[ownerIndex].health + damageRes.dealt * regenMultiplier
-                );
+                ), entityDamageSource(diagnostics, proj, 'direct'));
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
               }
@@ -1829,11 +1529,12 @@ export const useGameEngine = (
                 const fromFront = shieldFacesX(playerTarget, previousPosition.x + proj.width / 2);
                 if (fromFront) {
                   // Shield blocks bat
+                  recordBlocked(diagnostics, playerTarget, proj.damage);
                   return false;
                 }
               }
 
-              const damageRes = applyDamage(playerTarget, proj.damage);
+              const damageRes = applyDamage(playerTarget, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
               recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
               players[targetPlayerIndex] = damageRes.player;
               proj.hasHitForward = true; // Mark as hit on forward path
@@ -1842,10 +1543,10 @@ export const useGameEngine = (
               const ownerIndex = proj.ownerId - 1;
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
-                players[ownerIndex].health = Math.min(
+                setHealth(players[ownerIndex], Math.min(
                   players[ownerIndex].maxHealth,
                   players[ownerIndex].health + damageRes.dealt * regenMultiplier
-                );
+                ), entityDamageSource(diagnostics, proj, 'direct'));
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
               }
@@ -1866,7 +1567,7 @@ export const useGameEngine = (
                 previousPosition,
                 { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
               )) {
-                const damageRes = applyDamage(clone, proj.damage);
+                const damageRes = applyDamage(clone, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
                 recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
                 nextClones[i] = damageRes.player;
                 if (proj.isReturning && proj.returnPhase !== 'returning') {
@@ -1908,9 +1609,13 @@ export const useGameEngine = (
               if (currentTarget.isShielding) {
                 const fromFront = shieldFacesX(currentTarget, previousPosition.x + proj.width / 2);
                 if (fromFront) {
+                  recordBlocked(diagnostics, currentTarget, proj.damage);
                   if (proj.canBeDeflected) {
                     proj.velocityX *= -1;
                     proj.ownerId = currentTarget.id as 1 | 2;
+                    recordEntityAction(diagnostics, proj, 'defense',
+                      diagnostics?.activeActionIds[diagnosticPlayerKey(currentTarget) + ':defense'] ?? 'defense:' + now + ':' + currentTarget.id,
+                      currentTarget.isClone);
                     return true;
                   }
                   emitExplosion(proj, { x: target.x, y: target.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
@@ -1932,7 +1637,7 @@ export const useGameEngine = (
                 // Check if it's an arrow
                 if (proj.type === 'arrow' || proj.type === 'poison-arrow') {
                   const bonusDamage = proj.damage * 0.15;
-                  const bonusRes = applyDamage(currentTarget, bonusDamage);
+                  const bonusRes = applyDamage(currentTarget, bonusDamage, false, entityDamageSource(diagnostics, proj, 'direct'));
                   currentTarget = bonusRes.player;
                 }
               }
@@ -1946,7 +1651,7 @@ export const useGameEngine = (
                 finalDamage *= 1.25;
               }
 
-              const damageRes = applyDamage(currentTarget, finalDamage);
+              const damageRes = applyDamage(currentTarget, finalDamage, false, entityDamageSource(diagnostics, proj, 'direct'));
               recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
               currentTarget = damageRes.player;
 
@@ -1960,7 +1665,7 @@ export const useGameEngine = (
                   currentTarget.freezeGauge = (currentTarget.freezeGauge || 0) + 1;
                   currentTarget.lastHitByIceMage = now;
                 } else if (proj.type === 'large-snowball') {
-                  if (Math.random() < 0.33) {
+                  if (random('combat') < 0.33) {
                     currentTarget.freezeGauge = (currentTarget.freezeGauge || 0) + 1;
                   }
                   currentTarget.lastHitByIceMage = now;
@@ -1970,10 +1675,10 @@ export const useGameEngine = (
               // Reaper Passive: Life steal 15%
               if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
                 const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
-                players[ownerIndex].health = Math.min(
+                setHealth(players[ownerIndex], Math.min(
                   players[ownerIndex].maxHealth,
                   players[ownerIndex].health + damageRes.dealt * regenMultiplier
-                );
+                ), entityDamageSource(diagnostics, proj, 'direct'));
                 // Accumulate damage for extra healing on return
                 proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
               }
@@ -2034,7 +1739,7 @@ export const useGameEngine = (
                 // 0% bonus damage if target is airborne
                 if (!currentTarget.isGrounded) {
                   const bonusDamage = proj.damage * 0.0; // Remaining former logic. but not used.
-                  const bonusRes = applyDamage(currentTarget, bonusDamage);
+                  const bonusRes = applyDamage(currentTarget, bonusDamage, false, entityDamageSource(diagnostics, proj, 'direct'));
                   currentTarget = bonusRes.player;
                 }
                 // Spawn 5 meteors at hit location with random offsets
@@ -2059,6 +1764,7 @@ export const useGameEngine = (
                 currentTarget.burnDamagePerTick = proj.burnDamage ?? proj.damage * 0.075;
                 currentTarget.burnIsNapalm = true;
                 currentTarget.burnOwner = proj.ownerId;
+                if (diagnostics) diagnostics.dotSources['burn:' + diagnosticPlayerKey(currentTarget)] = entityDamageSource(diagnostics, proj, 'burn');
                 currentTarget.lastBurnTick = now;
               }
 
@@ -2069,11 +1775,16 @@ export const useGameEngine = (
                 currentTarget.burnIsNapalm = false;
                 currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.10; // 10% of mage attack per tick (40% per second)
                 currentTarget.burnOwner = proj.ownerId;
+                if (diagnostics) diagnostics.dotSources['burn:' + diagnosticPlayerKey(currentTarget)] = entityDamageSource(diagnostics, proj, 'burn');
                 currentTarget.lastBurnTick = now;
               }
 
               if (proj.isPoisonous) {
-                currentTarget.isPoisoned = true;
+                if (diagnostics) {
+                  diagnostics.poisonOwners[diagnosticPlayerKey(currentTarget)] = proj.ownerId;
+                  diagnostics.dotSources['poison:' + diagnosticPlayerKey(currentTarget)] = entityDamageSource(diagnostics, proj, 'poison');
+                }
+                  currentTarget.isPoisoned = true;
                 currentTarget.poisonDuration = proj.poisonDuration;
               }
 
@@ -2214,19 +1925,19 @@ export const useGameEngine = (
                 const bonusHeal = (proj.damageAccumulated || 0) * 0.60;
                 const totalHeal = baseHeal + bonusHeal;
                 if (totalHeal > 0) {
-                  players[proj.ownerId - 1].health = Math.min(
+                  setHealth(players[proj.ownerId - 1], Math.min(
                     players[proj.ownerId - 1].maxHealth,
                     players[proj.ownerId - 1].health + totalHeal
-                  );
+                  ), entityDamageSource(diagnostics, proj, 'direct'));
                 }
               } else {
                 // Other returning projectiles: heal only from accumulated damage
                 const healAmount = (proj.damageAccumulated || 0) * 0.60;
                 if (healAmount > 0) {
-                  players[proj.ownerId - 1].health = Math.min(
+                  setHealth(players[proj.ownerId - 1], Math.min(
                     players[proj.ownerId - 1].maxHealth,
                     players[proj.ownerId - 1].health + healAmount
-                  );
+                  ), entityDamageSource(diagnostics, proj, 'direct'));
                 }
               }
               return false; // Remove projectile immediately
@@ -2243,13 +1954,17 @@ export const useGameEngine = (
       attackHitboxes = attackHitboxes.filter(hitbox => {
         if (now - hitbox.createdAt > hitbox.duration) return false;
 
-        const hitCoil = hazardZones.find(z => z.type === 'tesla-coil' && z.ownerId !== hitbox.ownerId && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, z.x, z.y, z.width, z.height));
+        const hitCoil = findMeleeCoilContact(hitbox, hazardZones);
         if (hitCoil) {
           coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + hitbox.damage);
         }
 
         const targetIndex = hitbox.ownerId === 1 ? 1 : 0;
         const playerTarget = players[targetIndex];
+        if (diagnostics?.pendingMelee[hitbox.id]) recordMeleeContact(diagnostics, hitbox.id,
+          checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height, playerTarget.x, playerTarget.y, PLAYER_SIZE, PLAYER_SIZE) ||
+          nextClones.some(clone => clone.id !== hitbox.ownerId && checkCollision(hitbox.x, hitbox.y, hitbox.width, hitbox.height,
+            clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)));
 
         // Check collision with player
         const hitPlayer = !playerTarget.isEvading && !playerTarget.isInvulnerable && checkCollision(
@@ -2269,7 +1984,10 @@ export const useGameEngine = (
 
           if (currentTarget.isShielding) {
             const fromFront = shieldFacesX(currentTarget, hitbox.sourceX ?? players[hitbox.ownerId - 1].x + PLAYER_SIZE / 2);
-            if (fromFront) return true;
+            if (fromFront) {
+              recordBlocked(diagnostics, currentTarget, hitbox.damage, 'defense', hitbox.id);
+              return true;
+            }
           }
 
           // Apply Mark Damage Boost
@@ -2281,7 +1999,7 @@ export const useGameEngine = (
             finalDamage *= 1.25;
           }
 
-          const damageRes = applyDamage(currentTarget, finalDamage);
+          const damageRes = applyDamage(currentTarget, finalDamage, false, entityDamageSource(diagnostics, hitbox, 'direct'));
           recordHit(diagnostics, hitbox.id, hitbox.ownerId, damageRes.dealt);
           currentTarget = damageRes.player;
 
@@ -2289,10 +2007,10 @@ export const useGameEngine = (
           const ownerIndex = hitbox.ownerId - 1;
           if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
             const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
-            players[ownerIndex].health = Math.min(
+            setHealth(players[ownerIndex], Math.min(
               players[ownerIndex].maxHealth,
               players[ownerIndex].health + damageRes.dealt * regenMultiplier
-            );
+            ), entityDamageSource(diagnostics, hitbox, 'direct'));
           }
 
           // Mage Ultimate: Apply burn effect on melee attacks
@@ -2302,6 +2020,7 @@ export const useGameEngine = (
             currentTarget.burnIsNapalm = false;
             currentTarget.burnDamagePerTick = players[ownerIndex].character.attackDamage * 0.075;
             currentTarget.burnOwner = hitbox.ownerId;
+            if (diagnostics) diagnostics.dotSources['burn:' + diagnosticPlayerKey(currentTarget)] = entityDamageSource(diagnostics, hitbox, 'burn');
             currentTarget.lastBurnTick = now;
           }
 
@@ -2319,10 +2038,13 @@ export const useGameEngine = (
         return true;
       });
 
+      if (diagnostics) finishMeleeTrials(diagnostics, attackHitboxes.map(hitbox => hitbox.id));
+
       // Update hazard zones
       const explosions: HazardZone[] = [];
 
       hazardZones = hazardZones.map(zone => {
+        diagnosticParent = entityDamageSource(diagnostics, zone, 'zone');
         const zoneCopy = { ...zone };
 
         if (zoneCopy.type === 'tesla-coil' && zoneCopy.health !== undefined) {
@@ -2332,16 +2054,14 @@ export const useGameEngine = (
           }
           if (zoneCopy.health <= 0) {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
-            if (checkCollision(
-              zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 240, 240,
-              players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
-            )) {
+            const explosion = coilExplosionGeometry(zoneCopy, 'destroyed');
+            if (playerOverlapsRect(players[targetIndex], explosion)) {
               const target = players[targetIndex];
-              players[targetIndex] = applyDamage(target, zoneCopy.damage * 32, true).player;
+              players[targetIndex] = applyDamage(target, zoneCopy.damage * explosion.damageMultiplier, true, { kind: 'zone', ownerId: zoneCopy.ownerId, entityId: zoneCopy.id, action: 'ultimate' }).player;
               const coilCenterX = zoneCopy.x + zoneCopy.width / 2;
               const playerCenterX = target.x + PLAYER_SIZE / 2;
-              players[targetIndex].knockbackVelocityX = (playerCenterX >= coilCenterX ? 1 : -1) * 720;
-              players[targetIndex].knockbackVelocityY = -200;
+              players[targetIndex].knockbackVelocityX = (playerCenterX >= coilCenterX ? 1 : -1) * explosion.knockbackX;
+              players[targetIndex].knockbackVelocityY = explosion.knockbackY;
               players[targetIndex].isGrounded = false;
             }
 
@@ -2363,11 +2083,11 @@ export const useGameEngine = (
             zoneCopy.lastTick += zoneCopy.tickRate;
             for (let i = 0; i < 2; i++) {
               if (i !== zoneCopy.ownerId - 1 && checkCollision(zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
-                players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE)) players[i] = applyDamage(players[i], zoneCopy.damage, true).player;
+                players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE)) players[i] = applyDamage(players[i], zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone')).player;
             }
             nextClones.forEach((clone, index) => {
               if (clone.id !== zoneCopy.ownerId && checkCollision(zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
-                clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) nextClones[index] = applyDamage(clone, zoneCopy.damage, true).player;
+                clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) nextClones[index] = applyDamage(clone, zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone')).player;
             });
           }
           return now - zoneCopy.createdAt > zoneCopy.duration ? null : zoneCopy;
@@ -2375,16 +2095,14 @@ export const useGameEngine = (
         if (now - zoneCopy.createdAt > zoneCopy.duration) {
           if (zoneCopy.type === 'tesla-coil') {
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
-            if (checkCollision(
-              zoneCopy.x + zoneCopy.width / 2 - 100, zoneCopy.y + zoneCopy.height / 2 - 100, 200, 200,
-              players[targetIndex].x, players[targetIndex].y, PLAYER_SIZE, PLAYER_SIZE
-            )) {
+            const explosion = coilExplosionGeometry(zoneCopy, 'expired');
+            if (playerOverlapsRect(players[targetIndex], explosion)) {
               const target = players[targetIndex];
-              players[targetIndex] = applyDamage(target, zoneCopy.damage * 32, true).player;
+              players[targetIndex] = applyDamage(target, zoneCopy.damage * explosion.damageMultiplier, true, { kind: 'zone', ownerId: zoneCopy.ownerId, entityId: zoneCopy.id, action: 'ultimate' }).player;
               const coilCenterX = zoneCopy.x + zoneCopy.width / 2;
               const playerCenterX = target.x + PLAYER_SIZE / 2;
-              players[targetIndex].knockbackVelocityX = (playerCenterX >= coilCenterX ? 1 : -1) * 500;
-              players[targetIndex].knockbackVelocityY = -180;
+              players[targetIndex].knockbackVelocityX = (playerCenterX >= coilCenterX ? 1 : -1) * explosion.knockbackX;
+              players[targetIndex].knockbackVelocityY = explosion.knockbackY;
               players[targetIndex].isGrounded = false;
             }
 
@@ -2409,28 +2127,7 @@ export const useGameEngine = (
         }
 
         if (zoneCopy.type === 'tesla-coil') {
-          if (!zoneCopy.isGrounded) {
-            zoneCopy.velocityY = Math.min(MAX_FALL_SPEED, (zoneCopy.velocityY || 0) + GRAVITY * (deltaTime / 1000));
-            const nextY = zoneCopy.y + zoneCopy.velocityY * (deltaTime / 1000);
-            const landingPlatform = prev.platforms.find(platform =>
-              zoneCopy.x + zoneCopy.width > platform.x &&
-              zoneCopy.x < platform.x + platform.width &&
-              zoneCopy.y + zoneCopy.height <= platform.y + (platform.type === 'one-way' ? 10 : 0) &&
-              nextY + zoneCopy.height >= platform.y
-            );
-
-            if (landingPlatform) {
-              zoneCopy.y = landingPlatform.y - zoneCopy.height;
-              zoneCopy.velocityY = 0;
-              zoneCopy.isGrounded = true;
-            } else {
-              zoneCopy.y = Math.min(ARENA.height - ARENA.padding - zoneCopy.height, nextY);
-              if (zoneCopy.y >= ARENA.height - ARENA.padding - zoneCopy.height) {
-                zoneCopy.velocityY = 0;
-                zoneCopy.isGrounded = true;
-              }
-            }
-          }
+          stepCoilMotion(zoneCopy, prev.platforms, deltaTime);
 
           const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
           const target = players[targetIndex];
@@ -2443,7 +2140,7 @@ export const useGameEngine = (
             if (!(zoneCopy.lastAttack && now - zoneCopy.lastAttack < (zoneCopy.attackCooldown || 200))) {
               zoneCopy.lastAttack = now;
               zoneCopy.lastAttackTarget = { x: target.x, y: target.y };
-              players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
+              players[targetIndex] = applyDamage(target, zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone')).player;
             }
           }
         }
@@ -2456,7 +2153,7 @@ export const useGameEngine = (
             zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
             target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
           )) {
-            players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
+            players[targetIndex] = applyDamage(target, zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone')).player;
             players[targetIndex].rootDuration = 2000;
             players[targetIndex].isSlowed = true;
             players[targetIndex].slowAmount = 0.5;
@@ -2477,12 +2174,12 @@ export const useGameEngine = (
               target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
             )) {
               // Apply damage
-              const damageRes = applyDamage(target, zoneCopy.damage, true);
+              const damageRes = applyDamage(target, zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone'));
               players[targetIndex] = damageRes.player;
 
               // Apply freeze stack
               if (!players[targetIndex].isFrozen) {
-                if (Math.random() <= 0.1) {
+                if (random('combat') <= 0.1) {
                   players[targetIndex].freezeGauge = (players[targetIndex].freezeGauge || 0) + 1;
                 }
                 players[targetIndex].lastHitByIceMage = now;
@@ -2501,24 +2198,8 @@ export const useGameEngine = (
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             const target = players[targetIndex];
 
-            // Check if target is within circular fire ring range
-            const ringCenterX = zoneCopy.x + zoneCopy.width / 2;
-            const ringCenterY = zoneCopy.y + zoneCopy.height / 2;
-            const nearestX = Math.max(target.x, Math.min(ringCenterX, target.x + PLAYER_SIZE));
-            const nearestY = Math.max(target.y, Math.min(ringCenterY, target.y + PLAYER_SIZE));
-            const nearestDistance = Math.hypot(ringCenterX - nearestX, ringCenterY - nearestY);
-            const farthestDistance = Math.max(
-              Math.hypot(ringCenterX - target.x, ringCenterY - target.y),
-              Math.hypot(ringCenterX - (target.x + PLAYER_SIZE), ringCenterY - target.y),
-              Math.hypot(ringCenterX - target.x, ringCenterY - (target.y + PLAYER_SIZE)),
-              Math.hypot(ringCenterX - (target.x + PLAYER_SIZE), ringCenterY - (target.y + PLAYER_SIZE))
-            );
-            const outerRadius = zoneCopy.width / 2;
-            const innerRadius = outerRadius - 6; // Match the visible fire-ring border thickness.
-
-            // Damage only when the player rectangle overlaps the ring itself, not its interior.
-            if (nearestDistance <= outerRadius && farthestDistance >= innerRadius) {
-              players[targetIndex] = applyDamage(target, zoneCopy.damage, true).player;
+            if (fireRingOverlapsPlayer(zoneCopy, target)) {
+              players[targetIndex] = applyDamage(target, zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone')).player;
             }
           }
         } else if (zoneCopy.type !== 'tesla-coil' && zoneCopy.type !== 'bear-trap' && now - zoneCopy.lastTick >= zoneCopy.tickRate) {
@@ -2530,7 +2211,7 @@ export const useGameEngine = (
                 zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
                 players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE
               )) {
-                players[i] = applyDamage(players[i], zoneCopy.damage, true).player;
+                players[i] = applyDamage(players[i], zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone')).player;
               }
             }
           }
@@ -2574,17 +2255,16 @@ export const useGameEngine = (
           const targetIndex = i === 0 ? 1 : 0;
           const target = players[targetIndex];
           // Ultimate damage hitbox is significantly larger (for visual sphere)
-          if (checkCollision(
-            players[i].x - 30, players[i].y - 30, PLAYER_SIZE + 60, PLAYER_SIZE + 60,
-            target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
-          )) {
+          if (playerOverlapsRect(target, reaperContactGeometry(players[i]))) {
             if (!players[i].lastUltTick || now - (players[i].lastUltTick || 0) >= 100) {
               const damageMultiplier = prev.isOvertime ? 2.0 : 1.0;
               const baseDamage = players[i].character.attackDamage * (1 + players[i].damageBoost) * damageMultiplier;
-              const damageRes = applyDamage(target, baseDamage * 0.10, true); // 10% of base damage per tick (Area)
+              const ultimateSource: DamageSource = { kind: 'direct', ownerId: players[i].id, action: 'ultimate',
+                actionId: diagnostics?.activeActionIds['player:' + players[i].id + ':ultimate'] };
+              const damageRes = applyDamage(target, baseDamage * 0.10, true, ultimateSource); // 10% of base damage per tick (Area)
               players[targetIndex] = damageRes.player;
               // Life steal 15 -> 33%
-              players[i].health = Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.33);
+              setHealth(players[i], Math.min(players[i].maxHealth, players[i].health + damageRes.dealt * 0.33), ultimateSource);
               players[i].lastUltTick = now;
               // Slow effect
               players[targetIndex].isSlowed = true;
@@ -2606,12 +2286,12 @@ export const useGameEngine = (
           sandstormTimer -= deltaTime;
           if (sandstormTimer <= 0) {
             sandstormActive = false;
-            nextSandstormTime = now + 10000 + Math.random() * 10000;
+            nextSandstormTime = now + 10000 + random('environment') * 10000;
           } else {
             // Apply 1 damage per 1.5 seconds to both players (reduced frequency)
             for (let i = 0; i < 2; i++) {
               if (now % 1500 < deltaTime) {
-                const environmentHit = applyDamage(players[i], 1, true);
+                const environmentHit = applyDamage(players[i], 1, true, { kind: 'environment', ownerId: null });
                 if (diagnostics) diagnostics.environmentDamage[i] += environmentHit.dealt;
                 players[i] = environmentHit.player;
               }
@@ -2619,14 +2299,14 @@ export const useGameEngine = (
               players[i].knockbackVelocityX += sandstormImpulse(now, deltaTime / 1000, sandstormDirection);
 
               // Add minor vertical jitter if grounded to simulate sand hitting
-              if (players[i].isGrounded && Math.random() < 0.1) {
+              if (players[i].isGrounded && random('environment') < 0.1) {
                 players[i].y -= 1;
               }
             }
           }
         } else if (now >= nextSandstormTime) {
           sandstormActive = true;
-          sandstormDirection = Math.random() > 0.5 ? 'right' : 'left';
+          sandstormDirection = random('environment') > 0.5 ? 'right' : 'left';
           sandstormTimer = 5000;
         }
       }
@@ -2639,17 +2319,17 @@ export const useGameEngine = (
           const p1Height = ARENA.height - players[0].y;
           const p2Height = ARENA.height - players[1].y;
           const totalWeight = p1Height * p1Height + p2Height * p2Height;
-          const targetPlayer: 1 | 2 = Math.random() < (p1Height * p1Height / totalWeight) ? 1 : 2;
+          const targetPlayer: 1 | 2 = random('environment') < (p1Height * p1Height / totalWeight) ? 1 : 2;
           const target = players[targetPlayer - 1];
 
           lightningStrikes = [...lightningStrikes, {
-            id: `lightning-${now}-${Math.random()}`,
+            id: `lightning-${now}-${random('id')}`,
             x: target.x + PLAYER_SIZE / 2,
             targetPlayerId: targetPlayer,
             warningStart: now,
             struck: false,
           }];
-          nextLightningTime = now + 5000 + Math.random() * 8000;
+          nextLightningTime = now + 5000 + random('environment') * 8000;
         }
 
         // Process lightning strikes
@@ -2661,7 +2341,7 @@ export const useGameEngine = (
             for (let i = 0; i < 2; i++) {
               const px = players[i].x + PLAYER_SIZE / 2;
               if (Math.abs(px - strikeX) < LIGHTNING_RADIUS) {
-                const environmentHit = applyDamage(players[i], 20, true);
+                const environmentHit = applyDamage(players[i], 20, true, { kind: 'environment', ownerId: null });
                 if (diagnostics) diagnostics.environmentDamage[i] += environmentHit.dealt;
                 players[i] = environmentHit.player;
                 players[i].isStunned = true;
@@ -2680,14 +2360,14 @@ export const useGameEngine = (
         if (now >= nextSoulZoneTime) {
           soulZones = [...soulZones, {
             id: `soul-${now}`,
-            x: 100 + Math.random() * (ARENA.width - 250),
-            y: 200 + Math.random() * 200,
+            x: 100 + random('environment') * (ARENA.width - 250),
+            y: 200 + random('environment') * 200,
             width: 200,
             height: 200,
             createdAt: now,
             duration: 6000,
           }];
-          nextSoulZoneTime = now + 12000 + Math.random() * 10000;
+          nextSoulZoneTime = now + 12000 + random('environment') * 10000;
         }
 
         // Process soul zones
@@ -2698,8 +2378,8 @@ export const useGameEngine = (
               players[i].x, players[i].y, PLAYER_SIZE, PLAYER_SIZE)) {
               // 1% max hp per second
               if (now % 1000 < deltaTime) {
-                players[i].health = Math.min(players[i].maxHealth,
-                  players[i].health + players[i].maxHealth * 0.01);
+                setHealth(players[i], Math.min(players[i].maxHealth,
+                  players[i].health + players[i].maxHealth * 0.01), { kind: 'environment', ownerId: null });
               }
               // Mana regen boost handled implicitly via speed multiplier effect
               // We'll boost mana directly
@@ -2714,18 +2394,18 @@ export const useGameEngine = (
       // --- JUNGLE: Vine shields ---
       if (mapId === 'jungle') {
         if (now >= nextVineTime) {
-          const vineX = 50 + Math.random() * (ARENA.width - 100);
+          const vineX = 50 + random('environment') * (ARENA.width - 100);
           vineShields = [...vineShields, {
             id: `vine-${now}`,
             x: vineX,
             y: 0,
             width: 48,
-            height: 240 + Math.random() * 100,
+            height: 240 + random('environment') * 100,
             createdAt: now,
             duration: 12000,
             hp: 1,
           }];
-          nextVineTime = now + 8000 + Math.random() * 10000;
+          nextVineTime = now + 8000 + random('environment') * 10000;
         }
 
         // Check vine-projectile collision
@@ -2754,11 +2434,11 @@ export const useGameEngine = (
             for (let l = 0; l < 4; l++) {
               fallingLeaves = [...fallingLeaves, {
                 id: `leaf-${now}-${l}`,
-                x: vine.x + Math.random() * vine.width,
+                x: vine.x + random('cosmetic') * vine.width,
                 y: vine.y,
-                vx: (Math.random() - 0.5) * 60,
-                vy: 30 + Math.random() * 40,
-                rotation: Math.random() * 360,
+                vx: (random('cosmetic') - 0.5) * 60,
+                vy: 30 + random('cosmetic') * 40,
+                rotation: random('cosmetic') * 360,
               }];
             }
             return true;
@@ -2784,7 +2464,7 @@ export const useGameEngine = (
             if (now - newLastLavaDamage[i] >= 500) { // Prevent rapid re-triggering
               let lavaDamage = 15;
               if (players[i].isBurning) lavaDamage *= 1.2;
-              const environmentHit = applyDamage(players[i], lavaDamage, true);
+              const environmentHit = applyDamage(players[i], lavaDamage, true, { kind: 'environment', ownerId: null });
               if (diagnostics) diagnostics.environmentDamage[i] += environmentHit.dealt;
               players[i] = environmentHit.player;
               // Bounce up
@@ -2817,6 +2497,7 @@ export const useGameEngine = (
 
       return {
         ...prev,
+        ...(evaluationState ? { evaluationState } : {}),
         players,
         aiState: { learning, controllers, ...(difficulty ? { difficulty } : {}) },
         diagnostics,
@@ -2860,7 +2541,7 @@ export const useGameEngine = (
     pausedAtRef.current = null;
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
-    setGameState(prev => ({ ...createInitialEngineState(), aiState: {
+    setGameState(prev => ({ ...createInitialEngineState(prev.evaluationState), aiState: {
       ...createAIRoundState(prev.aiState.learning),
       ...(prev.aiState.difficulty ? { difficulty: createDifficultyRuntime(prev.aiState.difficulty.session) } : {}),
     } }));
