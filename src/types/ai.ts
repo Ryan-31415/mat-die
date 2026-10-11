@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
-export const AI_PRESET_IDS = ['easy', 'medium', 'hard', 'perfect'] as const;
+export const AI_PRESET_IDS = ['easy', 'medium', 'hard', 'expert', 'perfect'] as const;
 export type AIPreset = typeof AI_PRESET_IDS[number];
 export const AI_PRESET_LABELS: Record<AIPreset | 'custom', string> = {
-  easy: '하급', medium: '중급', hard: '상급', perfect: '완전', custom: '사용자 지정',
+  easy: '초급', medium: '중급', hard: '상급', expert: '최상급', perfect: '완전', custom: '사용자 지정',
 };
 export const AI_PRESET_COLORS: Record<AIPreset | 'custom', string> = {
-  easy: 'linear-gradient(90deg, #16a34a, #22c55e)', medium: 'linear-gradient(90deg, #facc15, #fde047)',
-  hard: 'linear-gradient(90deg, #ef4444, #f97316)', perfect: 'linear-gradient(90deg, #1e40af, #7c3aed)',
+  easy: 'linear-gradient(90deg, #16a34a, #22c25d)', medium: 'linear-gradient(90deg, #eab308, #f3e260)',
+  hard: 'linear-gradient(90deg, #ea580c, #fb923c)', expert: 'linear-gradient(90deg, #b91c1c, #ef4444)',
+  perfect: 'linear-gradient(90deg, #2563eb, #722ceb)',
   custom: 'linear-gradient(90deg, #6b7280, #9ca3af)',
 };
 
@@ -57,25 +58,26 @@ const information: Record<AIInfoKey, boolean> = {
   projectiles: true, meleeHitboxes: true, hazards: true, wind: true, lightning: true, recoveryZones: true, vines: true,
 };
 function preset(index: number, base: Pick<AIParameters, 'reactionMin' | 'reactionMax' | 'precisionMin' | 'precisionMax' | 'noise' | 'character' | 'prediction' | 'learning' | 'controlAdaptation' | 'observationInterval'>): AIParameters {
-  const mode: AIInternalMode = index === 3 ? 'exact' : 'estimated';
-  const errorPercent = [25, 10, 2, 0][index];
+  const mode: AIInternalMode = index === 4 ? 'exact' : 'estimated';
+  const errorPercent = [25, 10, 2, 1, 0][index];
   const estimate = (rounding: number): AIEstimation => ({ mode, errorPercent, rounding });
-  const forecast = (positionError: number): AIForecast => ({ horizonMs: [300, 600, 1000, 2000][index], positionError, timingErrorMs: [150, 60, 15, 0][index] });
+  const forecast = (positionError: number): AIForecast => ({ horizonMs: [300, 600, 1000, 1500, 2000][index], positionError, timingErrorMs: [150, 60, 15, 5, 0][index] });
   const input = (delayMaxMs: number): AIInput => ({ useCommonPrecision: true, useCommonDelay: false, precisionMin: base.precisionMin, precisionMax: base.precisionMax, delayMaxMs });
   return {
-    ...base, inputDelayMaxMs: [45, 20, 5, 0][index], information: { ...information }, hidden: index < 2 ? 'temporary' : index === 2 ? 'remembered' : 'all',
-    hiddenMemoryMs: [1500, 5000, 10000, 10000][index], hiddenAttacks: index === 3 ? 'exact' : 'inferred',
-    estimation: { movement: estimate([50, 20, 5, 0][index]), cooldowns: estimate([200, 100, 25, 0][index]), durations: estimate([250, 100, 25, 0][index]), effects: estimate([5, 2, 1, 0][index]), properties: estimate([5, 2, 0.5, 0][index]) },
-    forecasts: { opponent: forecast([80, 30, 6, 0][index]), projectiles: forecast([60, 20, 4, 0][index]), environment: forecast([40, 15, 3, 0][index]) },
-    inputs: { movement: input([20, 8, 1, 0][index]), jump: input([35, 15, 3, 0][index]), attack: input([30, 12, 3, 0][index]), skill: input([40, 18, 4, 0][index]), ultimate: input([45, 20, 5, 0][index]) },
-    learningOptions: { memoryMs: [2000, 5000, 8000, 12000][index], sampleIntervalMs: [150, 100, 50, 50][index], halfLifeMs: [3000, 7000, 10000, 15000][index] },
+    ...base, inputDelayMaxMs: [45, 20, 5, 2, 0][index], information: { ...information }, hidden: index < 2 ? 'temporary' : index < 4 ? 'remembered' : 'all',
+    hiddenMemoryMs: [1500, 5000, 10000, 12000, 12000][index], hiddenAttacks: index === 4 ? 'exact' : 'inferred',
+    estimation: { movement: estimate([50, 20, 5, 2, 0][index]), cooldowns: estimate([200, 100, 25, 10, 0][index]), durations: estimate([250, 100, 25, 10, 0][index]), effects: estimate([5, 2, 1, 0.5, 0][index]), properties: estimate([5, 2, 0.5, 0.25, 0][index]) },
+    forecasts: { opponent: forecast([80, 30, 6, 2, 0][index]), projectiles: forecast([60, 20, 4, 1.5, 0][index]), environment: forecast([40, 15, 3, 1, 0][index]) },
+    inputs: { movement: input([20, 8, 1, 0.5, 0][index]), jump: input([35, 15, 3, 1, 0][index]), attack: input([30, 12, 3, 1, 0][index]), skill: input([40, 18, 4, 1.5, 0][index]), ultimate: input([45, 20, 5, 2, 0][index]) },
+    learningOptions: { memoryMs: [2000, 5000, 8000, 12000, 12000][index], sampleIntervalMs: [150, 100, 50, 50, 50][index], halfLifeMs: [3000, 7000, 10000, 15000, 15000][index] },
   };
 }
 export const AI_PRESETS: Record<AIPreset, AIParameters> = {
   easy: preset(0, { reactionMin: 250, reactionMax: 350, precisionMin: 65, precisionMax: 85, noise: 35, character: 15, prediction: 20, learning: 0, controlAdaptation: 15, observationInterval: 200 }),
   medium: preset(1, { reactionMin: 175, reactionMax: 225, precisionMin: 85, precisionMax: 95, noise: 12, character: 65, prediction: 50, learning: 25, controlAdaptation: 50, observationInterval: 100 }),
   hard: preset(2, { reactionMin: 100, reactionMax: 150, precisionMin: 98, precisionMax: 100, noise: 1, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
-  perfect: preset(3, { reactionMin: 0, reactionMax: 0, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
+  expert: preset(3, { reactionMin: 50, reactionMax: 75, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
+  perfect: preset(4, { reactionMin: 0, reactionMax: 0, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
 };
 export function cloneAIParameters(p: AIParameters): AIParameters {
   return {
@@ -136,7 +138,7 @@ const trait = z.object({ automatic: z.boolean(), value: z.number().finite().min(
 const legacySettings = z.object({
   version: z.literal(1),
   settings: z.object({
-    difficulty: z.enum(['easy', 'medium', 'hard', 'perfect', 'custom']), lastPreset: z.enum(AI_PRESET_IDS),
+    difficulty: z.enum(['easy', 'medium', 'hard', 'expert', 'perfect', 'custom']), lastPreset: z.enum(AI_PRESET_IDS),
     parameters: z.object({
       reactionMin: milliseconds, reactionMax: milliseconds, precisionMin: percent, precisionMax: percent,
       noise: percent, character: percent, prediction: percent, learning: percent, observationInterval: milliseconds,

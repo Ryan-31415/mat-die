@@ -25,6 +25,7 @@ const presetDescriptions = {
   easy: '느린 반응과 잦은 판단·입력 실수로 상대하기 쉬운 AI입니다.',
   medium: '약간의 실수가 있으며 미래 예측과 패턴 학습이 제한됩니다.',
   hard: '빠른 반응과 정교한 추정을 사용하지만 보이지 않는 정보는 알지 못합니다.',
+  expert: '매우 빠르게 반응하고 정밀하게 추정하지만, 보이지 않는 정보는 알지 못하며 작은 반응 지연이 있습니다.',
   perfect: '반응 지연과 입력 오차 없이 현재 AI의 모든 정보를 사용합니다.',
   custom: '세부 옵션을 직접 조절한 AI입니다.',
 };
@@ -48,7 +49,7 @@ const AIDifficultySelect = ({ settings, automaticTraits, onChange, onBack, onCon
                 {AI_PRESET_LABELS[settings.difficulty]}
               </span>
             </div>
-            <SliderPrimitive.Root aria-labelledby="ai-difficulty-label" min={0} max={3} step={1}
+            <SliderPrimitive.Root aria-labelledby="ai-difficulty-label" min={0} max={AI_PRESET_IDS.length - 1} step={1}
               value={[AI_PRESET_IDS.indexOf(settings.lastPreset)]}
               onValueChange={([value]) => onChange(selectAIPreset(settings, AI_PRESET_IDS[value]))}
               className="relative flex h-6 w-full touch-none select-none items-center">
@@ -60,7 +61,7 @@ const AIDifficultySelect = ({ settings, automaticTraits, onChange, onBack, onCon
               {AI_PRESET_IDS.map((preset, index) => (
                 <Button key={preset} variant="ghost" size="sm" aria-pressed={settings.difficulty === preset}
                   onClick={() => onChange(selectAIPreset(settings, preset))}
-                  style={{ left: `${index / 3 * 100}%` }} className="absolute min-w-0 -translate-x-1/2 px-1">{AI_PRESET_LABELS[preset]}</Button>
+                  style={{ left: `${index / (AI_PRESET_IDS.length - 1) * 100}%` }} className="absolute min-w-0 -translate-x-1/2 px-1">{AI_PRESET_LABELS[preset]}</Button>
               ))}
             </div>
             <p className="text-sm text-muted-foreground">{presetDescriptions[settings.difficulty]}</p>

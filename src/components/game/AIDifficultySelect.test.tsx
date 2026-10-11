@@ -16,10 +16,10 @@ function Harness() {
   return <AIDifficultySelect settings={settings} onChange={setSettings} automaticTraits={NEUTRAL_AI_TRAITS} onBack={vi.fn()} onConfirm={vi.fn()} />;
 }
 describe('AI difficulty controls', () => {
-  it('starts at medium with four slider stops and collapsed options', () => {
+  it('starts at medium with five slider stops and collapsed options', () => {
     const { container } = render(<Harness />);
     const slider = screen.getByRole('slider', { name: '난이도' });
-    expect(slider).toHaveAttribute('aria-valuemin', '0'); expect(slider).toHaveAttribute('aria-valuemax', '3');
+    expect(slider).toHaveAttribute('aria-valuemin', '0'); expect(slider).toHaveAttribute('aria-valuemax', '4');
     expect(slider).toHaveAttribute('aria-valuenow', '1'); expect(slider).toHaveAttribute('aria-valuetext', '중급');
     expect(container.ownerDocument.querySelector('details')).not.toHaveAttribute('open');
     expect(screen.getByRole('button', { name: '중급' })).toHaveAttribute('aria-pressed', 'true');
@@ -30,10 +30,10 @@ describe('AI difficulty controls', () => {
     render(<Harness />);
     const slider = screen.getByRole('slider', { name: '난이도' });
     fireEvent.keyDown(slider, { key: 'End' });
-    expect(slider).toHaveAttribute('aria-valuenow', '3'); expect(slider).toHaveAttribute('aria-valuetext', '완전');
+    expect(slider).toHaveAttribute('aria-valuenow', '4'); expect(slider).toHaveAttribute('aria-valuetext', '완전');
     fireEvent.click(screen.getByText('세부 AI 옵션')); fireEvent.click(screen.getByText('판단력'));
     fireEvent.change(screen.getByLabelText('행동 평가값 노이즈'), { target: { value: '7' } });
-    expect(slider).toHaveAttribute('aria-valuenow', '3'); expect(slider).toHaveAttribute('aria-valuetext', '사용자 지정');
+    expect(slider).toHaveAttribute('aria-valuenow', '4'); expect(slider).toHaveAttribute('aria-valuetext', '사용자 지정');
     expect(screen.getByText('사용자 지정').closest('[data-difficulty]')).toHaveAttribute('data-difficulty', 'custom');
     fireEvent.click(screen.getByRole('button', { name: '중급' }));
     expect(screen.getByLabelText('행동 평가값 노이즈')).toHaveValue(12);
