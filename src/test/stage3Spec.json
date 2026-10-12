@@ -1,0 +1,11 @@
+{
+  "baselineCommit": "13a8ad4",
+  "matchups": [["hunter", "hunter"], ["hunter", "gladiator"], ["rocketeer", "rocketeer"], ["rocketeer", "ninja"]],
+  "maps": ["default", "wasteland", "graveyard", "jungle", "volcano"],
+  "developmentSeed": 2387916401,
+  "holdoutSeed": 1573068927,
+  "gamesPerPanel": 80,
+  "maxGames": 160,
+  "maxWallMs": 1200000,
+  "roundSeconds": 60
+}

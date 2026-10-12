@@ -1,0 +1,1402 @@
+{
+  "spec": {
+    "baselineCommit": "13a8ad4",
+    "matchups": [
+      [
+        "hunter",
+        "hunter"
+      ],
+      [
+        "hunter",
+        "gladiator"
+      ],
+      [
+        "rocketeer",
+        "rocketeer"
+      ],
+      [
+        "rocketeer",
+        "ninja"
+      ]
+    ],
+    "maps": [
+      "default",
+      "wasteland",
+      "graveyard",
+      "jungle",
+      "volcano"
+    ],
+    "developmentSeed": 2387916401,
+    "holdoutSeed": 1573068927,
+    "gamesPerPanel": 80,
+    "maxGames": 160,
+    "maxWallMs": 1200000,
+    "roundSeconds": 60
+  },
+  "development": {
+    "games": 0,
+    "complete": false,
+    "versions": {
+      "baseline": {
+        "games": 0,
+        "wins": 0,
+        "draws": 0,
+        "losses": 0,
+        "points": 0,
+        "rate": null
+      },
+      "current": {
+        "games": 0,
+        "wins": 0,
+        "draws": 0,
+        "losses": 0,
+        "points": 0,
+        "rate": null
+      }
+    },
+    "sides": {
+      "baseline": [
+        0,
+        0
+      ],
+      "current": [
+        0,
+        0
+      ]
+    },
+    "byMatchup": {
+      "hunter/hunter": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "hunter/gladiator": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "rocketeer/rocketeer": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "rocketeer/ninja": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      }
+    },
+    "byMap": {
+      "default": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "wasteland": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "graveyard": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "jungle": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "volcano": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      }
+    },
+    "tactics": {
+      "hunter": {
+        "baseline": {
+          "games": 0,
+          "status": "unmeasured"
+        },
+        "current": {
+          "games": 0,
+          "status": "unmeasured"
+        }
+      },
+      "rocketeer": {
+        "baseline": {
+          "games": 0,
+          "status": "unmeasured"
+        },
+        "current": {
+          "games": 0,
+          "status": "unmeasured"
+        }
+      }
+    }
+  },
+  "holdout": {
+    "games": 0,
+    "complete": false,
+    "versions": {
+      "baseline": {
+        "games": 0,
+        "wins": 0,
+        "draws": 0,
+        "losses": 0,
+        "points": 0,
+        "rate": null
+      },
+      "current": {
+        "games": 0,
+        "wins": 0,
+        "draws": 0,
+        "losses": 0,
+        "points": 0,
+        "rate": null
+      }
+    },
+    "sides": {
+      "baseline": [
+        0,
+        0
+      ],
+      "current": [
+        0,
+        0
+      ]
+    },
+    "byMatchup": {
+      "hunter/hunter": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "hunter/gladiator": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "rocketeer/rocketeer": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "rocketeer/ninja": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      }
+    },
+    "byMap": {
+      "default": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "wasteland": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "graveyard": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "jungle": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      },
+      "volcano": {
+        "baseline": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        },
+        "current": {
+          "games": 0,
+          "wins": 0,
+          "draws": 0,
+          "losses": 0,
+          "points": 0,
+          "rate": null
+        }
+      }
+    },
+    "tactics": {
+      "hunter": {
+        "baseline": {
+          "games": 0,
+          "status": "unmeasured"
+        },
+        "current": {
+          "games": 0,
+          "status": "unmeasured"
+        }
+      },
+      "rocketeer": {
+        "baseline": {
+          "games": 0,
+          "status": "unmeasured"
+        },
+        "current": {
+          "games": 0,
+          "status": "unmeasured"
+        }
+      }
+    }
+  },
+  "status": "held-cpu-gate-failed",
+  "cpuConditions": [
+    {
+      "key": "hunter/0",
+      "before": {
+        "mean": 0.2747731250000015,
+        "p95": 0.6025999999999385,
+        "p99": 0.8171999999999571
+      },
+      "current": {
+        "mean": 0.3110018750000066,
+        "p95": 0.620200000000068,
+        "p99": 1.122600000000034
+      },
+      "p95ChangePercent": 2.9206770660689108
+    },
+    {
+      "key": "hunter/20",
+      "before": {
+        "mean": 0.9256018749999854,
+        "p95": 1.6268999999999778,
+        "p99": 2.314200000000028
+      },
+      "current": {
+        "mean": 0.968197499999998,
+        "p95": 1.6283000000000811,
+        "p99": 2.075700000000097
+      },
+      "p95ChangePercent": 0.0860532300757999
+    },
+    {
+      "key": "hunter/60",
+      "before": {
+        "mean": 1.7517549999999773,
+        "p95": 2.9122000000002117,
+        "p99": 3.5954000000001543
+      },
+      "current": {
+        "mean": 1.8039331249999833,
+        "p95": 2.781199999999899,
+        "p99": 3.721099999999751
+      },
+      "p95ChangePercent": -4.498317423264309
+    },
+    {
+      "key": "hunter/120",
+      "before": {
+        "mean": 3.700682499999931,
+        "p95": 5.197900000000118,
+        "p99": 6.912699999999859
+      },
+      "current": {
+        "mean": 4.063257500000015,
+        "p95": 6.300600000000486,
+        "p99": 7.2578999999996086
+      },
+      "p95ChangePercent": 21.21433655900158
+    },
+    {
+      "key": "rocketeer/0",
+      "before": {
+        "mean": 0.4999768750000044,
+        "p95": 1.4635999999991327,
+        "p99": 1.9799999999995634
+      },
+      "current": {
+        "mean": 0.4929662500000177,
+        "p95": 1.28650000000016,
+        "p99": 1.9074999999993452
+      },
+      "p95ChangePercent": -12.10030062852402
+    },
+    {
+      "key": "rocketeer/20",
+      "before": {
+        "mean": 1.006107499999996,
+        "p95": 1.947200000000521,
+        "p99": 2.2824000000000524
+      },
+      "current": {
+        "mean": 0.9818781250000143,
+        "p95": 1.7828000000008615,
+        "p99": 2.3575000000000728
+      },
+      "p95ChangePercent": -8.442892358238263
+    },
+    {
+      "key": "rocketeer/60",
+      "before": {
+        "mean": 2.091108124999971,
+        "p95": 3.217500000000655,
+        "p99": 3.6141000000006898
+      },
+      "current": {
+        "mean": 2.149515624999958,
+        "p95": 3.278699999998935,
+        "p99": 4.240799999999581
+      },
+      "p95ChangePercent": 1.9020979020440532
+    },
+    {
+      "key": "rocketeer/120",
+      "before": {
+        "mean": 3.23577374999993,
+        "p95": 4.130300000000716,
+        "p99": 5.026900000000751
+      },
+      "current": {
+        "mean": 3.250504375000105,
+        "p95": 3.998700000000099,
+        "p99": 4.958699999999226
+      },
+      "p95ChangePercent": -3.1862092342104464
+    },
+    {
+      "key": "archer/0",
+      "before": {
+        "mean": 0.2114743749998979,
+        "p95": 0.4161999999996624,
+        "p99": 0.537400000001071
+      },
+      "current": {
+        "mean": 0.2434781250000242,
+        "p95": 0.45750000000043656,
+        "p99": 0.915499999999156
+      },
+      "p95ChangePercent": 9.923113887748114
+    },
+    {
+      "key": "archer/20",
+      "before": {
+        "mean": 0.8063112499999306,
+        "p95": 1.2233000000014727,
+        "p99": 1.6084999999984575
+      },
+      "current": {
+        "mean": 0.7888162500000362,
+        "p95": 1.2140999999974156,
+        "p99": 1.627199999998993
+      },
+      "p95ChangePercent": -0.7520640892704988
+    },
+    {
+      "key": "archer/60",
+      "before": {
+        "mean": 1.8029518750001443,
+        "p95": 2.5403000000005704,
+        "p99": 3.8361000000004424
+      },
+      "current": {
+        "mean": 1.9458106250000355,
+        "p95": 3.365799999999581,
+        "p99": 4.962999999999738
+      },
+      "p95ChangePercent": 32.49616187059894
+    },
+    {
+      "key": "archer/120",
+      "before": {
+        "mean": 3.6517824999999675,
+        "p95": 4.854999999999563,
+        "p99": 6.76249999999709
+      },
+      "current": {
+        "mean": 3.5607718750001824,
+        "p95": 4.753799999998591,
+        "p99": 5.985000000000582
+      },
+      "p95ChangePercent": -2.0844490216473943
+    }
+  ],
+  "parity": {
+    "count": 1200,
+    "baselineHash": "1d09e386481bcdb536fedf13ed8f9a7cb4965ab63e84de71fd50a25a3135ce4a",
+    "candidateHash": "54f2838cdbee615111fae8b963162a56efaac56078c487c0759d6219d9bcb802"
+  },
+  "counts": {
+    "baselineHash": "1d09e386481bcdb536fedf13ed8f9a7cb4965ab63e84de71fd50a25a3135ce4a",
+    "candidateHash": "54f2838cdbee615111fae8b963162a56efaac56078c487c0759d6219d9bcb802",
+    "rows": [
+      {
+        "character": "hunter",
+        "projectiles": 0,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 2,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 20,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 2,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 60,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 2,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 120,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 2,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 0,
+        "before": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 20,
+        "before": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 60,
+        "before": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 120,
+        "before": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 2,
+          "hunterScatter": 0,
+          "archerShotOutcome": 0,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 0,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 20,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 60,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 120,
+        "before": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        },
+        "current": {
+          "rocketeerShot": 0,
+          "hunterScatter": 0,
+          "archerShotOutcome": 1,
+          "evaluate": 6
+        }
+      }
+    ]
+  },
+  "cpu": {
+    "baselineHash": "1d09e386481bcdb536fedf13ed8f9a7cb4965ab63e84de71fd50a25a3135ce4a",
+    "candidateHash": "54f2838cdbee615111fae8b963162a56efaac56078c487c0759d6219d9bcb802",
+    "elapsedMs": 30636.684200000003,
+    "node": "v22.18.0",
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13420H",
+    "samples": 160,
+    "warmup": 80,
+    "blockSize": 16,
+    "rows": [
+      {
+        "character": "hunter",
+        "projectiles": 0,
+        "repeat": 0,
+        "before": {
+          "mean": 0.6308587500000001,
+          "p95": 1.6608999999999696,
+          "p99": 2.592399999999998
+        },
+        "current": {
+          "mean": 0.5703212500000017,
+          "p95": 1.5351,
+          "p99": 2.003600000000006
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 0,
+        "repeat": 1,
+        "before": {
+          "mean": 0.2747731250000015,
+          "p95": 0.6025999999999385,
+          "p99": 0.8171999999999571
+        },
+        "current": {
+          "mean": 0.3110018750000066,
+          "p95": 0.620200000000068,
+          "p99": 1.122600000000034
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 0,
+        "repeat": 2,
+        "before": {
+          "mean": 0.22026875000000673,
+          "p95": 0.48699999999996635,
+          "p99": 0.7775000000000318
+        },
+        "current": {
+          "mean": 0.23270562500000408,
+          "p95": 0.4397000000000162,
+          "p99": 0.9664000000000215
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 20,
+        "repeat": 0,
+        "before": {
+          "mean": 1.1785687500000108,
+          "p95": 2.568899999999985,
+          "p99": 3.365500000000111
+        },
+        "current": {
+          "mean": 1.356326249999995,
+          "p95": 2.8577999999999975,
+          "p99": 4.087099999999964
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 20,
+        "repeat": 1,
+        "before": {
+          "mean": 0.9256018749999854,
+          "p95": 1.6268999999999778,
+          "p99": 2.314200000000028
+        },
+        "current": {
+          "mean": 0.968197499999998,
+          "p95": 1.6283000000000811,
+          "p99": 2.075700000000097
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 20,
+        "repeat": 2,
+        "before": {
+          "mean": 0.7357568750000183,
+          "p95": 1.1604000000002088,
+          "p99": 1.6044999999999163
+        },
+        "current": {
+          "mean": 0.7788656249999975,
+          "p95": 1.091899999999896,
+          "p99": 1.5949999999998
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 60,
+        "repeat": 0,
+        "before": {
+          "mean": 1.7517549999999773,
+          "p95": 2.9122000000002117,
+          "p99": 3.5954000000001543
+        },
+        "current": {
+          "mean": 1.7699406250000096,
+          "p95": 2.3985999999999876,
+          "p99": 3.721099999999751
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 60,
+        "repeat": 1,
+        "before": {
+          "mean": 1.5944693749999885,
+          "p95": 2.1972999999998137,
+          "p99": 3.0214999999998327
+        },
+        "current": {
+          "mean": 1.8039331249999833,
+          "p95": 2.781199999999899,
+          "p99": 3.3606999999997242
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 60,
+        "repeat": 2,
+        "before": {
+          "mean": 2.0152481249999936,
+          "p95": 3.256399999999303,
+          "p99": 3.644499999999425
+        },
+        "current": {
+          "mean": 2.2601018749999637,
+          "p95": 3.775800000000345,
+          "p99": 4.3226000000004206
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 120,
+        "repeat": 0,
+        "before": {
+          "mean": 3.700682499999931,
+          "p95": 5.197900000000118,
+          "p99": 6.912699999999859
+        },
+        "current": {
+          "mean": 4.063257500000015,
+          "p95": 6.300600000000486,
+          "p99": 7.2578999999996086
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 120,
+        "repeat": 1,
+        "before": {
+          "mean": 4.206679374999948,
+          "p95": 7.651100000000952,
+          "p99": 11.668300000001182
+        },
+        "current": {
+          "mean": 4.232898749999964,
+          "p95": 6.378500000000713,
+          "p99": 12.612700000000586
+        }
+      },
+      {
+        "character": "hunter",
+        "projectiles": 120,
+        "repeat": 2,
+        "before": {
+          "mean": 3.327532499999927,
+          "p95": 4.549399999999878,
+          "p99": 4.8431000000000495
+        },
+        "current": {
+          "mean": 3.5311675000000946,
+          "p95": 4.740900000000693,
+          "p99": 5.427200000000084
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 0,
+        "repeat": 0,
+        "before": {
+          "mean": 0.4999768750000044,
+          "p95": 1.4635999999991327,
+          "p99": 2.170400000000882
+        },
+        "current": {
+          "mean": 0.5054643750000309,
+          "p95": 1.353900000000067,
+          "p99": 1.9074999999993452
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 0,
+        "repeat": 1,
+        "before": {
+          "mean": 0.2823331249999569,
+          "p95": 0.5390000000006694,
+          "p99": 0.8281999999999243
+        },
+        "current": {
+          "mean": 0.285433124999895,
+          "p95": 0.6120999999984633,
+          "p99": 0.7826000000004569
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 0,
+        "repeat": 2,
+        "before": {
+          "mean": 0.5740062499999568,
+          "p95": 1.623700000000099,
+          "p99": 1.9799999999995634
+        },
+        "current": {
+          "mean": 0.4929662500000177,
+          "p95": 1.28650000000016,
+          "p99": 2.8180000000011205
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 20,
+        "repeat": 0,
+        "before": {
+          "mean": 1.006107499999996,
+          "p95": 1.947200000000521,
+          "p99": 2.2824000000000524
+        },
+        "current": {
+          "mean": 1.0963437499999713,
+          "p95": 2.251800000000003,
+          "p99": 2.86830000000009
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 20,
+        "repeat": 1,
+        "before": {
+          "mean": 1.0233737500000757,
+          "p95": 2.045399999999063,
+          "p99": 2.4202000000004773
+        },
+        "current": {
+          "mean": 0.9818781250000143,
+          "p95": 1.7828000000008615,
+          "p99": 2.3575000000000728
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 20,
+        "repeat": 2,
+        "before": {
+          "mean": 0.9206225000000131,
+          "p95": 1.7546999999995023,
+          "p99": 2.197100000001228
+        },
+        "current": {
+          "mean": 0.9622137499999326,
+          "p95": 1.6820999999999913,
+          "p99": 2.2489000000005035
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 60,
+        "repeat": 0,
+        "before": {
+          "mean": 1.8361393749999706,
+          "p95": 2.7683000000015454,
+          "p99": 3.310300000001007
+        },
+        "current": {
+          "mean": 1.8771331250000685,
+          "p95": 2.9377999999996973,
+          "p99": 4.240799999999581
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 60,
+        "repeat": 1,
+        "before": {
+          "mean": 2.091108124999971,
+          "p95": 3.217500000000655,
+          "p99": 3.6141000000006898
+        },
+        "current": {
+          "mean": 2.149515624999958,
+          "p95": 3.278699999998935,
+          "p99": 4.013899999999921
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 60,
+        "repeat": 2,
+        "before": {
+          "mean": 2.5571431250000503,
+          "p95": 3.948100000001432,
+          "p99": 4.3145999999997
+        },
+        "current": {
+          "mean": 2.7346699999999826,
+          "p95": 4.325700000001234,
+          "p99": 8.101199999999153
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 120,
+        "repeat": 0,
+        "before": {
+          "mean": 3.9509556249998923,
+          "p95": 6.072800000001735,
+          "p99": 6.887599999998201
+        },
+        "current": {
+          "mean": 3.8010674999999994,
+          "p95": 5.015999999999622,
+          "p99": 6.083199999997305
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 120,
+        "repeat": 1,
+        "before": {
+          "mean": 3.23577374999993,
+          "p95": 4.130300000000716,
+          "p99": 5.026900000000751
+        },
+        "current": {
+          "mean": 3.250504375000105,
+          "p95": 3.998700000000099,
+          "p99": 4.958699999999226
+        }
+      },
+      {
+        "character": "rocketeer",
+        "projectiles": 120,
+        "repeat": 2,
+        "before": {
+          "mean": 3.0839987499998642,
+          "p95": 3.816100000000006,
+          "p99": 4.138200000001234
+        },
+        "current": {
+          "mean": 3.0676450000001294,
+          "p95": 3.7446000000018103,
+          "p99": 4.016899999998714
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 0,
+        "repeat": 0,
+        "before": {
+          "mean": 0.2114743749998979,
+          "p95": 0.4161999999996624,
+          "p99": 0.537400000001071
+        },
+        "current": {
+          "mean": 0.2434781250000242,
+          "p95": 0.45750000000043656,
+          "p99": 0.915499999999156
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 0,
+        "repeat": 1,
+        "before": {
+          "mean": 0.19456937499994637,
+          "p95": 0.3892999999989115,
+          "p99": 0.5231000000021595
+        },
+        "current": {
+          "mean": 0.20490937499992015,
+          "p95": 0.3922999999995227,
+          "p99": 0.5056000000004133
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 0,
+        "repeat": 2,
+        "before": {
+          "mean": 0.4398712499999192,
+          "p95": 1.314699999998993,
+          "p99": 1.4968000000008033
+        },
+        "current": {
+          "mean": 0.3743193750000273,
+          "p95": 1.1015000000006694,
+          "p99": 1.6409000000021479
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 20,
+        "repeat": 0,
+        "before": {
+          "mean": 0.8063112499999306,
+          "p95": 1.2233000000014727,
+          "p99": 1.9224000000031083
+        },
+        "current": {
+          "mean": 0.7888162500000362,
+          "p95": 1.2140999999974156,
+          "p99": 1.847299999997631
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 20,
+        "repeat": 1,
+        "before": {
+          "mean": 0.825204999999869,
+          "p95": 1.4801000000006752,
+          "p99": 1.6084999999984575
+        },
+        "current": {
+          "mean": 0.8186187499998369,
+          "p95": 1.2355999999999767,
+          "p99": 1.627199999998993
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 20,
+        "repeat": 2,
+        "before": {
+          "mean": 0.6692899999998645,
+          "p95": 0.9674000000013621,
+          "p99": 1.1251999999985856
+        },
+        "current": {
+          "mean": 0.691739375000202,
+          "p95": 0.9841000000014901,
+          "p99": 1.315099999999802
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 60,
+        "repeat": 0,
+        "before": {
+          "mean": 1.6322487499999851,
+          "p95": 2.237700000001496,
+          "p99": 2.6054000000003725
+        },
+        "current": {
+          "mean": 1.638109999999847,
+          "p95": 2.3198000000011234,
+          "p99": 3.523299999997107
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 60,
+        "repeat": 1,
+        "before": {
+          "mean": 1.8029518750001443,
+          "p95": 2.5403000000005704,
+          "p99": 3.8361000000004424
+        },
+        "current": {
+          "mean": 1.9458106250000355,
+          "p95": 3.365799999999581,
+          "p99": 5.134399999999005
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 60,
+        "repeat": 2,
+        "before": {
+          "mean": 2.430146249999825,
+          "p95": 3.9965999999985797,
+          "p99": 4.886399999999412
+        },
+        "current": {
+          "mean": 2.6000543749997633,
+          "p95": 4.229500000001281,
+          "p99": 4.962999999999738
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 120,
+        "repeat": 0,
+        "before": {
+          "mean": 3.6517824999999675,
+          "p95": 4.854999999999563,
+          "p99": 6.76249999999709
+        },
+        "current": {
+          "mean": 3.5607718750001824,
+          "p95": 4.753799999998591,
+          "p99": 5.985000000000582
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 120,
+        "repeat": 1,
+        "before": {
+          "mean": 3.3935693750000153,
+          "p95": 4.310900000000402,
+          "p99": 4.751799999998184
+        },
+        "current": {
+          "mean": 3.3068562500000325,
+          "p95": 4.189699999998993,
+          "p99": 4.290600000000268
+        }
+      },
+      {
+        "character": "archer",
+        "projectiles": 120,
+        "repeat": 2,
+        "before": {
+          "mean": 4.300045000000159,
+          "p95": 9.313700000002427,
+          "p99": 10.949399999997695
+        },
+        "current": {
+          "mean": 4.178343749999885,
+          "p95": 5.604699999999866,
+          "p99": 19.731900000002497
+        }
+      }
+    ]
+  }
+}

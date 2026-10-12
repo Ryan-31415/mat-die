@@ -7,7 +7,7 @@ import { advanceCoilForecast } from './coil';
 
 /** Simulate a prospective shot using only the caller's perceived opponent forecast. */
 export function rocketeerShot(frame: AIFrame, player: Player, opponent: Player, targetAt: (time: number) => Point,
-  homing: boolean, facing: number, allowLongRange = false): 'target' | 'vine' | 'coil' | null {
+  homing: boolean, facing: number, allowLongRange = false, leadMs?: number): 'target' | 'vine' | 'coil' | null {
   if (opponent.isInvisible || (!allowLongRange && Math.hypot(opponent.x - player.x, opponent.y - player.y) > player.character!.attackRange)) return null;
   const speed = homing ? HOMING_ROCKET_SPEED : ROCKET_SPEED;
   const shot: Projectile = {
@@ -23,11 +23,20 @@ export function rocketeerShot(frame: AIFrame, player: Player, opponent: Player, 
   };
   let coils = frame.world.hazardZones.filter(zone => zone.type === 'tesla-coil').map(zone => ({ ...zone }));
   const firstDt = Math.max(0.001, frame.world.deltaTime / 1000);
-  for (let time = firstDt; time <= shot.lifetime / 1000; time += AI_DT) {
+  const lead = (leadMs ?? 0) / 1000;
+  if (lead > 0) {
+    const at = Array.from(frame.times).findIndex(time => time >= lead + firstDt);
+    coils = (frame.coilSnapshots.get(at) ?? []).map(coil => ({ ...coil }));
+  }
+  const horizon = leadMs === undefined ? shot.lifetime / 1000 : Math.min(shot.lifetime / 1000,
+    (frame.forecasts?.opponent.horizonMs ?? shot.lifetime) / 1000 - lead,
+    (frame.forecasts?.projectiles.horizonMs ?? shot.lifetime) / 1000 - lead,
+    (frame.forecasts?.environment.horizonMs ?? shot.lifetime) / 1000 - lead);
+  for (let time = firstDt; time <= horizon; time += AI_DT) {
     const dt = time === firstDt ? firstDt : AI_DT;
-    const now = frame.world.now + (time - firstDt) * 1000;
+    const now = frame.world.now + (lead + time - firstDt) * 1000;
     const before = { x: shot.x, y: shot.y };
-    const target = { ...targetAt(time), isInvisible: opponent.isInvisible };
+    const target = { ...targetAt(time + lead), isInvisible: opponent.isInvisible };
     stepProjectileMotion(shot, player, now, dt, target);
     const body = getProjectileCollisionTime(shot, before, { ...target, width: PLAYER_SIZE, height: PLAYER_SIZE });
     const sword = frame.hitboxes.reduce((first, h) => h.ownerId === opponent.id && h.canDeflectProjectiles &&

@@ -24,6 +24,7 @@ export function createEvaluationTrace() {
     frames: 0, aliveMs: 0, directionReversals: 0, commandedMovementMs: 0,
     commandedNoProgressMs: 0, forcedImmobilityMs: 0, wallBlockedMs: 0,
     failedJumpIncreases: 0, damageDuringAttackCooldown: 0,
+    engagementDistanceMs: 0, readyFacingAwayMs: 0,
     inputMismatchMs: { movement: 0, jump: 0, attack: 0, skill: 0, ultimate: 0 },
     inferenceErrors: {} as Record<string, ErrorTotal>,
     lastDirection: 0, lastInferenceAt: -Infinity, positioning,
@@ -92,9 +93,17 @@ export function recordInference(trace: EvaluationTrace, world: AIWorld, settings
 }
 
 export function recordEvaluationFrame(trace: EvaluationTrace, before: Player, after: Player,
-  runtime: DifficultyRuntime | undefined, elapsedMs: number, arenaLeft: number, arenaRight: number, receivedDamage: number) {
+  runtime: DifficultyRuntime | undefined, elapsedMs: number, arenaLeft: number, arenaRight: number, receivedDamage: number, opponent?: Player) {
   if (!runtime) return;
   trace.frames++; if (before.health > 0) trace.aliveMs += elapsedMs;
+  if (opponent) {
+    const distance = Math.hypot(before.x - opponent.x, before.y - opponent.y);
+    trace.engagementDistanceMs += distance * elapsedMs;
+    // Geometric exposure proxy, not a claim that a blocked shot would hit.
+    if (before.attackCooldownRemaining <= 0 && !before.isStunned && !before.isFrozen &&
+      distance <= before.character!.attackRange && Math.abs(before.y - opponent.y) < 40 &&
+      before.facingRight !== (opponent.x >= before.x)) trace.readyFacingAwayMs += elapsedMs;
+  }
   const keys = runtime.keys, desired = runtime.memory?.lastKeys;
   const direction = Number(keys.arrowRight) - Number(keys.arrowLeft);
   if (direction) {

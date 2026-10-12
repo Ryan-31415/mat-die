@@ -189,7 +189,8 @@ export async function runDeterministicEvaluation() {
               const elapsed = nextRuntime && priorRuntime ? nextRuntime.activeTime - priorRuntime.activeTime : 0;
               if (elapsed > 0) recordEvaluationFrame(controller.trace, priorState.players[owner - 1], nextState.players[owner - 1],
                 nextRuntime, elapsed, ARENA.padding, ARENA.width - ARENA.padding - PLAYER_SIZE,
-                nextState.diagnostics!.receivedDamage[owner - 1] - priorState.diagnostics!.receivedDamage[owner - 1]);
+                nextState.diagnostics!.receivedDamage[owner - 1] - priorState.diagnostics!.receivedDamage[owner - 1],
+                priorState.players[owner === 1 ? 1 : 0]);
               if (nextRuntime && priorRuntime) controller.trace.failedJumpIncreases += Math.max(0,
                 (nextRuntime.memory?.failedJumps ?? 0) - (priorRuntime.memory?.failedJumps ?? 0));
             }
@@ -208,6 +209,10 @@ export async function runDeterministicEvaluation() {
             seconds: (Date.now() - roundStart) / 1000, wallSeconds: (performance.now() - beforeGame) / 1000,
             ...(round ? { roundStart, endSession } : {}),
             finalHealth: state.players.map(player => player.health), ledgerErrors, metrics: reportedMetrics,
+            ...(process.env.AI_EVAL_STAGE3 === '1' ? { stage3: {
+              attackProjectileHits: metrics.hitIds.filter(key => key.startsWith(side + ':') &&
+                metrics.entityActions[key.slice(2)] === 'attack' && !metrics.entityClones[key.slice(2)]).length,
+            } } : {}),
             candidateTrace: reportEvaluationTrace(candidate.trace), baselineTrace: pattern || scene ? null : reportEvaluationTrace(baseline.trace),
             ...(opportunity ? { meleeOpportunity: { ...opportunity, actualDamage: opportunityDamage ?? 0,
               used: opportunity.eligible && (opportunityDamage ?? 0) > 0 } } : {}),
