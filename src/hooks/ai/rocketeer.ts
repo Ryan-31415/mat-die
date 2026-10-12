@@ -33,11 +33,13 @@ export function rocketeerShot(frame: AIFrame, player: Player, opponent: Player, 
     const sword = frame.hitboxes.reduce((first, h) => h.ownerId === opponent.id && h.canDeflectProjectiles &&
       now - h.createdAt <= h.duration
       ? Math.min(first, getProjectileCollisionTime(shot, before, h) ?? Infinity) : first, Infinity);
-    if (frame.world.mapId === 'jungle' && frame.vines.some(v => now - v.createdAt <= v.duration &&
-      (getProjectileCollisionTime(shot, before, v) ?? Infinity) < Math.min(body ?? Infinity, sword))) return 'vine';
-    // Endpoint contact wins even over an earlier swept body/sword contact.
-    // Own coils pass through; clearing an enemy coil is a distinct outcome.
-    if (findProjectileCoilContact(shot, coils)) return 'coil';
+    const vineTime = frame.world.mapId === 'jungle' ? frame.vines.reduce((first, vine) => now - vine.createdAt <= vine.duration
+      ? Math.min(first, getProjectileCollisionTime(shot, before, vine) ?? Infinity) : first, Infinity) : Infinity;
+    const coil = findProjectileCoilContact(shot, coils, before);
+    const coilTime = coil ? getProjectileCollisionTime(shot, before, coil) ?? Infinity : Infinity;
+    // Resolve the earliest world contact against the same swept body/sword path as the engine.
+    if (Math.min(vineTime, coilTime) < Math.min(body ?? Infinity, sword))
+      return vineTime < coilTime ? 'vine' : 'coil';
     if (sword < (body ?? Infinity)) return null;
     if (body !== null) {
       return shieldFacesX({ ...opponent, ...target }, before.x + shot.width / 2) ? null : 'target';

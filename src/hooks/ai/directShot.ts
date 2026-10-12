@@ -41,17 +41,18 @@ export function directShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
     const sword = shot.canBeDeflected ? frame.hitboxes.reduce((first, hitbox) => hitbox.ownerId !== owner.id &&
       hitbox.canDeflectProjectiles && now - hitbox.createdAt <= hitbox.duration
       ? Math.min(first, getProjectileCollisionTime(shot, before, hitbox) ?? Infinity) : first, Infinity) : Infinity;
-    if (frame.world.mapId === 'jungle' && frame.vines.some(vine => now - vine.createdAt <= vine.duration &&
-      (getProjectileCollisionTime(shot, before, vine) ?? Infinity) < Math.min(body, sword)))
-      return { kind: 'vine', ...outcome };
-    const coil = findProjectileCoilContact(shot, frame.coilSnapshots.get(step) ?? []);
-    if (coil) {
+    const vineTime = frame.world.mapId === 'jungle' ? frame.vines.reduce((first, vine) => now - vine.createdAt <= vine.duration
+      ? Math.min(first, getProjectileCollisionTime(shot, before, vine) ?? Infinity) : first, Infinity) : Infinity;
+    const coil = findProjectileCoilContact(shot, frame.coilSnapshots.get(step) ?? [], before);
+    const coilTime = coil ? getProjectileCollisionTime(shot, before, coil) ?? Infinity : Infinity;
+    if (Math.min(vineTime, coilTime) < Math.min(body, sword)) {
+      if (vineTime < coilTime) return { kind: 'vine', ...outcome };
       // Existing observed shots precede this prospective new shot. A coil they
       // already kill still intercepts it, but clearing it adds no marginal HP.
       const pending = frame.paths.reduce((sum, path) => sum + path.coilContacts.reduce((damage, contact) =>
         damage + (contact.step === step && contact.coilId === coil.id ? contact.rawDamage : 0), 0), 0);
       const remainingHealth = coil.health === undefined ? undefined : Math.max(0, coil.health - pending);
-      return { kind: 'coil', ...outcome, coilId: coil.id, rawDamage: shot.damage, remainingHealth,
+      return { kind: 'coil', ...outcome, coilId: coil!.id, rawDamage: shot.damage, remainingHealth,
         marginalDamage: remainingHealth === undefined ? undefined : Math.min(remainingHealth, Math.max(0, shot.damage)) };
     }
     if (sword < body) return { kind: 'sword', ...outcome };

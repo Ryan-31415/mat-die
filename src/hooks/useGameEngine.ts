@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
-import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, basicProjectileLaunches, hunterNetLaunch, scientistOrbLaunch, checkProjectileCollision, getProjectileCollisionTime, createExplosionEffect } from '@/types/projectile';
+import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, basicProjectileLaunches, hunterNetLaunch, scientistOrbLaunch, checkProjectileCollision, getProjectileCollisionTime, createExplosionEffect, projectileImpactZone, projectilePierces } from '@/types/projectile';
 import { Platform, PLATFORMS } from '@/types/platform';
 import { MapId, MAPS } from '@/types/map';
 import { KeyboardState } from './useKeyboard';
@@ -1244,16 +1244,40 @@ export const useGameEngine = (
           now
         );
         explosionEffects.push(effect);
-        if (proj.isNapalm) {
-          const pool = createHazardZone('fire-pool', proj.ownerId, 0, 0,
-            proj.firePoolDamage ?? proj.damage * 0.1, proj.firePoolDuration);
-          pool.width = effect.radius * 2;
-          pool.height = effect.radius * 2;
-          pool.x = effect.x - pool.width / 2;
-          pool.y = effect.y - pool.height / 2;
-          pool.isNapalm = true;
-          hazardZones.push(pool);
+      };
+      const createImpactZone = (proj: Projectile, centerX: number, centerY: number,
+        surface?: { x: number; y: number; width: number; height: number }) => {
+        const impact = projectileImpactZone(proj);
+        if (!impact) return undefined;
+        const zone = createHazardZone(impact.type, proj.ownerId, 0, 0, impact.damage, impact.duration);
+        if (impact.isNapalm) {
+          zone.width = Math.max(proj.explosionRadius, proj.width / 2, proj.height / 2) * 2;
+          zone.height = zone.width;
+          zone.isNapalm = true;
         }
+        zone.x = centerX - zone.width / 2;
+        zone.y = surface ? surface.y - zone.height / 2 : centerY - zone.height / 2;
+        if (surface && impact.type === 'toxic-pool') {
+          zone.x = Math.max(surface.x, Math.min(zone.x, surface.x + surface.width - zone.width));
+        }
+        hazardZones.push(zone);
+        if (impact.type === 'blizzard') {
+          for (const player of players) {
+            if (player.id !== proj.ownerId && checkCollision(zone.x, zone.y, zone.width, zone.height,
+              player.x, player.y, PLAYER_SIZE, PLAYER_SIZE)) {
+              player.isFrozen = true;
+              player.frozenDuration = 750;
+            }
+          }
+          nextClones.forEach((clone, index) => {
+            if (clone.id !== proj.ownerId && checkCollision(zone.x, zone.y, zone.width, zone.height,
+              clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) {
+              nextClones[index].isFrozen = true;
+              nextClones[index].frozenDuration = 750;
+            }
+          });
+        }
+        return zone;
       };
 
       // Check projectile collisions
@@ -1268,46 +1292,22 @@ export const useGameEngine = (
           if (checkProjectileCollision(proj, previousPosition, platform)) {
             if (proj.type === 'flask') {
               emitExplosion(proj, platform);
-              const pool = createHazardZone(
-                'toxic-pool',
-                proj.ownerId,
-                0, 0,
-                proj.damage * 0.2,
-                proj.firePoolDuration
-              );
-
-              pool.y = platform.y - pool.height / 2;
-              pool.x = proj.x + proj.width / 2 - pool.width / 2;
-              pool.x = Math.max(platform.x, Math.min(pool.x, platform.x + platform.width - pool.width));
-
-              hazardZones.push(pool);
+              const contact = getProjectileCollisionTime(proj, previousPosition, platform) ?? 1;
+              createImpactZone(proj,
+                previousPosition.x + (proj.x - previousPosition.x) * contact + proj.width / 2,
+                previousPosition.y + (proj.y - previousPosition.y) * contact + proj.height / 2,
+                platform);
               return false; // Remove the flask
             }
 
             // For now, only projectiles with gravity are blocked by platforms (except meteors)
             if (proj.hasGravity && proj.type !== 'meteor') {
               emitExplosion(proj, platform);
-              if (proj.type === 'blizzard-stone') {
-                const blizzard = createHazardZone(
-                  'blizzard',
-                  proj.ownerId,
-                  0, 0,
-                  proj.damage,
-                  6000
-                );
-                blizzard.x = proj.x + proj.width / 2 - blizzard.width / 2;
-                blizzard.y = platform.y - blizzard.height / 2; // On top of platform
-
-                // Initial freeze on spawn
-                const opponentId = proj.ownerId === 1 ? 2 : 1;
-                const opponent = players[opponentId - 1];
-                if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE)) {
-                  players[opponentId - 1].isFrozen = true;
-                  players[opponentId - 1].frozenDuration = 750;
-                }
-
-                hazardZones.push(blizzard);
-              }
+              const contact = getProjectileCollisionTime(proj, previousPosition, platform) ?? 1;
+              createImpactZone(proj,
+                previousPosition.x + (proj.x - previousPosition.x) * contact + proj.width / 2,
+                previousPosition.y + (proj.y - previousPosition.y) * contact + proj.height / 2,
+                platform);
               return false;
             }
           }
@@ -1315,25 +1315,10 @@ export const useGameEngine = (
 
         // Blizzard Stone ground collision
         if (proj.type === 'blizzard-stone' && proj.y + proj.height >= ARENA.height - ARENA.padding) {
-          const blizzard = createHazardZone(
-            'blizzard',
-            proj.ownerId,
-            0, 0,
-            proj.damage,
-            6000 // 6 seconds duration
-          );
-          blizzard.x = proj.x + proj.width / 2 - blizzard.width / 2;
-          blizzard.y = ARENA.height - ARENA.padding - blizzard.height / 2; // On ground
-
-          // Initial freeze on spawn
-          const opponentId = proj.ownerId === 1 ? 2 : 1;
-          const opponent = players[opponentId - 1];
-          if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE)) {
-            players[opponentId - 1].isFrozen = true;
-            players[opponentId - 1].frozenDuration = 750;
-          }
-
-          hazardZones.push(blizzard);
+          emitExplosion(proj, { x: 0, y: ARENA.height - ARENA.padding, width: ARENA.width, height: ARENA.padding });
+          createImpactZone(proj, proj.x + proj.width / 2,
+            ARENA.height - ARENA.padding - proj.height / 2,
+            { x: 0, y: ARENA.height - ARENA.padding, width: ARENA.width, height: ARENA.padding });
           return false;
         }
 
@@ -1369,52 +1354,25 @@ export const useGameEngine = (
             emitExplosion(proj);
             const impactX = proj.x + proj.width / 2;
             const impactY = proj.y + proj.height / 2;
-
-            if (proj.type === 'blizzard-stone') {
-              const blizzard = createHazardZone(
-                'blizzard',
-                proj.ownerId,
-                0,
-                0,
-                proj.damage,
-                6000
-              );
-              blizzard.x = impactX - blizzard.width / 2;
-              blizzard.y = impactY - blizzard.height / 2;
-
-              const opponent = players[proj.ownerId === 1 ? 1 : 0];
-              if (checkCollision(
-                blizzard.x, blizzard.y, blizzard.width, blizzard.height,
-                opponent.x, opponent.y, PLAYER_SIZE, PLAYER_SIZE
-              )) {
-                opponent.isFrozen = true;
-                opponent.frozenDuration = 750;  // Freezes enemy on impact
-              }
-
-              hazardZones.push(blizzard);
-            } else if (proj.isExplosive && proj.createsFirePool && !proj.isNapalm) {
-              const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
-              const isToxic = proj.type === 'flask';
-              const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
-              const pool = createHazardZone(
-                poolType,
-                proj.ownerId,
-                0, 0,
-                damage,
-                proj.firePoolDuration
-              );
-              pool.x = impactX - pool.width / 2;
-              pool.y = impactY - pool.height / 2;
-              hazardZones.push(pool);
-            }
+            createImpactZone(proj, impactX, impactY);
             return false;
           }
         }
 
         const victim = players[proj.ownerId === 1 ? 1 : 0];
-        let bodyTime = getProjectileCollisionTime(proj, previousPosition, { ...victim, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity;
+        const canHitVictim = !victim.isEvading && !victim.isInvulnerable &&
+          !(projectilePierces(proj, 'player') && now - (proj.lastHitTime[victim.id] || 0) < (proj.type === 'large-snowball' ? 50 : 100)) &&
+          (proj.type !== 'bat' || !(proj.returnPhase === 'returning' ? proj.hasHitReturn : proj.hasHitForward));
+        let bodyTime = canHitVictim
+          ? getProjectileCollisionTime(proj, previousPosition, { ...victim, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity
+          : Infinity;
         for (const clone of nextClones) {
-          if (clone.id !== proj.ownerId) bodyTime = Math.min(bodyTime, getProjectileCollisionTime(proj, previousPosition, { ...clone, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity);
+          if (clone.id !== proj.ownerId && !clone.isEvading && !clone.isInvulnerable &&
+            !(projectilePierces(proj, 'player') && now - (proj.lastHitTime[clone.id] || 0) < (proj.type === 'large-snowball' ? 50 : 100)) &&
+            (proj.type !== 'bat' || !proj.hasHitForward)) {
+            bodyTime = Math.min(bodyTime, getProjectileCollisionTime(proj, previousPosition,
+              { ...clone, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity);
+          }
         }
         let firstSword: AttackHitbox | undefined;
         let swordTime = Infinity;
@@ -1426,46 +1384,43 @@ export const useGameEngine = (
           }
         }
 
-        // A vine reached before a fighter consumes exactly one projectile, even
-        // when that shot crosses the entire vine in one tick.
+        let vine: GameEngineState['vineShields'][number] | undefined;
+        let vineTime = Infinity;
         if (mapId === 'jungle') {
-          let vine: GameEngineState['vineShields'][number] | undefined;
-          let vineTime = Math.min(bodyTime, swordTime);
           for (const candidate of prev.vineShields) {
             if (!activeVine(candidate, now) || brokenVines.has(candidate.id)) continue;
             const time = getProjectileCollisionTime(proj, previousPosition, candidate);
             if (time !== null && time < vineTime) { vineTime = time; vine = candidate; }
           }
-          if (vine) { brokenVines.add(vine.id); emitExplosion(proj, vine); return false; }
         }
-
-        // Check collision with Tesla Coils
-        const hitCoil = findProjectileCoilContact(proj, hazardZones);
-        if (hitCoil) {
-          emitExplosion(proj, hitCoil);
-          coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
-
-          if (proj.createsFirePool && !proj.isNapalm) {
-            const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
-            const isToxic = proj.type === 'flask';
-            const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
-            const pool = createHazardZone(
-              poolType,
-              proj.ownerId,
-              0, 0,
-              damage,
-              proj.firePoolDuration
-            );
-            // proj.x is top-left; center pool on projectile
-            pool.x = proj.x + proj.width / 2 - pool.width / 2;
-            pool.y = hitCoil.y + hitCoil.height - pool.height / 2;
-            hazardZones.push(pool);
+        const hitCoil = findProjectileCoilContact(proj, hazardZones, previousPosition);
+        const coilTime = hitCoil ? getProjectileCollisionTime(proj, previousPosition, hitCoil) ?? Infinity : Infinity;
+        const worldContacts = [
+          ...(vine ? [{ kind: 'vine' as const, time: vineTime }] : []),
+          ...(hitCoil ? [{ kind: 'coil' as const, time: coilTime }] : []),
+        ].sort((a, b) => a.time - b.time);
+        const bodyBlockTime = projectilePierces(proj, 'player') ? Infinity : bodyTime;
+        for (const contact of worldContacts) {
+          if (contact.time >= Math.min(bodyBlockTime, swordTime)) break;
+          if (contact.kind === 'vine' && vine) {
+            brokenVines.add(vine.id);
+            const x = previousPosition.x + (proj.x - previousPosition.x) * vineTime + proj.width / 2;
+            const y = previousPosition.y + (proj.y - previousPosition.y) * vineTime + proj.height / 2;
+            emitExplosion(proj, vine);
+            createImpactZone(proj, x, y);
+            if (!projectilePierces(proj, 'vine')) return false;
+          } else if (contact.kind === 'coil' && hitCoil) {
+            const x = previousPosition.x + (proj.x - previousPosition.x) * coilTime + proj.width / 2;
+            const y = previousPosition.y + (proj.y - previousPosition.y) * coilTime + proj.height / 2;
+            emitExplosion(proj, hitCoil);
+            createImpactZone(proj, x, y);
+            coilDamageMap.set(hitCoil.id, (coilDamageMap.get(hitCoil.id) || 0) + proj.damage);
+            if (projectilePierces(proj, 'coil')) {
+              proj.hitCoilIds = [...(proj.hitCoilIds || []), hitCoil.id];
+            } else {
+              return false;
+            }
           }
-          if (proj.type === 'bat') {
-            proj.hitCoilIds = [...(proj.hitCoilIds || []), hitCoil.id];
-            return true;
-          }
-          return false;
         }
 
         // Resolve a sword reached before the body; fast projectiles cannot tunnel past it.
@@ -1491,115 +1446,60 @@ export const useGameEngine = (
 
         // For bat projectiles: allow damage on both forward and return path, but only once per direction
         if (proj.type === 'bat') {
-          if (isReturningToOwner) {
-            // Bat on return path - can hit if hasn't hit on return yet
-            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitReturn && checkProjectileCollision(
-              proj,
-              previousPosition,
-              { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
-            )) {
-              // Apply damage on return path
-              const damageRes = applyDamage(playerTarget, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
-              recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
-              players[targetPlayerIndex] = damageRes.player;
-              proj.hasHitReturn = true; // Mark as hit on return path
-
-              // Reaper Passive: Life steal 15%
-              const ownerIndex = proj.ownerId - 1;
-              if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
-                setHealth(players[ownerIndex], Math.min(
-                  players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * regenMultiplier
-                ), entityDamageSource(diagnostics, proj, 'direct'));
-                // Accumulate damage for extra healing on return
-                proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
-              }
-              // Continue returning to owner
-              return true;
-            }
-          } else {
-            // Bat on forward path - can hit player
-            if (!playerTarget.isEvading && !playerTarget.isInvulnerable && !proj.hasHitForward && checkProjectileCollision(
-              proj,
-              previousPosition,
-              { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
-            )) {
-              if (playerTarget.isShielding) {
-                const fromFront = shieldFacesX(playerTarget, previousPosition.x + proj.width / 2);
-                if (fromFront) {
-                  // Shield blocks bat
-                  recordBlocked(diagnostics, playerTarget, proj.damage);
-                  return false;
-                }
-              }
-
-              const damageRes = applyDamage(playerTarget, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
-              recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
-              players[targetPlayerIndex] = damageRes.player;
-              proj.hasHitForward = true; // Mark as hit on forward path
-
-              // Reaper Passive: Life steal 15%
-              const ownerIndex = proj.ownerId - 1;
-              if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
-                const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
-                setHealth(players[ownerIndex], Math.min(
-                  players[ownerIndex].maxHealth,
-                  players[ownerIndex].health + damageRes.dealt * regenMultiplier
-                ), entityDamageSource(diagnostics, proj, 'direct'));
-                // Accumulate damage for extra healing on return
-                proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
-              }
-
-              // Returning projectiles don't disappear immediately on hit if they haven't returned yet
-              if (proj.isReturning && proj.returnPhase !== 'returning') {
-                return true;
-              }
-
+          const phaseAlreadyHit = isReturningToOwner ? proj.hasHitReturn : proj.hasHitForward;
+          const contacts = !phaseAlreadyHit && !playerTarget.isEvading && !playerTarget.isInvulnerable
+            ? [{ target: playerTarget as Player, playerIndex: targetPlayerIndex as number, cloneIndex: -1,
+              time: getProjectileCollisionTime(proj, previousPosition,
+                { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity }]
+            : [];
+          if (!isReturningToOwner && !phaseAlreadyHit) nextClones.forEach((clone, cloneIndex) => {
+            if (clone.id === proj.ownerId || clone.isEvading || clone.isInvulnerable) return;
+            const time = getProjectileCollisionTime(proj, previousPosition,
+              { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
+            if (time !== null) contacts.push({ target: clone, playerIndex: -1, cloneIndex, time });
+          });
+          contacts.sort((a, b) => a.time - b.time);
+          const contact = contacts[0];
+          if (contact) {
+            const target = contact.target;
+            if (target.isShielding && shieldFacesX(target, previousPosition.x + proj.width / 2)) {
+              recordBlocked(diagnostics, target, proj.damage);
               return false;
             }
+            const damageRes = applyDamage(target, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
+            recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
+            if (contact.playerIndex >= 0) players[contact.playerIndex] = damageRes.player;
+            else nextClones[contact.cloneIndex] = damageRes.player;
+            if (isReturningToOwner) proj.hasHitReturn = true;
+            else proj.hasHitForward = true;
 
-            // Check collision with clones on forward path
-            for (let i = 0; i < nextClones.length; i++) {
-              const clone = nextClones[i];
-              if (clone.id !== proj.ownerId && !clone.isEvading && !clone.isInvulnerable && checkProjectileCollision(
-                proj,
-                previousPosition,
-                { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
-              )) {
-                const damageRes = applyDamage(clone, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
-                recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);
-                nextClones[i] = damageRes.player;
-                if (proj.isReturning && proj.returnPhase !== 'returning') {
-                  return true;
-                }
-                return false;
-              }
+            const ownerIndex = proj.ownerId - 1;
+            if (players[ownerIndex].character?.id === 'reaper' && damageRes.dealt > 0) {
+              const regenMultiplier = players[ownerIndex].isUsingUltimate ? 0.33 : 0.15;
+              setHealth(players[ownerIndex], Math.min(players[ownerIndex].maxHealth,
+                players[ownerIndex].health + damageRes.dealt * regenMultiplier), entityDamageSource(diagnostics, proj, 'direct'));
+              proj.damageAccumulated = (proj.damageAccumulated || 0) + damageRes.dealt;
             }
+            return true;
           }
         } else {
           // Non-bat projectiles: original logic
           if (!isReturningToOwner) {
-            // Check player collision first
-            const hitPlayer = !playerTarget.isEvading && !playerTarget.isInvulnerable && checkProjectileCollision(
-              proj,
-              previousPosition,
-              { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
-            );
-
-            // Find clone collision if player not hit
+            const playerTime = !playerTarget.isEvading && !playerTarget.isInvulnerable
+              ? getProjectileCollisionTime(proj, previousPosition,
+                { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity
+              : Infinity;
             let hitCloneIndex = -1;
-            if (!hitPlayer) {
-              hitCloneIndex = nextClones.findIndex(c =>
-                c.id !== proj.ownerId &&
-                !c.isEvading &&
-                !c.isInvulnerable &&
-                checkProjectileCollision(
-                  proj,
-                  previousPosition,
-                  { x: c.x, y: c.y, width: PLAYER_SIZE, height: PLAYER_SIZE }
-                )
-              );
+            let cloneTime = Infinity;
+            nextClones.forEach((clone, index) => {
+              if (clone.id === proj.ownerId || clone.isEvading || clone.isInvulnerable) return;
+              const time = getProjectileCollisionTime(proj, previousPosition,
+                { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
+              if (time !== null && time < cloneTime) { cloneTime = time; hitCloneIndex = index; }
+            });
+            const hitPlayer = playerTime <= cloneTime && playerTime < Infinity;
+            if (hitPlayer) {
+              hitCloneIndex = -1;
             }
 
             if (hitPlayer || hitCloneIndex !== -1) {
@@ -1623,14 +1523,18 @@ export const useGameEngine = (
                 }
               }
 
-              // Check if this projectile has recently hit this target (for penetrating projectiles)
-              // Allow re-hit after 100ms (50ms for large snowballs)
-              const lastHit = proj.lastHitTime[currentTarget.id] || 0;
-              if (now - lastHit < (proj.type === "large-snowball" ? 50 : 100)) {
-                return true;
+              const targetRect = { x: target.x, y: target.y, width: PLAYER_SIZE, height: PLAYER_SIZE };
+              emitExplosion(proj, targetRect);
+              const impactTime = getProjectileCollisionTime(proj, previousPosition, targetRect) ?? 1;
+              const impactX = previousPosition.x + (proj.x - previousPosition.x) * impactTime + proj.width / 2;
+              const impactY = previousPosition.y + (proj.y - previousPosition.y) * impactTime + proj.height / 2;
+              createImpactZone(proj, impactX, impactY);
+              if (proj.type === 'blizzard-stone' && hazardZones.at(-1)?.type === 'blizzard' &&
+                checkCollision(hazardZones.at(-1)!.x, hazardZones.at(-1)!.y, hazardZones.at(-1)!.width, hazardZones.at(-1)!.height,
+                currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE)) {
+                currentTarget.isFrozen = true;
+                currentTarget.frozenDuration = 750;
               }
-
-              emitExplosion(proj, { x: target.x, y: target.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
 
               // Archer Passive: Long range shot (> 325ms) deals 15% bonus damage
               if (players[proj.ownerId - 1].character?.id === 'archer' && now - proj.createdAt > 360) {
@@ -1825,26 +1729,6 @@ export const useGameEngine = (
                 currentTarget.knockbackVelocityX = knockbackDir * kbForce;
               }
 
-              // Ice Mage Blizzard Stone impact on player
-              if (proj.type === 'blizzard-stone') {
-                const blizzard = createHazardZone(
-                  'blizzard',
-                  proj.ownerId,
-                  0, 0,
-                  proj.damage,
-                  6000 // 6 seconds duration
-                );
-                blizzard.x = proj.x + proj.width / 2 - blizzard.width / 2;
-                blizzard.y = proj.y + proj.height / 2 - blizzard.height / 2; // Centered on impact
-
-                // Initial freeze on spawn
-                if (checkCollision(blizzard.x, blizzard.y, blizzard.width, blizzard.height, currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE)) {
-                  currentTarget.isFrozen = true;
-                  currentTarget.frozenDuration = 750;
-                }
-                hazardZones.push(blizzard);
-              }
-
               // Hacker Position Swap
               if (proj.isSwapMissile) {
                 // Swap positions!
@@ -1876,23 +1760,6 @@ export const useGameEngine = (
 
               if (proj.isHackUltimate) return false;
 
-              if (proj.createsFirePool && !proj.isNapalm) {
-                const poolType = proj.type === 'flask' ? 'toxic-pool' : 'fire-pool';
-                const isToxic = proj.type === 'flask';
-                const damage = isToxic ? proj.damage * 0.2 : proj.damage * 0.03;
-                const pool = createHazardZone(
-                  poolType,
-                  proj.ownerId,
-                  0, 0,
-                  damage,
-                  proj.firePoolDuration
-                );
-                // proj.x/proj.y are top-left; center pool on projectile
-                pool.x = proj.x + proj.width / 2 - pool.width / 2;
-                pool.y = proj.y + proj.height / 2 - pool.height / 2;
-                hazardZones.push(pool);
-              }
-
               // Returning projectiles don't disappear immediately on hit if they haven't returned yet
               if (proj.isReturning) {
                 if (timeSinceCreated < proj.lifetime * 0.35) {
@@ -1900,8 +1767,7 @@ export const useGameEngine = (
                 }
               }
 
-              // Ice Mage skill projectiles (large-snowball) penetrate
-              if (proj.type === 'large-snowball') {
+              if (projectilePierces(proj, 'player')) {
                 return true;
               }
 

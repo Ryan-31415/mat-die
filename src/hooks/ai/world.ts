@@ -1,9 +1,9 @@
-import { ARENA, type Player } from '@/types/game';
+import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
 import type { AIForecasts } from '@/types/ai';
 import { forecastPoint, forecastTime, sampleForecastError, type ForecastError } from './forecast';
 import type { MapId } from '@/types/map';
 import type { Platform } from '@/types/platform';
-import { checkProjectileCollision, getProjectileCollisionTime, type AttackHitbox, type HazardZone, type Projectile } from '@/types/projectile';
+import { checkProjectileCollision, getProjectileCollisionTime, projectileImpactZone, projectilePierces, type AttackHitbox, type HazardZone, type Projectile } from '@/types/projectile';
 import { stepProjectileMotion, stepCoilMotion, playerOverlapsRect, POOL_SIZE, findProjectileCoilContact } from '@/types/combatPhysics';
 import { advanceCoilForecast } from './coil';
 
@@ -135,6 +135,14 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
       path.x[step] = projected.x; path.y[step] = projected.y;
       path.returning[step] = p.returnPhase === 'returning' ? 1 : 0;
       if (sampleNow - p.createdAt > p.lifetime) { path.endStep = step - 1; continue; }
+      const targetPosition = { ...target, x: target.x + target.velocityX * t, y: target.y + target.velocityY * t };
+      const bodyTime = p.type === 'bat' && (p.returnPhase === 'returning' ? p.hasHitReturn : p.hasHitForward)
+        ? Infinity
+        : getProjectileCollisionTime(projected, previous, { ...targetPosition, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity;
+      const bodyBlockTime = projectilePierces(p, 'player') ? Infinity : bodyTime;
+      const swordTime = world.attackHitboxes.reduce((first, hitbox) => hitbox.ownerId !== p.ownerId &&
+        hitbox.canDeflectProjectiles && sampleNow - hitbox.createdAt <= hitbox.duration
+        ? Math.min(first, getProjectileCollisionTime(projected, previous, hitbox) ?? Infinity) : first, Infinity);
       const surface = p.hasGravity && p.type !== 'meteor'
         ? world.platforms.find(platform => checkProjectileCollision(projected, previous, platform)) : undefined;
       let vine: VineShield | undefined, vineTime = Infinity;
@@ -146,43 +154,51 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
         if (destroyedVines.has(candidate.id) || now + at * 1000 - candidate.createdAt > candidate.duration) continue;
         const obstacle = forecast && error ? forecastPoint(candidate, forecast, error, t) : candidate;
         const contact = getProjectileCollisionTime(projected, previous, obstacle);
-        if (contact !== null && contact < vineTime) { vine = candidate; vineTime = contact; }
+        if (contact !== null && contact < vineTime && contact < Math.min(bodyBlockTime, swordTime)) { vine = candidate; vineTime = contact; }
       }
       const outside = projected.x < -50 || projected.x > ARENA.width + 50 || projected.y > ARENA.height;
+      if (vine) destroyedVines.add(vine.id);
       if (surface || vine || outside) {
-        if (vine) destroyedVines.add(vine.id);
-        path.endStep = step;
-        // Preserve the engine's impact policy: flasks/blizzard land on platforms;
-        // other pools spawn at the boundary; napalm also ignites struck vines.
-        if ((p.isNapalm && vine) || (!vine && (p.type === 'flask' || p.type === 'blizzard-stone' || (!surface && p.createsFirePool)))) {
-          const size = p.isNapalm ? p.explosionRadius * 2 : POOL_SIZE[p.type === 'flask' ? 'toxic-pool' : p.type === 'blizzard-stone' ? 'blizzard' : 'fire-pool'];
-          const contact = vine ? vineTime : 1;
-          let x = previous.x + (projected.x - previous.x) * contact + p.width / 2 - size / 2;
-          if (surface && p.type === 'flask') x = Math.max(surface.x, Math.min(x, surface.x + surface.width - size));
-          pools.push({ ownerId: p.ownerId, x, y: (surface?.y ?? previous.y + (projected.y - previous.y) * contact + p.height / 2) - size / 2,
-            width: size, height: size, impactTime: t, damage: p.isNapalm ? p.firePoolDamage : undefined, duration: p.firePoolDuration, sourceProjectileId: p.id });
+        const terminal = !!surface || outside || !vine || !projectilePierces(p, 'vine');
+        if (terminal) path.endStep = step;
+        const impact = projectileImpactZone(p);
+        if (impact && (vine || surface || outside)) {
+          const contact = vine ? vineTime : surface ? getProjectileCollisionTime(projected, previous, surface) ?? 1 : 1;
+          const impactX = previous.x + (projected.x - previous.x) * contact + p.width / 2;
+          const impactY = surface ? surface.y : previous.y + (projected.y - previous.y) * contact + p.height / 2;
+          const size = impact.type === 'blizzard' ? POOL_SIZE.blizzard
+            : impact.isNapalm ? Math.max(p.explosionRadius, p.width / 2, p.height / 2) * 2
+              : POOL_SIZE[impact.type];
+          let x = impactX - size / 2;
+          if (surface && impact.type === 'toxic-pool') x = Math.max(surface.x, Math.min(x, surface.x + surface.width - size));
+          pools.push({ ownerId: p.ownerId, x, y: impactY - size / 2, width: size, height: size,
+            impactTime: t, damage: impact.damage, duration: impact.duration, sourceProjectileId: p.id });
         }
-        continue;
+        if (terminal) continue;
       }
       // Endpoint contact occurs after surfaces/vines, before sword/body and
       // before ALL same-callback coil damage, expiry, decay and falling.
-      const coil = contactCoils.length ? findProjectileCoilContact(projected, contactCoils) : undefined;
+      const coilCandidate = contactCoils.length ? findProjectileCoilContact(projected, contactCoils, previous) : undefined;
+      const coilTime = coilCandidate ? getProjectileCollisionTime(projected, previous, coilCandidate) ?? Infinity : Infinity;
+      const coil = coilTime < Math.min(bodyBlockTime, swordTime, vineTime) ? coilCandidate : undefined;
       if (coil) {
         path.coilContacts.push({ coilId: coil.id, step, rawDamage: p.damage });
         coilDamage.set(coil.id, (coilDamage.get(coil.id) ?? 0) + p.damage);
-        if (p.isNapalm || p.createsFirePool) {
-          const size = p.isNapalm ? Math.max(p.explosionRadius, p.width / 2, p.height / 2) * 2 : POOL_SIZE[p.type === 'flask' ? 'toxic-pool' : 'fire-pool'];
+        const impact = projectileImpactZone(p);
+        if (impact) {
+          const size = impact.type === 'blizzard' ? POOL_SIZE.blizzard
+            : impact.isNapalm ? Math.max(p.explosionRadius, p.width / 2, p.height / 2) * 2
+              : POOL_SIZE[impact.type];
           const contact = getProjectileCollisionTime(projected, previous, coil) ?? 1;
           const impactX = previous.x + (projected.x - previous.x) * contact + p.width / 2;
           const impactY = previous.y + (projected.y - previous.y) * contact + p.height / 2;
           pools.push({ ownerId: p.ownerId,
-            x: (p.isNapalm ? Math.max(coil.x, Math.min(impactX, coil.x + coil.width)) : projected.x + p.width / 2) - size / 2,
-            y: (p.isNapalm ? Math.max(coil.y, Math.min(impactY, coil.y + coil.height)) : coil.y + coil.height) - size / 2,
+            x: impactX - size / 2,
+            y: impactY - size / 2,
             width: size, height: size, impactTime: t,
-            damage: p.isNapalm ? p.firePoolDamage ?? p.damage * 0.1 : p.damage * (p.type === 'flask' ? 0.2 : 0.03),
-            duration: p.firePoolDuration, sourceProjectileId: p.id });
+            damage: impact.damage, duration: impact.duration, sourceProjectileId: p.id });
         }
-        if (p.type === 'bat') p.hitCoilIds = [...(p.hitCoilIds ?? []), coil.id];
+        if (projectilePierces(p, 'coil')) p.hitCoilIds = [...(p.hitCoilIds ?? []), coil.id];
         else path.endStep = step - 1;
       }
     }
