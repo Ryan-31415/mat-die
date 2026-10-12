@@ -34,6 +34,7 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
     (frame.forecasts?.projectiles.horizonMs ?? shot.lifetime) / 1000 - leadMs / 1000,
     (frame.forecasts?.opponent.horizonMs ?? shot.lifetime) / 1000 - leadMs / 1000);
   if (horizon < firstDt) return { kind: 'uncertain', timeMs: leadMs, damage: 0 };
+  const fallbackCoils = frame.zones.filter(zone => zone.type === 'tesla-coil');
   let step = 1;
   for (let time = firstDt; time <= horizon + 1e-9; time += AI_DT) {
     const dt = time === firstDt ? firstDt : AI_DT;
@@ -44,7 +45,7 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
       damage: kind === 'enemy' ? launch.damage * (time * 1000 > 360 ? 1.15 : 1) : 0 });
     // The engine resolves a gravity projectile against platforms before fighters.
     if (frame.world.platforms.some(platform => getProjectileCollisionTime(shot, previous, platform) !== null)) return result('surface');
-    const target = { ...opponent, ...targetAt(time + leadMs / 1000), width: PLAYER_SIZE, height: PLAYER_SIZE };
+    const target = { ...targetAt(time + leadMs / 1000), width: PLAYER_SIZE, height: PLAYER_SIZE };
     const body = getProjectileCollisionTime(shot, previous, target) ?? Infinity;
     const now = frame.world.now + timeMs;
     const sword = shot.canBeDeflected ? frame.hitboxes.reduce((first, hitbox) =>
@@ -53,12 +54,13 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
     const vineTime = frame.world.mapId === 'jungle' ? frame.vines.reduce((first, vine) => now - vine.createdAt <= vine.duration
       ? Math.min(first, getProjectileCollisionTime(shot, previous, vine) ?? Infinity) : first, Infinity) : Infinity;
     while (step < frame.steps && frame.times[step] < time + leadMs / 1000) step++;
-    const coil = findProjectileCoilContact(shot, frame.coilSnapshots.get(step) ?? frame.zones.filter(zone => zone.type === 'tesla-coil'), previous);
+    const coil = findProjectileCoilContact(shot, frame.coilSnapshots.get(step) ?? fallbackCoils, previous);
     const coilTime = coil ? getProjectileCollisionTime(shot, previous, coil) ?? Infinity : Infinity;
     if (Math.min(vineTime, coilTime) < Math.min(body, sword)) return result(vineTime < coilTime ? 'vine' : 'coil');
     if (sword < body) return result('sword');
     if (body < Infinity) {
-      if (target.isInvulnerable || target.isEvading || shieldFacesX(target, previous.x + shot.width / 2)) return result('shield');
+      if (opponent.isInvulnerable || opponent.isEvading || shieldFacesX({ x: target.x,
+        facingRight: opponent.facingRight, isShielding: opponent.isShielding }, previous.x + shot.width / 2)) return result('shield');
       // Burst angles vary by five degrees. Credit only shots whose vertical
       // overlap survives both edges of that cone; never sample future RNG.
       const spread = burst ? Math.abs(shot.x - spawnX) * Math.tan(5 * Math.PI / 180) : 0;

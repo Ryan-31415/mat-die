@@ -135,10 +135,12 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
       path.x[step] = projected.x; path.y[step] = projected.y;
       path.returning[step] = p.returnPhase === 'returning' ? 1 : 0;
       if (sampleNow - p.createdAt > p.lifetime) { path.endStep = step - 1; continue; }
-      const targetPosition = { ...target, x: target.x + target.velocityX * t, y: target.y + target.velocityY * t };
+      // Collision needs only the predicted rectangle, not a copy of every status.
+      const targetPosition = { x: target.x + target.velocityX * t, y: target.y + target.velocityY * t,
+        width: PLAYER_SIZE, height: PLAYER_SIZE };
       const bodyTime = p.type === 'bat' && (p.returnPhase === 'returning' ? p.hasHitReturn : p.hasHitForward)
         ? Infinity
-        : getProjectileCollisionTime(projected, previous, { ...targetPosition, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity;
+        : getProjectileCollisionTime(projected, previous, targetPosition) ?? Infinity;
       const bodyBlockTime = projectilePierces(p, 'player') ? Infinity : bodyTime;
       const swordTime = world.attackHitboxes.reduce((first, hitbox) => hitbox.ownerId !== p.ownerId &&
         hitbox.canDeflectProjectiles && sampleNow - hitbox.createdAt <= hitbox.duration

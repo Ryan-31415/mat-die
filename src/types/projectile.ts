@@ -138,17 +138,23 @@ export const getProjectileCollisionTime = (
   let entryTime = 0;
   let exitTime = 1;
 
-  for (const [start, delta, min, max] of [
-    [previousPosition.x, deltaX, minX, maxX],
-    [previousPosition.y, deltaY, minY, maxY],
-  ]) {
-    if (delta === 0) {
-      if (start < min || start > max) return null;
-      continue;
-    }
+  // Keep the x-then-y slab arithmetic and early exits without allocating
+  // three arrays for every swept collision in the prediction loops.
+  if (deltaX === 0) {
+    if (previousPosition.x < minX || previousPosition.x > maxX) return null;
+  } else {
+    const firstIntersection = (minX - previousPosition.x) / deltaX;
+    const secondIntersection = (maxX - previousPosition.x) / deltaX;
+    entryTime = Math.max(entryTime, Math.min(firstIntersection, secondIntersection));
+    exitTime = Math.min(exitTime, Math.max(firstIntersection, secondIntersection));
+    if (entryTime > exitTime) return null;
+  }
 
-    const firstIntersection = (min - start) / delta;
-    const secondIntersection = (max - start) / delta;
+  if (deltaY === 0) {
+    if (previousPosition.y < minY || previousPosition.y > maxY) return null;
+  } else {
+    const firstIntersection = (minY - previousPosition.y) / deltaY;
+    const secondIntersection = (maxY - previousPosition.y) / deltaY;
     entryTime = Math.max(entryTime, Math.min(firstIntersection, secondIntersection));
     exitTime = Math.min(exitTime, Math.max(firstIntersection, secondIntersection));
     if (entryTime > exitTime) return null;

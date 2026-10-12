@@ -1,0 +1,465 @@
+{
+  "baselineCommit": "71fbc1861a14642cc6a8e652cfa8ca1c9cb1f8fe",
+  "archerCommit": "ec354c55fcb68af9b2912033ed0a36efc3655086",
+  "preArcherCommit": "308dda2a1a091bac6422560740338b2da2b76b49",
+  "beforeHash": "6000f21cf991e6cacff756133bf1bf3c0a3ade149786c225c5777c2dfec11b5d",
+  "afterHash": "1d09e386481bcdb536fedf13ed8f9a7cb4965ab63e84de71fd50a25a3135ce4a",
+  "previousHash": "bac9d9c4abdb7c5f6ead589d47d368773e7c8adb345e4d5819275eb082155f80",
+  "environment": {
+    "node": "v22.18.0",
+    "cpu": "13th Gen Intel(R) Core(TM) i5-13420H",
+    "platform": "win32",
+    "os": "10.0.26200",
+    "powerScheme": "Balanced"
+  },
+  "protocol": {
+    "repeats": 3,
+    "warmup": 160,
+    "samples": 240,
+    "blockSize": 16,
+    "aggregation": "Median of each metric across three repetitions; changes are ratios of those medians.",
+    "singleWorker": true,
+    "fixedObservation": true,
+    "combatSimulations": 0
+  },
+  "conditions": [
+    {
+      "projectiles": 0,
+      "before": {
+        "meanMs": 0.266785833333338,
+        "p95Ms": 0.5713000000000648,
+        "p99Ms": 0.8565000000000964
+      },
+      "current": {
+        "meanMs": 0.22891083333333645,
+        "p95Ms": 0.4592000000000098,
+        "p99Ms": 0.6843000000000075
+      },
+      "previous": {
+        "meanMs": 0.2077104166666634,
+        "p95Ms": 0.4420999999999822,
+        "p99Ms": 0.6419999999998254
+      },
+      "p95ChangePercent": -19.621914930866836,
+      "p95VsPreArcherPercent": 3.867903189330102,
+      "pairedP95RatioMedian": 0.9093167701864927
+    },
+    {
+      "projectiles": 20,
+      "before": {
+        "meanMs": 1.7776912500000246,
+        "p95Ms": 2.593699999999444,
+        "p99Ms": 3.0778000000000247
+      },
+      "current": {
+        "meanMs": 1.4218770833333223,
+        "p95Ms": 2.1408000000001266,
+        "p99Ms": 2.4384000000000015
+      },
+      "previous": {
+        "meanMs": 1.27831333333332,
+        "p95Ms": 1.9368999999996959,
+        "p99Ms": 2.172099999999773
+      },
+      "p95ChangePercent": -17.461541427282057,
+      "p95VsPreArcherPercent": 10.527130982521694,
+      "pairedP95RatioMedian": 0.7514684287813574
+    },
+    {
+      "projectiles": 60,
+      "before": {
+        "meanMs": 4.392475416666624,
+        "p95Ms": 5.989399999998568,
+        "p99Ms": 6.964899999999034
+      },
+      "current": {
+        "meanMs": 3.24910375000001,
+        "p95Ms": 4.511000000000422,
+        "p99Ms": 5.029099999999744
+      },
+      "previous": {
+        "meanMs": 2.9922533333333226,
+        "p95Ms": 4.216899999999441,
+        "p99Ms": 4.66110000000117
+      },
+      "p95ChangePercent": -24.683607706923894,
+      "p95VsPreArcherPercent": 6.974317626716786,
+      "pairedP95RatioMedian": 0.754865375926778
+    },
+    {
+      "projectiles": 120,
+      "before": {
+        "meanMs": 9.62001250000012,
+        "p95Ms": 12.54780000000028,
+        "p99Ms": 13.553800000001502
+      },
+      "current": {
+        "meanMs": 6.848139583333325,
+        "p95Ms": 9.424299999998766,
+        "p99Ms": 10.108099999997648
+      },
+      "previous": {
+        "meanMs": 6.341603333333614,
+        "p95Ms": 8.895700000000943,
+        "p99Ms": 9.552300000003015
+      },
+      "p95ChangePercent": -24.892809894973176,
+      "p95VsPreArcherPercent": 5.942196791683241,
+      "pairedP95RatioMedian": 0.7510719010502682
+    }
+  ],
+  "parity": {
+    "transitions": 1500,
+    "counts": [
+      {
+        "projectiles": 0,
+        "before": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 285
+        },
+        "after": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 285
+        }
+      },
+      {
+        "projectiles": 20,
+        "before": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 1102
+        },
+        "after": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 1102
+        }
+      },
+      {
+        "projectiles": 60,
+        "before": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 2736
+        },
+        "after": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 2736
+        }
+      },
+      {
+        "projectiles": 120,
+        "before": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 5187
+        },
+        "after": {
+          "movement": 6,
+          "shots": 1,
+          "collisions": 5187
+        }
+      }
+    ],
+    "beforeHash": "6000f21cf991e6cacff756133bf1bf3c0a3ade149786c225c5777c2dfec11b5d",
+    "afterHash": "1d09e386481bcdb536fedf13ed8f9a7cb4965ab63e84de71fd50a25a3135ce4a"
+  },
+  "budget": {
+    "elapsedMs": 81887.41279999999,
+    "benchmarks": 2,
+    "profiles": 1
+  },
+  "rawResults": [
+    {
+      "projectiles": 0,
+      "repeat": 0,
+      "order": [
+        "before",
+        "current",
+        "previous"
+      ],
+      "before": {
+        "meanMs": 0.3728866666666695,
+        "p95Ms": 0.7785000000000082,
+        "p99Ms": 1.1114999999999782
+      },
+      "current": {
+        "meanMs": 0.34787916666666613,
+        "p95Ms": 0.7627999999999702,
+        "p99Ms": 1.3980999999999995
+      },
+      "previous": {
+        "meanMs": 0.33166416666666737,
+        "p95Ms": 0.84050000000002,
+        "p99Ms": 1.1211000000000695
+      }
+    },
+    {
+      "projectiles": 0,
+      "repeat": 1,
+      "order": [
+        "current",
+        "previous",
+        "before"
+      ],
+      "current": {
+        "meanMs": 0.22891083333333645,
+        "p95Ms": 0.4592000000000098,
+        "p99Ms": 0.6843000000000075
+      },
+      "previous": {
+        "meanMs": 0.2077104166666634,
+        "p95Ms": 0.4420999999999822,
+        "p99Ms": 0.6419999999998254
+      },
+      "before": {
+        "meanMs": 0.266785833333338,
+        "p95Ms": 0.5713000000000648,
+        "p99Ms": 0.8565000000000964
+      }
+    },
+    {
+      "projectiles": 0,
+      "repeat": 2,
+      "order": [
+        "previous",
+        "before",
+        "current"
+      ],
+      "previous": {
+        "meanMs": 0.18079708333333713,
+        "p95Ms": 0.4035000000001219,
+        "p99Ms": 0.5149999999998727
+      },
+      "before": {
+        "meanMs": 0.21959125000000293,
+        "p95Ms": 0.48299999999994725,
+        "p99Ms": 0.5854999999999109
+      },
+      "current": {
+        "meanMs": 0.2063620833333393,
+        "p95Ms": 0.439200000000028,
+        "p99Ms": 0.5930999999998221
+      }
+    },
+    {
+      "projectiles": 20,
+      "repeat": 0,
+      "order": [
+        "before",
+        "current",
+        "previous"
+      ],
+      "before": {
+        "meanMs": 1.2373700000000005,
+        "p95Ms": 2.1791999999995824,
+        "p99Ms": 2.431999999999789
+      },
+      "current": {
+        "meanMs": 0.9235829166666785,
+        "p95Ms": 1.6376000000000204,
+        "p99Ms": 1.91800000000012
+      },
+      "previous": {
+        "meanMs": 0.7669912500000104,
+        "p95Ms": 1.4159000000004198,
+        "p99Ms": 1.7343000000000757
+      }
+    },
+    {
+      "projectiles": 20,
+      "repeat": 1,
+      "order": [
+        "current",
+        "previous",
+        "before"
+      ],
+      "current": {
+        "meanMs": 1.5988791666666922,
+        "p95Ms": 2.277900000000045,
+        "p99Ms": 2.584100000000035
+      },
+      "previous": {
+        "meanMs": 1.4727637500000033,
+        "p95Ms": 2.1263999999996486,
+        "p99Ms": 2.5119000000004235
+      },
+      "before": {
+        "meanMs": 2.1543491666666568,
+        "p95Ms": 3.052599999999984,
+        "p99Ms": 3.3748999999997977
+      }
+    },
+    {
+      "projectiles": 20,
+      "repeat": 2,
+      "order": [
+        "previous",
+        "before",
+        "current"
+      ],
+      "previous": {
+        "meanMs": 1.27831333333332,
+        "p95Ms": 1.9368999999996959,
+        "p99Ms": 2.172099999999773
+      },
+      "before": {
+        "meanMs": 1.7776912500000246,
+        "p95Ms": 2.593699999999444,
+        "p99Ms": 3.0778000000000247
+      },
+      "current": {
+        "meanMs": 1.4218770833333223,
+        "p95Ms": 2.1408000000001266,
+        "p99Ms": 2.4384000000000015
+      }
+    },
+    {
+      "projectiles": 60,
+      "repeat": 0,
+      "order": [
+        "before",
+        "current",
+        "previous"
+      ],
+      "before": {
+        "meanMs": 4.259380000000048,
+        "p95Ms": 5.975899999999456,
+        "p99Ms": 6.964899999999034
+      },
+      "current": {
+        "meanMs": 2.9947395833333,
+        "p95Ms": 4.511000000000422,
+        "p99Ms": 5.029099999999744
+      },
+      "previous": {
+        "meanMs": 2.7572670833333253,
+        "p95Ms": 4.216899999999441,
+        "p99Ms": 4.660200000000259
+      }
+    },
+    {
+      "projectiles": 60,
+      "repeat": 1,
+      "order": [
+        "current",
+        "previous",
+        "before"
+      ],
+      "current": {
+        "meanMs": 3.7378112500000196,
+        "p95Ms": 4.889000000001033,
+        "p99Ms": 18.17370000000119
+      },
+      "previous": {
+        "meanMs": 3.4652170833333154,
+        "p95Ms": 5.693400000000111,
+        "p99Ms": 13.045799999999872
+      },
+      "before": {
+        "meanMs": 4.938466249999988,
+        "p95Ms": 6.438899999999194,
+        "p99Ms": 17.426799999999275
+      }
+    },
+    {
+      "projectiles": 60,
+      "repeat": 2,
+      "order": [
+        "previous",
+        "before",
+        "current"
+      ],
+      "previous": {
+        "meanMs": 2.9922533333333226,
+        "p95Ms": 4.169400000002497,
+        "p99Ms": 4.66110000000117
+      },
+      "before": {
+        "meanMs": 4.392475416666624,
+        "p95Ms": 5.989399999998568,
+        "p99Ms": 6.553299999999581
+      },
+      "current": {
+        "meanMs": 3.24910375000001,
+        "p95Ms": 4.504000000000815,
+        "p99Ms": 4.9812999999994645
+      }
+    },
+    {
+      "projectiles": 120,
+      "repeat": 0,
+      "order": [
+        "before",
+        "current",
+        "previous"
+      ],
+      "before": {
+        "meanMs": 8.194713749999876,
+        "p95Ms": 10.422200000000885,
+        "p99Ms": 12.053299999999581
+      },
+      "current": {
+        "meanMs": 5.747556666666575,
+        "p95Ms": 8.44800000000032,
+        "p99Ms": 9.033000000003085
+      },
+      "previous": {
+        "meanMs": 5.198986250000129,
+        "p95Ms": 6.989399999998568,
+        "p99Ms": 7.585500000001048
+      }
+    },
+    {
+      "projectiles": 120,
+      "repeat": 1,
+      "order": [
+        "current",
+        "previous",
+        "before"
+      ],
+      "current": {
+        "meanMs": 6.848139583333325,
+        "p95Ms": 9.424299999998766,
+        "p99Ms": 10.46469999999681
+      },
+      "previous": {
+        "meanMs": 6.341603333333614,
+        "p95Ms": 8.895700000000943,
+        "p99Ms": 9.552300000003015
+      },
+      "before": {
+        "meanMs": 9.62001250000012,
+        "p95Ms": 12.54780000000028,
+        "p99Ms": 13.553800000001502
+      }
+    },
+    {
+      "projectiles": 120,
+      "repeat": 2,
+      "order": [
+        "previous",
+        "before",
+        "current"
+      ],
+      "previous": {
+        "meanMs": 6.881869583333719,
+        "p95Ms": 9.234500000005937,
+        "p99Ms": 9.826400000005378
+      },
+      "before": {
+        "meanMs": 10.626509583332941,
+        "p95Ms": 13.116800000003423,
+        "p99Ms": 14.108200000002398
+      },
+      "current": {
+        "meanMs": 7.47084249999989,
+        "p95Ms": 9.63969999999972,
+        "p99Ms": 10.108099999997648
+      }
+    }
+  ]
+}
