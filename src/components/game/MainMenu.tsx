@@ -50,7 +50,7 @@ const MainMenu = ({ onStartGame, onOpenSettings, onOpenControls }: MainMenuProps
 
           <Button
             onClick={onOpenControls}
-            variant="ghost"
+            variant="outline"
             size="lg"
             className="w-full h-14 text-lg gap-3"
           >
