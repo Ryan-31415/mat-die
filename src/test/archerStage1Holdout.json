@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "mode": "duel",
+  "seedNamespace": "development",
+  "characters": ["archer"],
+  "opponents": ["archer", "gladiator", "ninja", "reaper"],
+  "versions": ["baseline", "current"],
+  "maps": ["default", "wasteland", "graveyard", "jungle", "volcano"],
+  "presets": ["perfect"],
+  "seeds": [971560843],
+  "roundSeconds": 60,
+  "startTime": 10000,
+  "expectedGames": 80
+}

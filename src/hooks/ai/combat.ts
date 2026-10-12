@@ -12,13 +12,15 @@ import { predictActionStart } from './actionStart';
 import { scientistFlask } from './scientist';
 import { directShotOutcome } from './directShot';
 import { rootedCoilRescue, singleCoilSurvivalContext, type CoilClearOutcome } from './coilClear';
+import type { ArcherShotOutcome } from './archerShot';
 
 export interface CombatProposal {
   action: Readonly<Action>; attack: boolean; skill: boolean; castValue: number; coilClear?: CoilClearOutcome;
 }
 
 export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, model: OpponentModel, chosen: Readonly<Action>,
-  facingTarget: boolean, threatened: boolean, strategy: Strategy, targetAt: (time: number) => Point, allowLongRange = false, options?: AIDecisionOptions) {
+  facingTarget: boolean, threatened: boolean, strategy: Strategy, targetAt: (time: number) => Point, allowLongRange = false, options?: AIDecisionOptions,
+  archerShot?: ArcherShotOutcome) {
   const traits = options?.traits ?? NEUTRAL_AI_TRAITS;
   const understanding = (options?.parameters.character ?? 100) / 100;
   const { now, platforms, mapId } = frame.world;
@@ -83,7 +85,9 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
     else if (!shieldFacingUs) {
       const range = allowLongRange ? Infinity : character.attackRange;
       if (id === 'rocketeer') attack = normalRocket !== null;
-      else if (id === 'archer') attack = canHit(1000, -80, 190, 30, range, true);
+      else if (id === 'archer') attack = archerShot && (options?.parameters.character ?? 100) >= 50
+        ? (archerShot.kind === 'enemy' || archerShot.kind === 'vine') && Math.abs(opponent.x - launch.x) <= range + PLAYER_SIZE / 2
+        : canHit(1000, -80, 190, 30, range, true);
       else if (id === 'scientist') attack = scientistFlask(frame, launch, opponent, targetAt, allowLongRange) !== null;
       else if (id === 'hunter') attack = canHit(player.hunterFocusedDuration ? 1562.5 : 1250, 0, 0, 35, allowLongRange ? Infinity : player.hunterFocusedDuration ? 350 : 275, true, true, HUNTER_BULLET_LIFETIME_MS);
       else attack = canHit(id === 'mage' ? 780 : id === 'hacker' ? 800 : 700, 0, 0, 30, range, true);

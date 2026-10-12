@@ -16,6 +16,7 @@ import { predictActionStart } from './actionStart';
 import { meleeOpportunityAt } from './meleeOpportunity';
 import { scientistChargeMotion } from './charge';
 import { coilExposure, singleCoilSurvivalContext, type CoilClearOutcome } from './coilClear';
+import { archerShotOutcome, type ArcherShotOutcome } from './archerShot';
 
 export type Action = { direction: Direction; jump: boolean; drop: boolean };
 export const emptyAIKeys = (): KeyboardState => ({
@@ -64,6 +65,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   const { goal, memory, strategy } = selectGoal(player, opponent, frame, previous, parameters.character / 100, traits);
   if (player.isStunned || player.isFrozen) { memory.movement = undefined; return { keys, memory, risk: 0 }; }
   const id = player.character.id;
+  const archerTactics = id === 'archer' && parameters.character >= 50;
   const toward: Direction = opponent.x >= player.x ? 1 : -1;
   const speed = playerMoveSpeed(player, now);
   const lowHealth = player.health < player.maxHealth * 0.35;
@@ -83,6 +85,8 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   const targetCache = new Map<number, ReturnType<typeof predictOpponent>>();
   const targetAt = (time: number) => {
     if (forecast) {
+      const cached = archerTactics ? targetCache.get(time) : undefined;
+      if (cached) return cached;
       const sample = forecastTime(forecast, error, Math.min(time, forecastHorizon));
       const index = Math.min(enemyFuture.length - 1, Math.floor(sample * 60));
       const next = Math.min(enemyFuture.length - 1, index + 1);
@@ -90,7 +94,9 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       const ratio = end > start ? Math.max(0, Math.min(1, (sample - start) / (end - start))) : 0;
       const from = enemyFuture[index], to = enemyFuture[next];
       const point = forecastPoint({ x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio, confidence: from.confidence }, forecast, error, Math.min(time, forecastHorizon));
-      return { ...point, x: opponent.x + (point.x - opponent.x) * prediction, y: opponent.y + (point.y - opponent.y) * prediction };
+      const result = { ...point, x: opponent.x + (point.x - opponent.x) * prediction, y: opponent.y + (point.y - opponent.y) * prediction };
+      if (archerTactics) targetCache.set(time, result);
+      return result;
     }
     const tick = Math.round(time * 60);
     if (tick >= 0 && tick < enemyFuture.length) return enemyFuture[tick];
@@ -122,6 +128,9 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     let vy = action.jump && canJump ? JUMP_FORCE : player.velocityY;
     let vx = player.velocityX, kx = player.knockbackVelocityX, ky = player.knockbackVelocityY;
     let risk = 0, travelCost = 0, benefit = 0, elapsed = 0;
+    let firePoint: { x: number; y: number; facingRight: boolean; leadMs: number } | undefined;
+    const burst = player.archerBurstRemaining > 0;
+    const fireAtMs = burst ? player.archerBurstCooldown ?? 0 : player.attackCooldownRemaining;
     let nextMeleeAt = player.attackCooldownRemaining;
     let nextCounterAt = opponent.attackCooldownRemaining;
     const direction = player.isFlying && action.direction === 0 ? (player.facingRight ? 1 : -1) : action.direction;
@@ -178,6 +187,10 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       }
       if (environmentInRange && world.sandstormActive && environmentTime('wind', elapsed) * 1000 < world.sandstormTimer) kx += sandstormImpulse(now + elapsed * 1000, dt, world.sandstormDirection);
       trajectory?.push({ ...point });
+      if (archerTactics && !firePoint && fireAtMs <= world.deltaTime * 2 && elapsed * 1000 >= Math.max(0, fireAtMs)) {
+        firePoint = { x: point.x, y: point.y, facingRight: step === 1 ? start.facingRight
+          : action.direction ? action.direction > 0 : start.facingRight, leadMs: Math.max(0, elapsed * 1000 - world.deltaTime) };
+      }
       travelCost += (Math.abs(point.x - goal.x) + Math.abs(point.y - goal.y) * 1.3) / frame.steps;
       const lavaRisk = mapId === 'volcano' && point.y >= FLOOR_Y - 1 && !invulnerable ? 1600 / frame.steps : 0;
       risk += lavaRisk;
@@ -302,7 +315,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     }
     if (mapId === 'volcano' && !player.isFlying && vy > 0 && !platforms.some(p => p.id !== 'ground' && p.y >= point.y + PLAYER_SIZE && point.x + PLAYER_SIZE > p.x && point.x < p.x + p.width)) risk += 130;
     const noise = sampleNoise && parameters.noise > 0 && options ? gaussian(options.random) * parameters.noise : 0;
-    return { action, risk, benefit, noise, trajectory, score: risk * (lowHealth ? 1.4 : 1) * traits.defense + travelCost * (strategy === 'escape' || strategy === 'flank' ? 0.28 : 0.16) - benefit + (action.jump ? 7 : 0) + (action.drop ? 3 : 0) + (action.direction ? 0.5 : 0) + noise };
+    return { action, risk, benefit, noise, trajectory, firePoint, score: risk * (lowHealth ? 1.4 : 1) * traits.defense + travelCost * (strategy === 'escape' || strategy === 'flank' ? 0.28 : 0.16) - benefit + (action.jump ? 7 : 0) + (action.drop ? 3 : 0) + (action.direction ? 0.5 : 0) + noise };
   }
   const candidates: Action[] = [];
   for (const direction of [0, -1, 1] as Direction[]) {
@@ -326,6 +339,28 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     // future enemy inputs never justify delaying an escape or losing a hit.
     if (retained && retained.score <= best.score + 1 && retained.risk <= best.risk && retained.benefit >= best.benefit) best = retained;
   }
+  let selectedArcherShot: ArcherShotOutcome | undefined;
+  const archerShots = new Map<string, ArcherShotOutcome>();
+  if (archerTactics && strategy !== 'escape' && !opponent.isInvulnerable && !opponent.isEvading) {
+    const alternatives = [best,
+      evaluated.find(candidate => candidate.action.direction === 0 && candidate.action.jump === best.action.jump && candidate.action.drop === best.action.drop),
+      evaluated.find(candidate => candidate.action.direction === toward && candidate.action.jump === best.action.jump && candidate.action.drop === best.action.drop)]
+      .filter((candidate): candidate is typeof best => candidate !== undefined);
+    const seen = new Set<typeof best>();
+    let selectedScore = best.score;
+    for (const candidate of alternatives) {
+      if (seen.has(candidate) || !candidate.firePoint || candidate.risk > best.risk + 5) continue;
+      seen.add(candidate);
+      const { leadMs, ...origin } = candidate.firePoint;
+      const shot = archerShotOutcome(frame, player, opponent, origin, leadMs, targetAt, player.archerBurstRemaining > 0);
+      archerShots.set(`${candidate.action.direction}:${candidate.action.jump}:${candidate.action.drop}`, shot);
+      const score = candidate.score - (shot.kind === 'enemy' ? shot.damage * 1.3 * traits.aggression * parameters.character / 100 : 0);
+      if (score < selectedScore || candidate === best) {
+        selectedScore = score; best = candidate; selectedArcherShot = shot;
+      }
+      if (candidate === alternatives[0] && (shot.kind === 'enemy' || shot.kind === 'vine')) break;
+    }
+  }
   const chosen = { ...best.action };
   const threatened = evaluated[0].risk > 35;
   const advanceRisk = Math.min(...evaluated.filter(c => c.action.direction === toward).map(c => c.risk));
@@ -335,9 +370,13 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   if (!facingTarget && chosen.direction === 0 && !threatened && strategy !== 'escape' &&
       (strategy !== 'flank' || !shieldFacesX(opponent, player.x + PLAYER_SIZE / 2))) {
     const turn = evaluated.find(c => c.action.direction === toward && c.action.jump === chosen.jump && c.action.drop === chosen.drop)!;
-    if (turn.risk <= best.risk + 1) { chosen.direction = toward; facingTarget = true; }
+    if (turn.risk <= best.risk + 1) {
+      chosen.direction = toward; facingTarget = true;
+      if (archerTactics) selectedArcherShot = archerShots.get(`${turn.action.direction}:${turn.action.jump}:${turn.action.drop}`);
+    }
   }
-  let combat = chooseCombat(frame, player, opponent, model, chosen, facingTarget, threatened, strategy, targetAt, allowLongRange, options);
+  let combat = chooseCombat(frame, player, opponent, model, chosen, facingTarget, threatened, strategy, targetAt, allowLongRange, options,
+    selectedArcherShot);
   let coupledRisk: number | undefined;
   let coilDecision: AIDecision['coilDecision'];
   const coilId = id === 'hunter' ? singleCoilSurvivalContext(frame, player) : undefined;

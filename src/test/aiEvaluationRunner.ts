@@ -25,6 +25,8 @@ const manifestSchema = z.object({ schemaVersion: z.literal(1), mode: z.enum(['sm
   maps: z.array(z.string().refine(value => Object.prototype.hasOwnProperty.call(MAPS, value))).nonempty(), presets: z.array(z.enum(AI_PRESET_IDS)).nonempty(),
   seeds: z.array(z.number().int().min(0).max(4294967295)).nonempty(), roundSeconds: z.number().int().min(1).max(120),
   startTime: z.number().int(), expectedGames: z.number().int().positive(),
+  opponents: z.array(z.string().refine(value => Object.prototype.hasOwnProperty.call(CHARACTERS, value))).nonempty().optional(),
+  versions: z.array(z.enum(['current', 'baseline'])).nonempty().optional(),
   patterns: z.array(z.enum(EVALUATION_PATTERNS)).nonempty().optional(),
   scenes: z.array(z.enum(ALL_MELEE_SCENARIOS)).nonempty().optional() }).strict();
 export type EvaluationManifest = z.infer<typeof manifestSchema>;
@@ -33,11 +35,12 @@ export function readEvaluationManifest(path: string) {
   if (manifest.seedNamespace !== 'smoke' && (manifest.presets.length !== 1 || manifest.presets[0] !== 'perfect')) {
     throw new Error('Development/final performance evaluation requires perfect difficulty only; use smoke or targeted tests for difficulty contracts');
   }
-  for (const list of [manifest.characters, manifest.maps, manifest.presets, manifest.seeds, manifest.patterns ?? [], manifest.scenes ?? []]) {
+  for (const list of [manifest.characters, manifest.opponents ?? [], manifest.versions ?? [], manifest.maps, manifest.presets, manifest.seeds, manifest.patterns ?? [], manifest.scenes ?? []]) {
     if (new Set<string | number>(list).size !== list.length) throw new Error('Repeated experimental condition');
   }
   if (manifest.mode !== 'paired' && manifest.patterns) throw new Error('Scripted patterns only apply to paired evaluation');
   if (manifest.mode !== 'melee' && manifest.scenes) throw new Error('Melee scenes only apply to melee evaluation');
+  if (manifest.mode !== 'duel' && (manifest.opponents || manifest.versions)) throw new Error('Custom opponents and versions only apply to duel evaluation');
   if (manifest.mode === 'melee' && manifest.characters.some(character => !MELEE_CHARACTERS.some(value => value === character))) throw new Error('Melee evaluation requires melee characters');
   const expected = evaluationConditions(manifest).length;
   if (manifest.expectedGames !== expected) throw new Error('Manifest game count does not match its conditions');
@@ -58,15 +61,15 @@ export function evaluationConditions(manifest: EvaluationManifest): EvaluationCo
       ? (manifest.scenes ?? [...MELEE_SCENARIOS]).map(scene => ({ enemy: meleeEnemy(scene), scene, pattern: undefined }))
       : manifest.mode === 'paired'
       ? (manifest.patterns ?? [...EVALUATION_PATTERNS]).map(pattern => ({ enemy: SCRIPTED_CHARACTERS[pattern], pattern, scene: undefined }))
-      : (manifest.mode === 'smoke' ? [character] : manifest.characters).map(enemy => ({ enemy: enemy as CharacterType, pattern: undefined, scene: undefined }));
+      : (manifest.mode === 'smoke' ? [character] : manifest.opponents ?? manifest.characters).map(enemy => ({ enemy: enemy as CharacterType, pattern: undefined, scene: undefined }));
     for (const { enemy, pattern, scene } of pairings) for (const map of manifest.maps as MapId[])
       for (const preset of manifest.presets) for (const seed of manifest.seeds) for (const side of [1, 2] as const)
-        for (const version of manifest.mode === 'paired' || manifest.mode === 'melee' ? ['current', 'baseline'] as const : [undefined])
+        for (const version of manifest.mode === 'paired' || manifest.mode === 'melee' ? ['current', 'baseline'] as const : manifest.versions ?? [undefined])
           for (const round of manifest.mode === 'session' ? [1, 2, 3] as const : [undefined]) {
           if (scene === 'lava' && map !== 'volcano') continue;
-          const id = [character, enemy, map, preset, seed, side, ...(pattern ? [pattern, version] : []), ...(scene ? [scene, version] : []), ...(round ? [round] : [])].join('/');
+          const id = [character, enemy, map, preset, seed, side, ...(pattern ? [pattern] : []), ...(scene ? [scene] : []), ...(version ? [version] : []), ...(round ? [round] : [])].join('/');
           result.push({ id, ordinal: result.length, character, enemy, map, preset, seed, side,
-            ...(pattern ? { pattern, version } : {}), ...(scene ? { scene, version } : {}), ...(round ? { round } : {}) });
+            ...(pattern ? { pattern } : {}), ...(scene ? { scene } : {}), ...(version ? { version } : {}), ...(round ? { round } : {}) });
         }
   }
   return result;
