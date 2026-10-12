@@ -96,6 +96,34 @@ export interface Projectile {
   burnDamage?: number;
 }
 
+export type ProjectileContactKind = 'player' | 'vine' | 'coil';
+
+/** A projectile that pierces a fighter keeps the same rule against world targets. */
+export function projectilePierces(projectile: Pick<Projectile, 'type'>, _target: ProjectileContactKind): boolean {
+  return projectile.type === 'large-snowball' || projectile.type === 'bat';
+}
+
+export function projectileImpactZone(projectile: Pick<Projectile,
+  'type' | 'createsFirePool' | 'firePoolDuration' | 'damage' | 'isNapalm' | 'firePoolDamage'>) {
+  if (projectile.isNapalm) return {
+    type: 'fire-pool' as const,
+    damage: projectile.firePoolDamage ?? projectile.damage * 0.1,
+    duration: projectile.firePoolDuration,
+    isNapalm: true,
+  };
+  if (projectile.type === 'blizzard-stone') return {
+    type: 'blizzard' as const, damage: projectile.damage, duration: 6000, isNapalm: false,
+  };
+  if (!projectile.createsFirePool) return null;
+  const toxic = projectile.type === 'flask';
+  return {
+    type: toxic ? 'toxic-pool' as const : 'fire-pool' as const,
+    damage: projectile.damage * (toxic ? 0.2 : 0.03),
+    duration: projectile.firePoolDuration,
+    isNapalm: false,
+  };
+}
+
 export const getProjectileCollisionTime = (
   projectile: Pick<Projectile, 'x' | 'y' | 'width' | 'height'>,
   previousPosition: { x: number; y: number },

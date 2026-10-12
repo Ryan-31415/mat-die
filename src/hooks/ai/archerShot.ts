@@ -50,10 +50,12 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
     const sword = shot.canBeDeflected ? frame.hitboxes.reduce((first, hitbox) =>
       hitbox.ownerId === opponent.id && hitbox.canDeflectProjectiles && now - hitbox.createdAt <= hitbox.duration
         ? Math.min(first, getProjectileCollisionTime(shot, previous, hitbox) ?? Infinity) : first, Infinity) : Infinity;
-    if (frame.world.mapId === 'jungle' && frame.vines.some(vine => now - vine.createdAt <= vine.duration &&
-      (getProjectileCollisionTime(shot, previous, vine) ?? Infinity) < Math.min(body, sword))) return result('vine');
+    const vineTime = frame.world.mapId === 'jungle' ? frame.vines.reduce((first, vine) => now - vine.createdAt <= vine.duration
+      ? Math.min(first, getProjectileCollisionTime(shot, previous, vine) ?? Infinity) : first, Infinity) : Infinity;
     while (step < frame.steps && frame.times[step] < time + leadMs / 1000) step++;
-    if (findProjectileCoilContact(shot, frame.coilSnapshots.get(step) ?? frame.zones.filter(zone => zone.type === 'tesla-coil'))) return result('coil');
+    const coil = findProjectileCoilContact(shot, frame.coilSnapshots.get(step) ?? frame.zones.filter(zone => zone.type === 'tesla-coil'), previous);
+    const coilTime = coil ? getProjectileCollisionTime(shot, previous, coil) ?? Infinity : Infinity;
+    if (Math.min(vineTime, coilTime) < Math.min(body, sword)) return result(vineTime < coilTime ? 'vine' : 'coil');
     if (sword < body) return result('sword');
     if (body < Infinity) {
       if (target.isInvulnerable || target.isEvading || shieldFacesX(target, previous.x + shot.width / 2)) return result('shield');

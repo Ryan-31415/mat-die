@@ -57,13 +57,33 @@ type CoilContactZone = Pick<HazardZone, 'id' | 'type' | 'ownerId' | 'x' | 'y' | 
 const overlapsCombatRect = (a: CombatRect, b: CombatRect) =>
   a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 
-/** Endpoint overlap, before coil motion/removal. Keep array order and the bat's per-coil exception. */
+function sweptCombatRectTime(projectile: CombatRect, previous: { x: number; y: number }, target: CombatRect) {
+  const minX = target.x - projectile.width, maxX = target.x + target.width;
+  const minY = target.y - projectile.height, maxY = target.y + target.height;
+  const dx = projectile.x - previous.x, dy = projectile.y - previous.y;
+  let entry = 0, exit = 1;
+  for (const [start, delta, min, max] of [[previous.x, dx, minX, maxX], [previous.y, dy, minY, maxY]]) {
+    if (delta === 0) { if (start < min || start > max) return null; continue; }
+    const a = (min - start) / delta, b = (max - start) / delta;
+    entry = Math.max(entry, Math.min(a, b)); exit = Math.min(exit, Math.max(a, b));
+    if (entry > exit) return null;
+  }
+  return entry <= 1 && exit >= 0 ? entry : null;
+}
+
+/** Swept contact before coil motion/removal; stable ties follow the zone array order. */
 export function findProjectileCoilContact<T extends CoilContactZone>(
   projectile: Pick<Projectile, 'type' | 'ownerId' | 'x' | 'y' | 'width' | 'height' | 'isHackUltimate' | 'hitCoilIds'>,
-  zones: readonly T[]
+  zones: readonly T[],
+  previousPosition?: { x: number; y: number }
 ): T | undefined {
-  return zones.find(zone => zone.type === 'tesla-coil' && zone.ownerId !== projectile.ownerId && !projectile.isHackUltimate &&
-    !(projectile.type === 'bat' && projectile.hitCoilIds?.includes(zone.id)) && overlapsCombatRect(projectile, zone));
+  return zones.map((zone, index) => ({ zone, index,
+    time: previousPosition ? sweptCombatRectTime(projectile, previousPosition, zone) : overlapsCombatRect(projectile, zone) ? 0 : null }))
+    .filter((contact): contact is { zone: T; index: number; time: number } =>
+      contact.zone.type === 'tesla-coil' && contact.zone.ownerId !== projectile.ownerId && !projectile.isHackUltimate &&
+      !((projectile.type === 'bat' || projectile.type === 'large-snowball') &&
+        projectile.hitCoilIds?.includes(contact.zone.id)) && contact.time !== null)
+    .sort((a, b) => a.time - b.time || a.index - b.index)[0]?.zone;
 }
 
 /** Contact only: melee remains active and may also hit a fighter in the same phase. */

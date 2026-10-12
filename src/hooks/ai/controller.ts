@@ -271,7 +271,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
             }
             // Recheck the candidate's actual guided endpoint; a shared path's
             // body miss/coil contact alone cannot determine this movement's hit.
-            const coil = environmentInRange && findProjectileCoilContact({ ...homing, x: x1, y: y1 }, frame.coilSnapshots.get(step) ?? []);
+            const coil = environmentInRange && findProjectileCoilContact({ ...homing, x: x1, y: y1 }, frame.coilSnapshots.get(step) ?? [], { x: x0, y: y0 });
             if (coil) {
               if (p.isNapalm) {
                 const contact = getProjectileCollisionTime({ ...homing, x: x1, y: y1 }, { x: x0, y: y0 }, coil) ?? 1;

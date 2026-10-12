@@ -46,11 +46,11 @@ export function scientistFlask(frame: AIFrame, launch: Player, opponent: Player,
     const sword = frame.hitboxes.reduce((first, hitbox) => hitbox.ownerId !== launch.id && hitbox.canDeflectProjectiles &&
       frame.world.now + time * 1000 - hitbox.createdAt <= hitbox.duration
       ? Math.min(first, getProjectileCollisionTime(shot, before, hitbox) ?? Infinity) : first, Infinity);
-    if (frame.world.mapId === 'jungle' && frame.vines.some(vine => frame.world.now + time * 1000 - vine.createdAt <= vine.duration &&
-      (getProjectileCollisionTime(shot, before, vine) ?? Infinity) < Math.min(body, sword))) return 'vine';
-    // Coils intercept at the endpoint before their own fall/removal phase. This
-    // intentionally does not value coil clearing or predict a destruction event.
-    if (findProjectileCoilContact(shot, coils)) return null;
+    const vineTime = frame.world.mapId === 'jungle' ? frame.vines.reduce((first, vine) => frame.world.now + time * 1000 - vine.createdAt <= vine.duration
+      ? Math.min(first, getProjectileCollisionTime(shot, before, vine) ?? Infinity) : first, Infinity) : Infinity;
+    const coil = findProjectileCoilContact(shot, coils, before);
+    const coilTime = coil ? getProjectileCollisionTime(shot, before, coil) ?? Infinity : Infinity;
+    if (Math.min(vineTime, coilTime) < Math.min(body, sword)) return vineTime < coilTime ? 'vine' : null;
     if (sword < body) return null;
     if (body < Infinity) return shieldFacesX({ ...opponent, ...target }, before.x + shot.width / 2) ? null : 'target';
     if (shot.x + shot.width < 0 || shot.x > ARENA.width || shot.y + shot.height < 0 || shot.y > ARENA.height) {
