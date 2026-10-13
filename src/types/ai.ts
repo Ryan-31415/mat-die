@@ -64,19 +64,19 @@ function preset(index: number, base: Pick<AIParameters, 'reactionMin' | 'reactio
   const forecast = (positionError: number): AIForecast => ({ horizonMs: [300, 600, 1000, 1500, 2000][index], positionError, timingErrorMs: [150, 60, 15, 5, 0][index] });
   const input = (delayMaxMs: number): AIInput => ({ useCommonPrecision: true, useCommonDelay: false, precisionMin: base.precisionMin, precisionMax: base.precisionMax, delayMaxMs });
   return {
-    ...base, inputDelayMaxMs: [45, 20, 5, 2, 0][index], information: { ...information }, hidden: index < 2 ? 'temporary' : index < 4 ? 'remembered' : 'all',
-    hiddenMemoryMs: [1500, 5000, 10000, 12000, 12000][index], hiddenAttacks: index === 4 ? 'exact' : 'inferred',
-    estimation: { movement: estimate([50, 20, 5, 2, 0][index]), cooldowns: estimate([200, 100, 25, 10, 0][index]), durations: estimate([250, 100, 25, 10, 0][index]), effects: estimate([5, 2, 1, 0.5, 0][index]), properties: estimate([5, 2, 0.5, 0.25, 0][index]) },
-    forecasts: { opponent: forecast([80, 30, 6, 2, 0][index]), projectiles: forecast([60, 20, 4, 1.5, 0][index]), environment: forecast([40, 15, 3, 1, 0][index]) },
+    ...base, inputDelayMaxMs: [33, 15, 5, 2, 0][index], information: { ...information }, hidden: index < 2 ? 'temporary' : index < 4 ? 'remembered' : 'all',
+    hiddenMemoryMs: [3000, 6000, 10000, 12000, 12000][index], hiddenAttacks: index === 4 ? 'exact' : 'inferred',
+    estimation: { movement: estimate([30, 12, 3, 1, 0][index]), cooldowns: estimate([100, 30, 10, 2, 0][index]), durations: estimate([100, 30, 10, 2, 0][index]), effects: estimate([5, 2, 1, 0.2, 0][index]), properties: estimate([5, 2, 0.5, 0.1, 0][index]) },
+    forecasts: { opponent: forecast([80, 30, 6, 1.5, 0][index]), projectiles: forecast([60, 20, 4, 1, 0][index]), environment: forecast([40, 15, 3, 0.5, 0][index]) },
     inputs: { movement: input([20, 8, 1, 0.5, 0][index]), jump: input([35, 15, 3, 1, 0][index]), attack: input([30, 12, 3, 1, 0][index]), skill: input([40, 18, 4, 1.5, 0][index]), ultimate: input([45, 20, 5, 2, 0][index]) },
-    learningOptions: { memoryMs: [2000, 5000, 8000, 12000, 12000][index], sampleIntervalMs: [150, 100, 50, 50, 50][index], halfLifeMs: [3000, 7000, 10000, 15000, 15000][index] },
+    learningOptions: { memoryMs: [3000, 6000, 10000, 12000, 12000][index], sampleIntervalMs: [150, 100, 50, 50, 50][index], halfLifeMs: [4000, 8000, 12000, 15000, 15000][index] },
   };
 }
 export const AI_PRESETS: Record<AIPreset, AIParameters> = {
-  easy: preset(0, { reactionMin: 250, reactionMax: 350, precisionMin: 65, precisionMax: 85, noise: 35, character: 15, prediction: 20, learning: 0, controlAdaptation: 15, observationInterval: 200 }),
-  medium: preset(1, { reactionMin: 175, reactionMax: 225, precisionMin: 85, precisionMax: 95, noise: 12, character: 65, prediction: 50, learning: 25, controlAdaptation: 50, observationInterval: 100 }),
-  hard: preset(2, { reactionMin: 100, reactionMax: 150, precisionMin: 98, precisionMax: 100, noise: 1, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
-  expert: preset(3, { reactionMin: 50, reactionMax: 75, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
+  easy: preset(0, { reactionMin: 200, reactionMax: 300, precisionMin: 75, precisionMax: 85, noise: 28, character: 20, prediction: 25, learning: 15, controlAdaptation: 15, observationInterval: 150 }),
+  medium: preset(1, { reactionMin: 125, reactionMax: 200, precisionMin: 85, precisionMax: 95, noise: 10, character: 60, prediction: 67, learning: 50, controlAdaptation: 50, observationInterval: 60 }),
+  hard: preset(2, { reactionMin: 75, reactionMax: 125, precisionMin: 98, precisionMax: 100, noise: 1, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
+  expert: preset(3, { reactionMin: 25, reactionMax: 75, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
   perfect: preset(4, { reactionMin: 0, reactionMax: 0, precisionMin: 100, precisionMax: 100, noise: 0, character: 100, prediction: 100, learning: 100, controlAdaptation: 100, observationInterval: 0 }),
 };
 export function cloneAIParameters(p: AIParameters): AIParameters {
