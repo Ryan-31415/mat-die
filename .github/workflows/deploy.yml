@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - codex/github-pages-deploy
   workflow_dispatch:
 
 permissions:
