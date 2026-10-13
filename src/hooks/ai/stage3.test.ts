@@ -14,6 +14,7 @@ function scatter(distance: number, focused = false, marked = false, low = false)
   const owner = world.players[1], opponent = world.players[0];
   owner.hunterFocusedDuration = focused ? 5000 : 0;
   opponent.x = owner.x + distance; opponent.isMarked = marked; opponent.markOwnerId = marked ? owner.id : undefined;
+  opponent.markDuration = marked ? 5000 : 0;
   opponent.health = low ? opponent.maxHealth * .5 : opponent.maxHealth;
   return hunterScatter(prepareAIFrame(world), owner, opponent, owner, () => opponent);
 }

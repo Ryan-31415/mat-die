@@ -12,9 +12,9 @@ export function createRangedShots(frame: AIFrame, player: Player, opponent: Play
   const shotKey = (origin: Pick<Player, 'x' | 'y' | 'facingRight'>) => `${origin.x}:${origin.y}:${origin.facingRight}`;
   return {
     scatter: origin => {
-      const key = shotKey(origin);
+      const key = `${shotKey(origin)}:${origin.leadMs ?? 0}`;
       let result = scatters.get(key);
-      if (!result) { result = hunterScatter(frame, player, opponent, origin, targetAt); scatters.set(key, result); }
+      if (!result) { result = hunterScatter(frame, player, opponent, origin, targetAt, origin.leadMs ?? 0); scatters.set(key, result); }
       return result;
     },
     rocket: (origin, homing, leadMs = 0) => {

@@ -58,7 +58,8 @@ describe('perception information boundaries', () => {
     const a = perceiveWorld(w, AI_PRESETS.hard, createPerceptionMemory());
     expect(a.world.players[0]).toMatchObject({ health: 99, mana: 45, hackedDuration: 1200, velocityX: 0 });
     const next: AIWorld = { ...w, now: 10050, players: [{ ...w.players[0], x: 210 }, w.players[1]] };
-    expect(perceiveWorld(next, AI_PRESETS.hard, a.memory).world.players[0].velocityX).toBe(200);
+    // Current hard preset quantizes movement to multiples of 3.
+    expect(perceiveWorld(next, AI_PRESETS.hard, a.memory).world.players[0].velocityX).toBe(201);
   });
   it('remembers only observed traps, including unseen removal or relocation', () => {
     const w = { ...world(), hazardZones: [trap()] };

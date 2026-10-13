@@ -1,0 +1,254 @@
+{
+  "status": "held: current-rule comparison prepared; CPU not measured",
+  "head": "9ec3a058fb222b158415e00749ca40447851ab2f",
+  "baselineHash": "59caee38276ec11b2fb883753046edfb6b96b5ec91f1a8465c1bdf2d082873fd",
+  "candidateHash": "24f07181189be33d3ed9d7a1c110e936e29f7db3e96fa2c8e1201cc11c075b15",
+  "commonSourceManifestHash": "28f1bc9e185137ad5540be80fea000385206f0e93a663eae961be3ee81384a27",
+  "commonSourceCount": 29,
+  "sourceDifferences": [
+    "src/hooks/ai/controller.ts",
+    "src/hooks/ai/rocketeer.ts",
+    "src/hooks/ai/navigation.ts",
+    "src/hooks/ai/combat.ts",
+    "src/hooks/ai/rangedShots.ts",
+    "src/hooks/ai/rangedEnvironment.ts"
+  ],
+  "checks": {
+    "passed": true,
+    "transitions": 1200,
+    "rulesEqual": true,
+    "baselineHash": "59caee38276ec11b2fb883753046edfb6b96b5ec91f1a8465c1bdf2d082873fd",
+    "candidateHash": "24f07181189be33d3ed9d7a1c110e936e29f7db3e96fa2c8e1201cc11c075b15"
+  },
+  "validation": {
+    "passed": true,
+    "unitTests": {
+      "latestChangedFiles": 60,
+      "decisionsAfterFinalFix": 19,
+      "earlierUnaffectedFiles": 87,
+      "uniqueTotal": 166
+    },
+    "typeCheckPassed": true,
+    "changedFileLintPassed": true,
+    "productionBuildPassed": true,
+    "noCombatSimulations": true,
+    "baselineHash": "59caee38276ec11b2fb883753046edfb6b96b5ec91f1a8465c1bdf2d082873fd",
+    "candidateHash": "24f07181189be33d3ed9d7a1c110e936e29f7db3e96fa2c8e1201cc11c075b15",
+    "executors": {
+      "src/test/stage3CurrentRules.mjs": "50185cc769e4b454a176e2975b51e61a84d1cb1900560512d50a4e0ee6f08a66",
+      "src/test/stage3CurrentRulesCpu.ps1": "4526ae639c4c4826e0144b67ce0c0d1ccf12a83b57c67e9f1799c9e866236357"
+    },
+    "completedAt": "2026-10-13T14:08:04.354Z"
+  },
+  "benchmarkRuns": 0,
+  "benchmarkMs": 0,
+  "combatGames": 0,
+  "remainingCombatBudget": 160,
+  "environment": {
+    "preflightBusyCeilingPercent": 25,
+    "initialCpuBusyPercent": [
+      22.098765432098766,
+      30.384615384615387
+    ],
+    "independentFiveSecondBusyPercent": 27.806253203485387,
+    "acRequired": true,
+    "powerPlan": "Power Scheme GUID: 381b4222-f694-41f0-9685-ff5bb260df2e  (Balanced)",
+    "benchmarkNeverStarted": true
+  },
+  "cpuGateP95IncreasePercent": 10,
+  "conditions": [
+    {
+      "character": "hunter",
+      "projectiles": 0,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "hunter",
+      "projectiles": 20,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "hunter",
+      "projectiles": 60,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "hunter",
+      "projectiles": 120,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "rocketeer",
+      "projectiles": 0,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "rocketeer",
+      "projectiles": 20,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "rocketeer",
+      "projectiles": 60,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "rocketeer",
+      "projectiles": 120,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "archer",
+      "projectiles": 0,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "archer",
+      "projectiles": 20,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "archer",
+      "projectiles": 60,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    },
+    {
+      "character": "archer",
+      "projectiles": 120,
+      "status": "not-measured",
+      "before": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "candidate": {
+        "mean": null,
+        "p95": null,
+        "p99": null
+      },
+      "p95ChangePercent": null
+    }
+  ],
+  "artifacts": "docs/ai-runs/stage3-current-rules-20261013-final"
+}

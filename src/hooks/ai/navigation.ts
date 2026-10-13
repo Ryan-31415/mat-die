@@ -6,7 +6,6 @@ import { overlapsPlayer, type AIFrame } from './world';
 import { createAIMemory, type AIMemory, type Strategy } from './state';
 import { matchupTactics } from './matchup';
 import { NEUTRAL_AI_TRAITS, type AITraits } from '@/types/ai';
-import { hunterSpacing } from './hunter';
 
 export interface Point { x: number; y: number }
 export const isMelee = (id: CharacterType) => id === 'gladiator' || id === 'ninja' || id === 'reaper';
@@ -124,7 +123,6 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   let preferred = isMelee(character.id) ? character.attackRange * 0.65 : character.id === 'hunter' ? player.hunterFocusedDuration ? 240 : 180 : low ? 340 : 270;
   const genericPreferred = isMelee(character.id) ? character.attackRange * 0.65 : low ? 340 : 270;
   if (character.id === 'rocketeer') preferred = low ? 360 : 300;
-  if (characterWeight >= .5 && character.id === 'hunter') preferred = Math.max(low ? 240 : 0, hunterSpacing(player));
   if (characterWeight >= .5 && character.id === 'rocketeer' && player.attackCooldownRemaining > 400)
     preferred = Math.max(preferred, 360);
   if (strategy === 'kite') preferred = Math.max(330, preferred);

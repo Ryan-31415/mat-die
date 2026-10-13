@@ -16,7 +16,7 @@ import type { ArcherShotOutcome } from './archerShot';
 import { hunterSpacing, type ScatterOpportunity } from './hunter';
 
 export interface RangedShotPolicy {
-  scatter: (origin: Pick<Player, 'x' | 'y' | 'facingRight'>) => ScatterOpportunity;
+  scatter: (origin: Pick<Player, 'x' | 'y' | 'facingRight'> & { leadMs?: number }) => ScatterOpportunity;
   rocket: (origin: Pick<Player, 'x' | 'y' | 'facingRight'>, homing: boolean, leadMs?: number) => ReturnType<typeof rocketeerShot>;
   work: () => { scatterCalls: number; rocketCalls: number };
 }
