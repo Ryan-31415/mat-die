@@ -150,7 +150,7 @@ function visibleProjectile(p: Projectile, world: AIWorld, previous: AIWorld | un
     ? Math.atan2(p.velocityY, p.velocityX) : world.players[p.ownerId - 1].facingRight ? 0 : Math.PI;
   const velocityX = estimate ? old && dt > 0 ? (p.x - old.x) / dt : Math.cos(angle) * speeds[p.type] : 0;
   const velocityY = estimate ? old && dt > 0 ? (p.y - old.y) / dt : Math.sin(angle) * speeds[p.type] : 0;
-  const gravity = estimate ? p.type === 'arrow' || p.type === 'poison-arrow' ? 190 : p.type === 'flask' ? 220 : p.type === 'net' ? 360 : p.type === 'blizzard-stone' ? 600 : 0 : 0;
+  const gravity = estimate ? p.type === 'arrow' || p.type === 'poison-arrow' ? 190 : p.type === 'flask' ? 220 : p.type === 'net' ? 325 : p.type === 'blizzard-stone' ? 600 : 0 : 0;
   const lifetime = p.type === 'bullet' || p.type === 'super-bullet' ? 240 : p.type === 'bat' ? 3600 : p.type === 'large-snowball' ? 1400 : p.type === 'net' ? 3500 : 3000;
   const observed: Projectile = {
     id: p.id, type: p.type, ownerId: p.ownerId, x: p.x, y: p.y, width: p.width, height: p.height,

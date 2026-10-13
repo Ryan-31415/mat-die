@@ -307,7 +307,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     },
     ultimate: {
       name: '집중 사격',
-      description: '5초간 데미지가 33% 증가하고, 집탄율이 3배로 증가하고, 사거리와 탄속이 25% 향상됩니다.',
+      description: '5초간 일반 공격의 집탄율이 2.5배가 되고 공격력이 33%, 사거리와 탄속이 25% 향상됩니다.',
       manaCost: 100,
       cooldown: 0,
     },

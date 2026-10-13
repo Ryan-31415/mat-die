@@ -17,7 +17,7 @@ export function scientistOrbLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight
 /** Net's center starts at the owner's top edge, unlike a centered basic shot. */
 export function hunterNetLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, baseDamage: number): ProjectileSpawn {
   return { type: 'net', x: player.x + PLAYER_SIZE / 2, y: player.y,
-    velocityX: (player.facingRight ? 1 : -1) * 750, velocityY: -115, damage: baseDamage * 0.2 };
+    velocityX: (player.facingRight ? 1 : -1) * 750, velocityY: -105, damage: baseDamage * 0.2 };
 }
 const BASIC_PROJECTILE_RULES: Record<CharacterType, Readonly<{
   type: ProjectileType; speed: number; velocityY: number; damageMultiplier: number;
@@ -36,7 +36,7 @@ export function basicProjectileLaunches(player: Pick<Player, 'character' | 'faci
   const direction = player.facingRight ? 1 : -1;
   if (player.character.id === 'hunter') {
     const focused = (player.hunterFocusedDuration || 0) > 0;
-    const spreadFactor = focused ? 0.33 : 1.0, speedMultiplier = focused ? 1.25 : 1.0;
+    const spreadFactor = focused ? 0.4 : 1.0, speedMultiplier = focused ? 1.25 : 1.0;
     const damageMultiplier = focused ? 1.33 : 1.0;
     return Array.from({ length: 5 }, (_, index) => {
       const spreadAngle = (index - 2) * 8 * spreadFactor;
@@ -257,7 +257,7 @@ const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties
   snowball: { width: 24, height: 24, canBeDeflected: true },
   'large-snowball': { width: 33, height: 33, knockback: 150, lifetime: 1400, canBeDeflected: true },
   'blizzard-stone': { width: 45, height: 45, hasGravity: true, gravity: 600 }, // Heavy gravity for arcing.
-  net: { width: 48, height: 48, hasGravity: true, gravity: 360, lifetime: 3500, canBeDeflected: false },
+  net: { width: 45, height: 45, hasGravity: true, gravity: 325, lifetime: 3500, canBeDeflected: false },
   'hacker-missile': { width: 24, height: 24, canBeDeflected: true },
   hacking: { width: 1, height: 1, canBeDeflected: false, lifetime: 100 },
 };

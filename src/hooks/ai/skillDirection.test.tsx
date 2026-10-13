@@ -56,7 +56,7 @@ describe('actual Hunter net launch direction under perfect observation', () => {
       act(() => { vi.advanceTimersByTime(16); });
       const state = game.result.current.gameState;
       const nets = state.projectiles.filter(shot => shot.ownerId === side && shot.type === 'net');
-      // The 48px net is consumed by an immediate hit in overlapping 16/33ms scenes.
+      // The 45px net is consumed by an immediate hit in overlapping 16/33ms scenes.
       const marked = state.players[enemySide - 1].isMarked && state.players[enemySide - 1].markOwnerId === side;
       expect(nets.length + Number(marked)).toBe(shouldReject ? 0 : 1);
       if (nets.length) expect(Math.sign(nets[0].velocityX)).toBe(Math.sign(state.players[enemySide - 1].x - state.players[side - 1].x));

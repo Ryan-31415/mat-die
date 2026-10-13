@@ -1625,13 +1625,12 @@ export const useGameEngine = (
               // Hunter Mark Passive: Slow on hit by Hunter
               if (currentTarget.isMarked && currentTarget.markOwnerId === proj.ownerId) {
                 // Apply 20% slow for 1s
-                // Stack or overwrite? Let's overwrite/extend max
                 const existingSlow = currentTarget.isSlowed ? currentTarget.slowAmount : 0;
                 if (existingSlow < 0.20) {
                   currentTarget.isSlowed = true;
                   currentTarget.slowAmount = 0.20;
                   currentTarget.slowDuration = 1000;
-                } else if (currentTarget.isSlowed && currentTarget.slowAmount === 0.15) {
+                } else if (currentTarget.isSlowed && currentTarget.slowAmount === 0.20) {
                   // Refresh duration if same strength
                   currentTarget.slowDuration = 1000;
                 }
