@@ -442,7 +442,8 @@ export const useGameEngine = (
     // Mana regeneration
     // Scientist only regenerates mana when NOT charging
     const isCharging = character.id === 'scientist' && updatedPlayer.isChargingSkill;
-    const manaRegen = isCharging ? 0 : (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.67 : 1.0);
+    const isShielding = character.id === 'gladiator' && updatedPlayer.isShielding;
+    const manaRegen = isCharging || isShielding ? 0 : (character.manaRegen / 100) * (deltaTime / 1000) * updatedPlayer.maxMana * manaMultiplier * (updatedPlayer.mageUltimateDuration > 0 ? 1.67 : 1.0);
     updatedPlayer.mana = Math.min(updatedPlayer.maxMana, updatedPlayer.mana + manaRegen);
 
     // Cooldown reduction
@@ -466,13 +467,13 @@ export const useGameEngine = (
 
     // Shield handling for gladiator
     if (character.id === 'gladiator' && skillKey) {
-      if (updatedPlayer.mana >= 2.5) {
+      if (updatedPlayer.mana >= 2) {
         if (!updatedPlayer.isShielding) recordPlayerAction('defense');
         updatedPlayer.isShielding = true;
         newShieldTick += deltaTime;
         if (newShieldTick >= 100) {
           if (diagnostics) diagnostics.actions[player.id - 1].defense.mana += Math.min(2, updatedPlayer.mana);
-          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 2.5);
+          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 2);
           newShieldTick = 0;
         }
       } else {
