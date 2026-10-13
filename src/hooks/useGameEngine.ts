@@ -466,13 +466,13 @@ export const useGameEngine = (
 
     // Shield handling for gladiator
     if (character.id === 'gladiator' && skillKey) {
-      if (updatedPlayer.mana >= 5) {
+      if (updatedPlayer.mana >= 2.5) {
         if (!updatedPlayer.isShielding) recordPlayerAction('defense');
         updatedPlayer.isShielding = true;
         newShieldTick += deltaTime;
         if (newShieldTick >= 100) {
           if (diagnostics) diagnostics.actions[player.id - 1].defense.mana += Math.min(2, updatedPlayer.mana);
-          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 2);
+          updatedPlayer.mana = Math.max(0, updatedPlayer.mana - 2.5);
           newShieldTick = 0;
         }
       } else {
