@@ -163,7 +163,7 @@ export const CHARACTERS: Record<CharacterType, Character> = {
     skill: {
       name: '방어',
       description: '스킬 버튼을 누르고 있는 동안 방패를 들어 전방의 공격을 방어합니다. 방패를 드는 동안 이동속도가 50% 감소합니다.',
-      manaCost: 2, // per 0.1 seconds
+      manaCost: 2.5, // per 0.1 seconds (25%/s)
       cooldown: 0,
     },
     ultimate: {
