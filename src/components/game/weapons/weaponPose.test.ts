@@ -10,7 +10,7 @@ const status = { isShielding: false, isStunned: false, isFrozen: false };
 describe('weapon motion boundaries', () => {
   it.each(['gladiator', 'ninja', 'reaper'] as const)('%s starts immediately and recovers beyond the hit interval', id => {
     const d = WEAPONS[id];
-    expect(weaponPose(id, 0, status)).toMatchObject({ active: true, attacking: true, angle: d.idleAngle });
+    expect(weaponPose(id, 0, status)).toMatchObject({ active: true, attacking: true, angle: d.attackStartAngle ?? d.idleAngle });
     expect(weaponPose(id, d.sweepMs, status).angle).toBe(d.strikeAngle);
     expect(weaponPose(id, d.activeMs - 0.01, status).trailOpacity).toBeGreaterThan(0);
     expect(weaponPose(id, d.activeMs, status)).toMatchObject({ active: false, attacking: true, trailOpacity: 0 });

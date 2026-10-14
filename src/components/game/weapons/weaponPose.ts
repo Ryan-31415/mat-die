@@ -11,10 +11,14 @@ export function weaponPose(id: CharacterType, elapsed: number | null, player: Pi
     ? 1 - Math.pow(1 - t / definition.sweepMs, 3)
     : t < definition.activeMs ? 1
     : 1 - (t - definition.activeMs) / (definition.durationMs - definition.activeMs);
+  const startAngle = definition.attackStartAngle ?? definition.idleAngle;
+  const angle = !attacking ? definition.idleAngle : t < definition.sweepMs
+    ? startAngle + (definition.strikeAngle - startAngle) * progress
+    : definition.idleAngle + (definition.strikeAngle - definition.idleAngle) * progress;
   const restrained = player.isStunned || player.isFrozen;
   return {
     attacking, active,
-    angle: definition.idleAngle + (definition.strikeAngle - definition.idleAngle) * progress,
+    angle,
     offsetX: ['hunter', 'rocketeer'].includes(id) ? -3 * progress : id === 'scientist' ? 4 * progress : 0,
     offsetY: id === 'gladiator' && player.isShielding ? 5 : 0,
     trailOpacity: active ? (restrained ? 0.12 : 0.48) * (1 - 0.65 * t / definition.activeMs) : 0,
