@@ -1902,8 +1902,12 @@ export const useGameEngine = (
             currentTarget.lastBurnTick = now;
           }
 
-          // Apply smooth knockback
-          currentTarget.knockbackVelocityX = (hitbox.x < currentTarget.x ? 1 : -1) * hitbox.knockback * 10;
+          // Push away from the attack source, not the hitbox's left edge.
+          const attacker = players[ownerIndex];
+          const sourceX = hitbox.sourceX ?? attacker.x + PLAYER_SIZE / 2;
+          const targetOffsetX = currentTarget.x + PLAYER_SIZE / 2 - sourceX;
+          const knockbackDirection = Math.sign(targetOffsetX) || (attacker.facingRight ? 1 : -1);
+          currentTarget.knockbackVelocityX = knockbackDirection * hitbox.knockback * 10;
 
           // Final target update
           if (hitPlayer) players[targetIndex] = currentTarget;
