@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Character, ARENA, PLAYER_SIZE } from '@/types/game';
+import { visualActorId } from '@/types/combatVisual';
 import { MapId, MAPS } from '@/types/map';
 import { useGameEngine } from '@/hooks/useGameEngine';
 import { useKeyboard } from '@/hooks/useKeyboard';
@@ -175,15 +176,27 @@ const GameArena = ({
         ))}
 
         {/* Players */}
-        <PlayerRenderer player={gameState.players[0]} character={player1Character} />
-        <PlayerRenderer player={gameState.players[1]} character={player2Character} />
+        <PlayerRenderer
+          player={gameState.players[0]}
+          character={player1Character}
+          attack={gameState.combatVisual.attacks[visualActorId(gameState.players[0])]}
+          visualTime={gameState.combatVisual.time}
+        />
+        <PlayerRenderer
+          player={gameState.players[1]}
+          character={player2Character}
+          attack={gameState.combatVisual.attacks[visualActorId(gameState.players[1])]}
+          visualTime={gameState.combatVisual.time}
+        />
 
         {/* Clones */}
         {gameState.clones.map((clone, index) => (
           <PlayerRenderer
-            key={`clone-${clone.id}-${index}-${clone.x}`}
+            key={visualActorId(clone, index)}
             player={clone}
             character={clone.character!}
+            attack={gameState.combatVisual.attacks[visualActorId(clone, index)]}
+            visualTime={gameState.combatVisual.time}
           />
         ))}
 

@@ -121,52 +121,6 @@ All colors MUST be HSL.
 .explosion-ring { animation: explosion-ring 400ms ease-out forwards; }
 .explosion-spark { animation: explosion-spark 400ms ease-out forwards; }
 
-@keyframes sword-swing {
-  0% {
-    transform: translate(-10px, -15px) rotate(-110deg);
-    opacity: 0;
-  }
-
-  10% {
-    opacity: 1;
-  }
-
-  30% {
-    transform: translate(15px, -5px) rotate(-20deg);
-  }
-
-  100% {
-    transform: translate(35px, 25px) rotate(90deg);
-    opacity: 0;
-  }
-}
-
-.animate-sword-swing {
-  animation: sword-swing 0.4s cubic-bezier(0.2, 0.6, 0.35, 1) forwards;
-  transform-origin: left center;
-}
-
-@keyframes katana-slash {
-  0% {
-    transform: scale(0.8) translate(-5px, 10px) rotate(-60deg);
-    opacity: 0;
-  }
-
-  10% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: scale(1.1) translate(40px, -10px) rotate(110deg);
-    opacity: 0;
-  }
-}
-
-.animate-katana-slash {
-  animation: katana-slash 0.25s cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
-  transform-origin: left center;
-}
-
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -176,25 +130,4 @@ All colors MUST be HSL.
   /* IE and Edge */
   scrollbar-width: none;
   /* Firefox */
-}
-
-@keyframes scythe-swing {
-  0% {
-    transform: translate(-20px, -50px) rotate(-110deg);
-    opacity: 0;
-  }
-
-  20% {
-    opacity: 1;
-  }
-
-  100% {
-    transform: translate(50px, 40px) rotate(70deg);
-    opacity: 0;
-  }
-}
-
-.animate-scythe-swing {
-  animation: scythe-swing 0.5s cubic-bezier(0.1, 0.5, 0.4, 1) forwards;
-  transform-origin: 20% center;
 }
