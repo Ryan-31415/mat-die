@@ -555,8 +555,12 @@ export const useGameEngine = (
 
       const melee = basicMeleeGeometry(updatedPlayer);
       if (visual) captureBasicAttack(visual, updatedPlayer, now, melee, randomScope ?? visualActorId(player));
-      if (melee) newHitboxes.push(createAttackHitbox(player.id, melee.x, melee.y, melee.width, melee.height,
-        baseDamage, melee.duration, melee.canDeflectProjectiles, melee.sourceX));
+      if (melee) {
+        const hitbox = createAttackHitbox(player.id, melee.x, melee.y, melee.width, melee.height,
+          baseDamage, melee.duration, melee.canDeflectProjectiles, melee.sourceX);
+        hitbox.knockbackDirection = updatedPlayer.facingRight ? 1 : -1;
+        newHitboxes.push(hitbox);
+      }
       else {
         for (const launch of basicProjectileLaunches(updatedPlayer, baseDamage)) {
           if (launch.type === 'rocket' || launch.type === 'homing-rocket') {
@@ -1902,11 +1906,8 @@ export const useGameEngine = (
             currentTarget.lastBurnTick = now;
           }
 
-          // Push away from the attack source, not the hitbox's left edge.
-          const attacker = players[ownerIndex];
-          const sourceX = hitbox.sourceX ?? attacker.x + PLAYER_SIZE / 2;
-          const targetOffsetX = currentTarget.x + PLAYER_SIZE / 2 - sourceX;
-          const knockbackDirection = Math.sign(targetOffsetX) || (attacker.facingRight ? 1 : -1);
+          // Preserve the swing direction even for overlapping targets or a later turn.
+          const knockbackDirection = hitbox.knockbackDirection ?? (players[ownerIndex].facingRight ? 1 : -1);
           currentTarget.knockbackVelocityX = knockbackDirection * hitbox.knockback * 10;
 
           // Final target update

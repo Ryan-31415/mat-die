@@ -234,6 +234,7 @@ export interface AttackHitbox {
   knockback: number;
   canDeflectProjectiles: boolean;
   sourceX?: number;
+  knockbackDirection?: 1 | -1;
 }
 
 // Helper function to create projectiles

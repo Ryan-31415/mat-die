@@ -23,7 +23,7 @@ describe('melee knockback direction', () => {
   for (const character of ['gladiator', 'ninja', 'reaper'] as const) {
     for (const ownerId of [1, 2] as const) {
       for (const facingRight of [false, true]) {
-        it.each([20, 60, 0])(`${character}, player ${ownerId}, facing ${facingRight ? 'right' : 'left'}, distance %s pushes away`, distance => {
+        it.each([20, 60, 0, -10])(`${character}, player ${ownerId}, facing ${facingRight ? 'right' : 'left'}, distance %s pushes in attack direction`, distance => {
           const { result, keys, step } = setup(character, ownerId);
           const direction = facingRight ? 1 : -1;
           const attacker = result.current.gameState.players[ownerId - 1];
@@ -45,17 +45,34 @@ describe('melee knockback direction', () => {
     }
   }
 
-  it.each([true, false])('uses the attack source center with sourceX present: %s', hasSource => {
+  it.each([false, true])('keeps the original attack direction after turning, initially facing right: %s', facingRight => {
+    const { result, keys, step } = setup('gladiator');
+    const direction = facingRight ? 1 : -1;
+    Object.assign(result.current.gameState.players[0], { x: 400, facingRight });
+    Object.assign(result.current.gameState.players[1], { x: 400 - direction * 200 });
+    keys.current.f = true;
+    step();
+    keys.current.f = false;
+    expect(result.current.gameState.attackHitboxes).toHaveLength(1);
+    result.current.gameState.players[0].facingRight = !facingRight;
+    result.current.gameState.players[1].x = 400 + direction * 20;
+    const health = result.current.gameState.players[1].health;
+    step();
+    expect(result.current.gameState.players[1].health).toBeLessThan(health);
+    expect(result.current.gameState.players[1].knockbackVelocityX).toBe(direction * 500);
+  });
+
+  it.each([false, true])('uses attacker facing for legacy hitboxes, facing right: %s', facingRight => {
     const { result, step } = setup('gladiator');
-    Object.assign(result.current.gameState.players[0], { x: hasSource ? 200 : 400 });
+    Object.assign(result.current.gameState.players[0], { x: 400, facingRight });
     const target = result.current.gameState.players[1];
     Object.assign(target, { x: 380, y: result.current.gameState.players[0].y });
     result.current.gameState.attackHitboxes.push(createAttackHitbox(
       1, 300, target.y, 140, PLAYER_SIZE, 10, 200, false,
-      hasSource ? 400 + PLAYER_SIZE / 2 : undefined
+      400 + PLAYER_SIZE / 2
     ));
     step();
     expect(result.current.gameState.players[1].health).toBe(target.health - 10);
-    expect(result.current.gameState.players[1].knockbackVelocityX).toBe(-500);
+    expect(result.current.gameState.players[1].knockbackVelocityX).toBe((facingRight ? 1 : -1) * 500);
   });
 });
