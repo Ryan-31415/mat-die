@@ -263,6 +263,33 @@ describe('combat mechanics used by AI predictions', () => {
     expect(game.result.current.gameState.projectiles.filter(p => p.type === 'bat')).toHaveLength(0);
     game.unmount();
   });
+  it.each(['outbound', 'returning'] as const)('does not damage or heal when a %s bat misses', returnPhase => {
+    const game = setup('reaper', 'wasteland', 'multi', 'mage');
+    Object.assign(game.result.current.gameState.players[1], { x: 380, health: 50 });
+    Object.assign(game.result.current.gameState.players[0], { x: 20, y: 440 });
+    const bat = createProjectile('bat', 2, 600, 300, returnPhase === 'outbound' ? 550 : -650, 0, 20);
+    bat.returnPhase = returnPhase;
+    game.result.current.gameState.projectiles.push(bat);
+    game.step();
+    const activeBat = game.result.current.gameState.projectiles[0];
+    expect(game.result.current.gameState.players[0].health).toBe(CHARACTERS.mage.maxHealth);
+    expect(game.result.current.gameState.players[1].health).toBe(50);
+    expect(activeBat.hasHitForward).toBe(false);
+    expect(activeBat.hasHitReturn).toBe(false);
+    expect(activeBat.damageAccumulated).toBe(0);
+    game.unmount();
+  });
+  it('returns from a boundary and is collected without damaging a distant opponent or healing the owner', () => {
+    const game = setup('reaper', 'wasteland', 'multi', 'mage');
+    Object.assign(game.result.current.gameState.players[1], { x: 380, health: 50 });
+    Object.assign(game.result.current.gameState.players[0], { x: 20, y: 440 });
+    game.result.current.gameState.projectiles.push(createProjectile('bat', 2, 690, 440, 550, 0, 20));
+    game.step(80);
+    expect(game.result.current.gameState.players[0].health).toBe(CHARACTERS.mage.maxHealth);
+    expect(game.result.current.gameState.players[1].health).toBe(50);
+    expect(game.result.current.gameState.projectiles).toHaveLength(0);
+    game.unmount();
+  });
 });
 
 describe('all characters on all maps', () => {

@@ -1463,18 +1463,17 @@ export const useGameEngine = (
 
         // For bat projectiles: allow damage on both forward and return path, but only once per direction
         if (proj.type === 'bat') {
-          const hitsTarget = checkProjectileCollision(proj, previousPosition,
+          const targetTime = getProjectileCollisionTime(proj, previousPosition,
             { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
           // A boundary turnaround while still touching the forward target is
           // the same contact. Arm return damage only after separation.
-          if (proj.hasHitForward && !hitsTarget) proj.hasLeftForwardTarget = true;
+          if (proj.hasHitForward && targetTime === null) proj.hasLeftForwardTarget = true;
           const phaseAlreadyHit = isReturningToOwner
             ? proj.hasHitReturn || (proj.hasHitForward && !proj.hasLeftForwardTarget)
             : proj.hasHitForward;
-          const contacts = !phaseAlreadyHit && !playerTarget.isEvading && !playerTarget.isInvulnerable
+          const contacts = !phaseAlreadyHit && !playerTarget.isEvading && !playerTarget.isInvulnerable && targetTime !== null
             ? [{ target: playerTarget as Player, playerIndex: targetPlayerIndex as number, cloneIndex: -1,
-              time: getProjectileCollisionTime(proj, previousPosition,
-                { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE }) ?? Infinity }]
+              time: targetTime }]
             : [];
           if (!isReturningToOwner && !phaseAlreadyHit) nextClones.forEach((clone, cloneIndex) => {
             if (clone.id === proj.ownerId || clone.isEvading || clone.isInvulnerable) return;
