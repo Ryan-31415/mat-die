@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { captureBasicAttack, createCombatVisualState, visualActorId, type CombatVisualState } from '@/types/combatVisual';
+import { advanceCombatVisual } from '@/components/game/weapons/weaponPose';
 import { Player, Character, ARENA, PLAYER_SIZE, createInitialPlayer } from '@/types/game';
 import { Projectile, HazardZone, AttackHitbox, ExplosionEffect, basicProjectileLaunches, hunterNetLaunch, scientistOrbLaunch, checkProjectileCollision, getProjectileCollisionTime, createExplosionEffect, projectileImpactZone, projectilePierces } from '@/types/projectile';
 import { Platform, PLATFORMS } from '@/types/platform';
@@ -23,6 +25,7 @@ const ARCHER_BURST_INTERVAL = 80;
 const ARCHER_BURST_SPREAD = 10 * Math.PI / 180;
 
 interface GameEngineState {
+  combatVisual: CombatVisualState;
   evaluationState?: EngineEvaluationState;
   aiState: AIRoundState;
   diagnostics?: CombatDiagnostics;
@@ -95,7 +98,7 @@ export const useGameEngine = (
   const now0 = Date.now();
   const [initialDifficultySession] = useState(() => gameMode === 'single' && aiSettings ? learningSessionRef?.current.difficulty ?? createDifficultySession() : undefined);
 
-  const createInitialEngineState = useCallback((previousEvaluationState?: EngineEvaluationState): GameEngineState => {
+  const createInitialEngineState = useCallback((previousEvaluationState?: EngineEvaluationState, visualRoundId = 1): GameEngineState => {
     const random = createTickRandom(runtime?.random, 'initial', Date.now());
     const players: [Player, Player] = [
       createInitialPlayer(1, player1Character),
@@ -119,6 +122,7 @@ export const useGameEngine = (
     }
 
     return {
+      combatVisual: createCombatVisualState(visualRoundId),
       ...(runtime?.controllers || runtime?.cloneControllers ? { evaluationState: createEngineEvaluationState(runtime, previousEvaluationState) } : {}),
       aiState: {
         ...createAIRoundState(learningSessionRef?.current),
@@ -248,7 +252,8 @@ export const useGameEngine = (
     hazardZones: HazardZone[],
     platforms: Platform[],
     diagnostics?: CombatDiagnostics,
-    randomScope?: string
+    randomScope?: string,
+    visual?: CombatVisualState
   ): { player: Player; newProjectiles: Projectile[]; newHitboxes: AttackHitbox[]; newHazards: HazardZone[]; newClones: Player[]; newShieldTick: number } => {
     const now = Date.now();
     const random = createTickRandom(runtime?.random, randomScope ?? player.aiControllerId ?? 'player:' + player.id, now);
@@ -549,6 +554,7 @@ export const useGameEngine = (
       const baseDamage = character.attackDamage * (1 + damageBoost) * damageMultiplier;
 
       const melee = basicMeleeGeometry(updatedPlayer);
+      if (visual) captureBasicAttack(visual, updatedPlayer, now, melee, randomScope ?? visualActorId(player));
       if (melee) newHitboxes.push(createAttackHitbox(player.id, melee.x, melee.y, melee.width, melee.height,
         baseDamage, melee.duration, melee.canDeflectProjectiles, melee.sourceX));
       else {
@@ -1011,6 +1017,7 @@ export const useGameEngine = (
 
     setGameState(prev => {
       if (!prev.isRoundActive || prev.isPaused) return prev;
+      const combatVisual = advanceCombatVisual(prev.combatVisual, deltaTime);
       const diagnostics = nextCombatDiagnostics(prev.diagnostics);
       const random = createTickRandom(runtime?.random, 'engine', now);
       let diagnosticParent: DamageSource | undefined;
@@ -1119,7 +1126,9 @@ export const useGameEngine = (
         shieldManaTickRef.current[0],
         prev.hazardZones,
         prev.platforms,
-        diagnostics
+        diagnostics,
+        undefined,
+        combatVisual
       );
       const p2Result = updatePlayer(
         prev.players[1],
@@ -1129,7 +1138,9 @@ export const useGameEngine = (
         shieldManaTickRef.current[1],
         prev.hazardZones,
         prev.platforms,
-        diagnostics
+        diagnostics,
+        undefined,
+        combatVisual
       );
 
       shieldManaTickRef.current = [p1Result.newShieldTick, p2Result.newShieldTick];
@@ -1169,7 +1180,8 @@ export const useGameEngine = (
           prev.hazardZones,
           prev.platforms,
           diagnostics,
-          controllerId
+          controllerId,
+          combatVisual
         );
 
         nextClones.push({ ...cloneRes.player, aiControllerId: controllerId });
@@ -2361,8 +2373,20 @@ export const useGameEngine = (
         else roundWinner = players[0].health > players[1].health ? 1 : 2;
       }
 
+      const liveActors = new Set([...players, ...nextClones].map((p, index) => visualActorId(p, index)));
+      for (const actor of Object.keys(combatVisual.sequences)) {
+        if (!liveActors.has(actor)) {
+          delete combatVisual.sequences[actor];
+          delete combatVisual.attacks[actor];
+        }
+      }
+      for (const p of [...players, ...nextClones]) {
+        if ((p.character?.id === 'reaper' && p.isFlying) || roundWinner) delete combatVisual.attacks[visualActorId(p)];
+      }
+
       return {
         ...prev,
+        combatVisual,
         ...(evaluationState ? { evaluationState } : {}),
         players,
         aiState: { learning, controllers, ...(difficulty ? { difficulty } : {}) },
@@ -2407,7 +2431,7 @@ export const useGameEngine = (
     pausedAtRef.current = null;
     shieldManaTickRef.current = [0, 0];
     roundEndingRef.current = false;
-    setGameState(prev => ({ ...createInitialEngineState(prev.evaluationState), aiState: {
+    setGameState(prev => ({ ...createInitialEngineState(prev.evaluationState, prev.combatVisual.roundId + 1), aiState: {
       ...createAIRoundState(prev.aiState.learning),
       ...(prev.aiState.difficulty ? { difficulty: createDifficultyRuntime(prev.aiState.difficulty.session) } : {}),
     } }));
