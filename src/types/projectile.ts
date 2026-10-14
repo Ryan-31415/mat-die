@@ -85,6 +85,7 @@ export interface Projectile {
   isHackUltimate?: boolean;
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
+  hasLeftForwardTarget?: boolean; // Require separation before a second hit on return
   hasHitReturn?: boolean; // Track if projectile has hit on return path
   hitCoilIds?: string[];
   lastHitTime: Record<number, number>; // Track timestamp of last hit per player ID
@@ -254,7 +255,7 @@ const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties
   'electric-orb': { width: 33, height: 33, isExplosive: true, explosionRadius: 125, knockback: 160, slowAmount: 0.4, slowDuration: 4000, stunDuration: 1000, canBeDeflected: false },
   bullet: { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 10 },
   'super-bullet': { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 15 },
-  bat: { width: 75, height: 75, lifetime: 3600, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasHitReturn: false },
+  bat: { width: 75, height: 75, lifetime: 3600, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasLeftForwardTarget: false, hasHitReturn: false },
   snowball: { width: 24, height: 24, canBeDeflected: true },
   'large-snowball': { width: 33, height: 33, knockback: 150, lifetime: 1400, canBeDeflected: true },
   'blizzard-stone': { width: 45, height: 45, hasGravity: true, gravity: 600 }, // Heavy gravity for arcing.

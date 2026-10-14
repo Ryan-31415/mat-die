@@ -1463,7 +1463,14 @@ export const useGameEngine = (
 
         // For bat projectiles: allow damage on both forward and return path, but only once per direction
         if (proj.type === 'bat') {
-          const phaseAlreadyHit = isReturningToOwner ? proj.hasHitReturn : proj.hasHitForward;
+          const hitsTarget = checkProjectileCollision(proj, previousPosition,
+            { x: playerTarget.x, y: playerTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE });
+          // A boundary turnaround while still touching the forward target is
+          // the same contact. Arm return damage only after separation.
+          if (proj.hasHitForward && !hitsTarget) proj.hasLeftForwardTarget = true;
+          const phaseAlreadyHit = isReturningToOwner
+            ? proj.hasHitReturn || (proj.hasHitForward && !proj.hasLeftForwardTarget)
+            : proj.hasHitForward;
           const contacts = !phaseAlreadyHit && !playerTarget.isEvading && !playerTarget.isInvulnerable
             ? [{ target: playerTarget as Player, playerIndex: targetPlayerIndex as number, cloneIndex: -1,
               time: getProjectileCollisionTime(proj, previousPosition,
