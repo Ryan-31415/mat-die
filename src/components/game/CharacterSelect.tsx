@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Character, CHARACTERS, CharacterType } from '@/types/game';
-import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake, Terminal, Sparkles, Rocket } from 'lucide-react';
+import { Sword, Target, Flame, Wind, Zap, Shield, Heart, Droplet, Dices, Crosshair, Skull, Snowflake, Terminal, Sparkles, Rocket, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const CHARACTERS_PER_PAGE = 5;
 
 interface CharacterSelectProps {
   onConfirm: (player1: Character, player2: Character) => void;
@@ -39,13 +41,13 @@ const CharacterCard = ({
 }) => {
   return (
     <Card
-      className={`cursor-pointer transition-all duration-200 hover:scale-105 ${isSelected
+      className={`h-full min-w-0 break-words cursor-pointer transition-all duration-200 hover:scale-105 ${isSelected
         ? 'ring-2 ring-primary shadow-lg scale-105'
         : 'hover:shadow-md'
         }`}
       onClick={onClick}
     >
-      <CardHeader className="pb-2">
+      <CardHeader className="p-4 pb-2">
         <div className="flex items-center justify-between">
           <div
             className="w-12 h-12 rounded-lg flex items-center justify-center text-primary-foreground"
@@ -62,9 +64,9 @@ const CharacterCard = ({
         <CardTitle className="text-lg mt-2">{character.nameKo}</CardTitle>
         <CardDescription className="text-xs">{character.name}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="p-4 pt-0 space-y-3">
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 text-xs">
           <div className="flex items-center gap-1">
             <Heart className="w-3 h-3 text-red-500" />
             <span>체력: {character.maxHealth}</span>
@@ -101,7 +103,7 @@ const CharacterCard = ({
 
         {/* Skill */}
         <div className="bg-muted/50 rounded-md p-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-1">
             <p className="text-xs font-medium text-blue-600">{character.skill.name}</p>
             <Badge variant="outline" className="text-[10px]">
               마나 {character.skill.manaCost}%
@@ -133,8 +135,14 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, i
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(initialPlayer2 ? 2 : 1);
   const [player1Character, setPlayer1Character] = useState<Character | null>(initialPlayer1);
   const [player2Character, setPlayer2Character] = useState<Character | null>(initialPlayer2);
+  const [currentPage, setCurrentPage] = useState(0);
 
   const characters = Object.values(CHARACTERS);
+  const pageCount = Math.ceil(characters.length / CHARACTERS_PER_PAGE);
+  const visibleCharacters = characters.slice(
+    currentPage * CHARACTERS_PER_PAGE,
+    (currentPage + 1) * CHARACTERS_PER_PAGE,
+  );
 
   const getRandomCharacter = () => {
     return characters[Math.floor(Math.random() * characters.length)];
@@ -151,11 +159,13 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, i
   const handleRandomSelect = () => {
     const randomCharacter = getRandomCharacter();
     handleCharacterSelect(randomCharacter);
+    setCurrentPage(Math.floor(characters.indexOf(randomCharacter) / CHARACTERS_PER_PAGE));
   };
 
   const handleConfirmSelection = () => {
     if (currentPlayer === 1 && player1Character) {
       setCurrentPlayer(2);
+      setCurrentPage(0);
     } else if (currentPlayer === 2 && player1Character && player2Character) {
       onConfirm(player1Character, player2Character);
     }
@@ -165,6 +175,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, i
     if (currentPlayer === 2) {
       setCurrentPlayer(1);
       setPlayer2Character(null);
+      setCurrentPage(Math.floor(characters.findIndex((character) => character.id === player1Character?.id) / CHARACTERS_PER_PAGE));
     } else {
       onBack();
     }
@@ -213,8 +224,8 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, i
         </div>
 
         {/* Character Grid */}
-        <div className="flex overflow-x-auto pb-6 gap-6 px-4 no-scrollbar">
-          {characters.map((character) => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pb-6">
+          {visibleCharacters.map((character) => {
             const isP1Selected = player1Character?.id === character.id;
             const isP2Selected = player2Character?.id === character.id;
             const isCurrentSelected =
@@ -225,7 +236,7 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, i
             if (isP2Selected && currentPlayer === 1) playerLabel = 'P2';
 
             return (
-              <div key={character.id} className="min-w-[240px]">
+              <div key={character.id} className="min-w-0">
                 <CharacterCard
                   character={character}
                   isSelected={isCurrentSelected}
@@ -236,6 +247,28 @@ const CharacterSelect = ({ onConfirm, onBack, gameMode, initialPlayer1 = null, i
             );
           })}
         </div>
+
+        <nav aria-label="캐릭터 페이지" className="flex items-center justify-center gap-4 mb-6">
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage((page) => page - 1)}
+            disabled={currentPage === 0}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            이전
+          </Button>
+          <span aria-live="polite" aria-atomic="true" className="text-sm text-muted-foreground">
+            {currentPage + 1} / {pageCount}
+          </span>
+          <Button
+            variant="outline"
+            onClick={() => setCurrentPage((page) => page + 1)}
+            disabled={currentPage === pageCount - 1}
+          >
+            다음
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </nav>
 
         {/* Action Buttons */}
         <div className="flex flex-wrap justify-center gap-4">
