@@ -7,14 +7,15 @@ export function weaponPose(id: CharacterType, elapsed: number | null, player: Pi
   const attacking = elapsed !== null && elapsed >= 0 && elapsed < definition.durationMs;
   const t = attacking ? elapsed : 0;
   const active = attacking && t < definition.activeMs;
+  const easeOut = (value: number) => 1 - Math.pow(1 - value, 3);
   const progress = !attacking ? 0 : t < definition.sweepMs
-    ? 1 - Math.pow(1 - t / definition.sweepMs, 3)
+    ? easeOut(t / definition.sweepMs)
     : t < definition.activeMs ? 1
     : 1 - (t - definition.activeMs) / (definition.durationMs - definition.activeMs);
-  const startAngle = definition.attackStartAngle ?? definition.idleAngle;
   const angle = !attacking ? definition.idleAngle : t < definition.sweepMs
-    ? startAngle + (definition.strikeAngle - startAngle) * progress
-    : definition.idleAngle + (definition.strikeAngle - definition.idleAngle) * progress;
+    ? definition.idleAngle + (definition.strikeAngle - definition.idleAngle) * easeOut(t / definition.sweepMs)
+    : t < definition.activeMs ? definition.strikeAngle
+    : definition.strikeAngle + (definition.idleAngle - definition.strikeAngle) * ((t - definition.activeMs) / (definition.durationMs - definition.activeMs));
   const restrained = player.isStunned || player.isFrozen;
   return {
     attacking, active,
