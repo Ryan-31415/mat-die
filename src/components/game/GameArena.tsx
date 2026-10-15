@@ -66,6 +66,10 @@ const GameArena = ({
   const displayedRoundNumber = gameState.roundWinner
     ? frozenRoundNumber
     : roundsCompleted + 1;
+  const isFinalRoundDraw = gameState.roundWinner === 'draw'
+    && !gameState.isOvertime
+    && roundsCompleted + 1 >= settings.maxRounds
+    && scores[0] === scores[1];
 
   useEffect(() => {
     if (!gameState.roundWinner) {
@@ -215,7 +219,7 @@ const GameArena = ({
               <p className="text-2xl text-primary font-bold">
                 {gameState.roundWinner === 'draw' ? (gameState.isOvertime ? '경기 종료 (무승부)' : '무승부!') : `플레이어 ${gameState.roundWinner} 승리!`}
               </p>
-              {gameState.roundWinner === 'draw' && !gameState.isOvertime && (
+              {isFinalRoundDraw && (
                 <p className="text-xl text-destructive mt-2 animate-pulse">
                   곧 연장전이 시작됩니다!
                 </p>
