@@ -94,6 +94,7 @@ export default function WeaponVisual({ player, attack, visualTime = 0 }: {
   const color = poison && id === 'archer' ? '#4ade80' : focused && id === 'hunter' ? '#7dd3fc' : d.color;
   // Archer ultimate uses only the existing burst state, not fabricated basic attack events.
   const released = id === 'archer' && (pose.active || (player.archerBurstRemaining > 0 && player.archerBurstCooldown > 45));
+  const hideScientistFlask = id === 'scientist' && (player.isChargingSkill || (pose.attacking && elapsed! >= 25 && elapsed! < 140));
   const handX = d.hand.x + pose.offsetX;
   const handY = d.hand.y + pose.offsetY + (id === 'scientist' && player.isChargingSkill ? -6 : 0);
   const radians = pose.angle * Math.PI / 180;
@@ -130,7 +131,7 @@ export default function WeaponVisual({ player, attack, visualTime = 0 }: {
         <svg width={d.width} height={d.height} viewBox={d.viewBox} focusable="false"
           style={{ position: 'absolute', left: -d.grip.x, top: -d.grip.y, overflow: 'visible' }}>
           <g stroke={outline} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round">
-            {!(id === 'scientist' && pose.attacking && elapsed! >= 25 && elapsed! < 140) && <WeaponArtwork id={id} poison={poison} released={released} napalm={napalm} />}
+            {!hideScientistFlask && <WeaponArtwork id={id} poison={poison} released={released} napalm={napalm} />}
           </g>
           {d.supportGrip && <circle cx={d.supportGrip.x} cy={d.supportGrip.y} r="3" fill="#ccb198" stroke={outline} strokeWidth="1.5" />}
           {id === 'gladiator' && player.buffDuration > 0 && <path d="M25 9 H66" stroke="#fb923c" strokeWidth="1" />}
