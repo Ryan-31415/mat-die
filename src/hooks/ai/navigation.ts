@@ -123,8 +123,6 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   let preferred = isMelee(character.id) ? character.attackRange * 0.65 : character.id === 'hunter' ? player.hunterFocusedDuration ? 240 : 180 : low ? 340 : 270;
   const genericPreferred = isMelee(character.id) ? character.attackRange * 0.65 : low ? 340 : 270;
   if (character.id === 'rocketeer') preferred = low ? 360 : 300;
-  if (characterWeight >= .5 && character.id === 'rocketeer' && player.attackCooldownRemaining > 400)
-    preferred = Math.max(preferred, 360);
   if (strategy === 'kite') preferred = Math.max(330, preferred);
   if (opponent.isFrozen || opponent.rootDuration > 0 || opponent.isStunned) { strategy = 'pressure'; preferred *= 0.8; }
   if (character.id === 'ice-mage' && opponent.freezeGauge >= 3) { strategy = 'pressure'; preferred = 210; }

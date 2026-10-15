@@ -19,7 +19,7 @@ function scatter(distance: number, focused = false, marked = false, low = false)
   return hunterScatter(prepareAIFrame(world), owner, opponent, owner, () => opponent);
 }
 
-describe('stage-three bounded ranged tactics', () => {
+describe('historical stage-three predictors and restored live policy', () => {
   it('counts all five pellets nearby, fewer at distance, and none past lifetime', () => {
     expect(scatter(100).hits).toBe(5);
     expect(scatter(260).hits).toBeLessThan(5);
@@ -52,11 +52,11 @@ describe('stage-three bounded ranged tactics', () => {
     expect(hunterScatter(frame, world.players[1], world.players[0], world.players[1], () => world.players[0]).hits).toBe(0);
     expect(hunterScatter(frame, world.players[1], world.players[0], { ...world.players[1], facingRight: false }, () => world.players[0]).hits).toBe(0);
   });
-  it('opens distance while reloading and reuses the rocket predictor with bounded lead time', () => {
+  it('keeps legacy rocket spacing while retaining delayed prediction for diagnostics', () => {
     const world = cpuScene(0, 'rocketeer', 'wasteland'); world.players[0].x = 500;
     const frame = prepareAIFrame(world), owner = world.players[1], enemy = world.players[0];
     const ready = selectGoal(owner, enemy, frame).preferred;
-    expect(selectGoal({ ...owner, attackCooldownRemaining: 1100 }, enemy, frame).preferred).toBeGreaterThan(ready);
+    expect(selectGoal({ ...owner, attackCooldownRemaining: 1100 }, enemy, frame).preferred).toBe(ready);
     expect(rocketeerShot(frame, owner, enemy, () => enemy, false, 1, true, 0)).toBe('target');
     const limited = prepareAIFrame(world, { forecasts: createAISettings('easy').parameters.forecasts, random: () => .5 });
     expect(rocketeerShot(limited, owner, enemy, () => enemy, false, 1, true, 500)).toBeNull();
@@ -68,13 +68,12 @@ describe('stage-three bounded ranged tactics', () => {
     expect(rangedLandingPenalty(frame, { x: platform.x, y: platform.y - 80 }, 300)).toBe(0);
     expect(rangedLandingPenalty(frame, { x: 15, y: 420 }, -900)).toBe(0);
   });
-  it.each(['hunter', 'rocketeer'] as const)('bounds %s detailed predictions and preserves the pure observation', character => {
+  it.each(['hunter', 'rocketeer'] as const)('does not run stage-three %s predictions in the live policy', character => {
     const world = cpuScene(0, character, 'wasteland'); world.players[0].x = 380;
     const prior = structuredClone(world);
     let diagnostic: PositionDecision | undefined;
     decideAI(prepareAIFrame(world), world.players[1], undefined, undefined, undefined, result => { diagnostic = result; });
-    expect(diagnostic?.rangedWork?.scatterCalls ?? 0).toBeLessThanOrEqual(4);
-    expect(diagnostic?.rangedWork?.rocketCalls ?? 0).toBeLessThanOrEqual(5);
+    expect(diagnostic?.rangedWork).toBeUndefined();
     expect(world).toEqual(prior);
   });
 });

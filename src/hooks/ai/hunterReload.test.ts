@@ -1,18 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
-import { loadFrozenAI } from '@/test/aiBaseline';
 import { cpuScene } from '@/test/aiCpuScenes';
 import { CHARACTERS, createInitialPlayer } from '@/types/game';
-import { AI_PRESET_IDS, createAISettings } from '@/types/ai';
 import { createProjectile } from '@/types/projectile';
 import { selectGoal } from './navigation';
 import { prepareAIFrame } from './world';
 import { decideAI, type PositionDecision } from './controller';
-import { createDifficultyRuntime, createDifficultySession, stepDifficulty } from './difficulty';
-
-const frozenPath = 'docs/ai-runs/stage3-hunter-diagnosis-001/candidate-c.cjs';
-const frozenAPath = 'docs/ai-runs/stage3-current-rules-combat-001/baseline.cjs';
-// Only the historical comparison tests require local evaluation artifacts.
 
 function scene(cooldown = 800, focused = 0, mirrored = false) {
   const world = cpuScene(0, 'hunter', 'wasteland');
@@ -24,7 +16,7 @@ function scene(cooldown = 800, focused = 0, mirrored = false) {
   return world;
 }
 
-describe('Hunter legacy spacing with accurate shots, without combat simulation', () => {
+describe('Hunter restored spacing and avoidance, without combat simulation', () => {
   it.each([false, true])('does not close a 180px gap for an unavailable volley (mirrored=%s)', mirrored => {
     const world = scene(800, 0, mirrored), before = structuredClone(world);
     let diagnostic: PositionDecision | undefined;
@@ -66,32 +58,4 @@ describe('Hunter legacy spacing with accurate shots, without combat simulation',
     expect(decision.risk).toBeLessThan(stationary!.risk);
     expect(decision.keys.arrowUp).toBe(true);
   });
-});
-
-describe.skipIf(!existsSync(frozenPath) || !existsSync(frozenAPath))('frozen policy regression checks on fixed observations', () => {
-  it('restores A movement for ready, reloading and focused observations', () => {
-    const before = loadFrozenAI(frozenAPath).api;
-    for (const world of [scene(0), scene(16), scene(0, 5000), scene(800, 5000)]) {
-      const next = decideAI(prepareAIFrame(world), world.players[1]), old = before.decideAI(before.prepareAIFrame(world), world.players[1]);
-      expect([next.keys.arrowLeft, next.keys.arrowRight, next.keys.arrowUp, next.keys.arrowDown, next.risk])
-        .toEqual([old.keys.arrowLeft, old.keys.arrowRight, old.keys.arrowUp, old.keys.arrowDown, old.risk]);
-    }
-  });
-  it('preserves other nine characters runtime, memory and RNG state across presets/maps', () => {
-    const before = loadFrozenAI(frozenPath).api;
-    for (const character of Object.keys(CHARACTERS) as (keyof typeof CHARACTERS)[]) {
-      if (character === 'hunter') continue;
-      for (const map of ['default', 'wasteland', 'graveyard', 'jungle', 'volcano'] as const)
-        for (const preset of AI_PRESET_IDS) for (const variant of [0, 1]) {
-          const world = cpuScene(variant ? 6 : 0, character, map, variant), settings = createAISettings(preset);
-          let old = before.createDifficultyRuntime(before.createDifficultySession(731));
-          let next = createDifficultyRuntime(createDifficultySession(731));
-          for (const offset of [0, 500, 1000]) {
-            const observation = { ...world, now: world.now + offset, deltaTime: offset ? 500 : world.deltaTime };
-            old = before.stepDifficulty(observation, settings, old); next = stepDifficulty(observation, settings, next);
-            expect(next).toEqual(old);
-          }
-        }
-    }
-  }, 15000);
 });

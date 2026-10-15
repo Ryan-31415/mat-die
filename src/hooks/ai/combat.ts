@@ -13,13 +13,6 @@ import { scientistFlask } from './scientist';
 import { directShotOutcome } from './directShot';
 import { rootedCoilRescue, singleCoilSurvivalContext, type CoilClearOutcome } from './coilClear';
 import type { ArcherShotOutcome } from './archerShot';
-import { hunterSpacing, type ScatterOpportunity } from './hunter';
-
-export interface RangedShotPolicy {
-  scatter: (origin: Pick<Player, 'x' | 'y' | 'facingRight'> & { leadMs?: number }) => ScatterOpportunity;
-  rocket: (origin: Pick<Player, 'x' | 'y' | 'facingRight'>, homing: boolean, leadMs?: number) => ReturnType<typeof rocketeerShot>;
-  work: () => { scatterCalls: number; rocketCalls: number };
-}
 
 export interface CombatProposal {
   action: Readonly<Action>; attack: boolean; skill: boolean; castValue: number; coilClear?: CoilClearOutcome;
@@ -27,7 +20,7 @@ export interface CombatProposal {
 
 export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, model: OpponentModel, chosen: Readonly<Action>,
   facingTarget: boolean, threatened: boolean, strategy: Strategy, targetAt: (time: number) => Point, allowLongRange = false, options?: AIDecisionOptions,
-  archerShot?: ArcherShotOutcome, rangedShots?: RangedShotPolicy) {
+  archerShot?: ArcherShotOutcome) {
   const traits = options?.traits ?? NEUTRAL_AI_TRAITS;
   const understanding = (options?.parameters.character ?? 100) / 100;
   const { now, platforms, mapId } = frame.world;
@@ -76,12 +69,11 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
     return true;
   };
   let attack = false;
-  const scatter = id === 'hunter' && rangedShots && facingTarget && targetVulnerable ? rangedShots.scatter(launch) : undefined;
   const rocketFacing = launchFacing;
   const normalRocket = id === 'rocketeer' && facingTarget && targetVulnerable
-    ? rangedShots ? rangedShots.rocket(launch, false) : rocketeerShot(frame, launch, opponent, targetAt, false, rocketFacing, allowLongRange) : null;
+    ? rocketeerShot(frame, launch, opponent, targetAt, false, rocketFacing, allowLongRange) : null;
   const guidedRocket = id === 'rocketeer' && facingTarget && targetVulnerable && !opponent.isInvisible
-    ? (rangedShots ? rangedShots.rocket(launch, true) : rocketeerShot(frame, launch, opponent, targetAt, true, rocketFacing, allowLongRange)) === 'target' : false;
+    ? rocketeerShot(frame, launch, opponent, targetAt, true, rocketFacing, allowLongRange) === 'target' : false;
   if (facingTarget && targetVulnerable && player.attackCooldownRemaining <= 0) {
     if (isMelee(id)) {
       const geometry = basicMeleeGeometry(launch);
@@ -92,12 +84,12 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
     }
     else if (!shieldFacingUs) {
       const range = allowLongRange ? Infinity : character.attackRange;
-      if (id === 'rocketeer') attack = rangedShots ? normalRocket === 'target' || normalRocket === 'vine' : normalRocket !== null;
+      if (id === 'rocketeer') attack = normalRocket !== null;
       else if (id === 'archer') attack = archerShot && (options?.parameters.character ?? 100) >= 50
         ? (archerShot.kind === 'enemy' || archerShot.kind === 'vine') && Math.abs(opponent.x - launch.x) <= range + PLAYER_SIZE / 2
         : canHit(1000, -80, 190, 30, range, true);
       else if (id === 'scientist') attack = scientistFlask(frame, launch, opponent, targetAt, allowLongRange) !== null;
-      else if (id === 'hunter') attack = scatter ? scatter.hits > 0 || scatter.vines > 0 : canHit(player.hunterFocusedDuration ? 1562.5 : 1250, 0, 0, 35, allowLongRange ? Infinity : player.hunterFocusedDuration ? 350 : 275, true, true, HUNTER_BULLET_LIFETIME_MS);
+      else if (id === 'hunter') attack = canHit(player.hunterFocusedDuration ? 1562.5 : 1250, 0, 0, 35, allowLongRange ? Infinity : player.hunterFocusedDuration ? 350 : 275, true, true, HUNTER_BULLET_LIFETIME_MS);
       else attack = canHit(id === 'mage' ? 780 : id === 'hacker' ? 800 : 700, 0, 0, 30, range, true);
     }
   }
@@ -151,9 +143,7 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
       case 'mage': ultimate = player.mageUltimateDuration <= 0 && eagerDistance < 420; break;
       case 'ninja': ultimate = !player.isInvisible && (eagerDistance < 350 || threatened); break;
       case 'scientist': ultimate = eagerDistance < 200 && !frame.zones.some(z => z.ownerId === player.id && z.type === 'tesla-coil'); break;
-      case 'hunter': ultimate = (player.hunterFocusedDuration ?? 0) <= 0 && Math.abs(dy) < 65 && eagerDistance < 340 &&
-        (!scatter || (facingTarget && scatter.vines === 0 && scatter.blocked === 0 &&
-          distance <= hunterSpacing({ ...player, hunterFocusedDuration: 5000 }))); break;
+      case 'hunter': ultimate = (player.hunterFocusedDuration ?? 0) <= 0 && Math.abs(dy) < 65 && eagerDistance < 340; break;
       case 'reaper': ultimate = !player.isFlying && (eagerDistance < 300 || (lowHealth && threatened)); break;
       case 'ice-mage': ultimate = facingTarget && !shieldFacingUs && canHit(600, -100, 600, 100, 450); break;
       case 'hacker': ultimate = !opponent.isHacked && eagerDistance < 600; break;
