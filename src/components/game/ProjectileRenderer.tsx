@@ -168,19 +168,10 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
           transform: `rotate(${Date.now() / 5 % 360}deg)`,
         };
       case 'hacker-missile':
-        if (projectile.isSwapMissile) {
-          return {
-            background: 'radial-gradient(circle, #f7fee7 0%, #d9f99d 24%, #a3e635 58%, #65a30d 100%)',
-            borderRadius: '3px',
-            boxShadow: '0 0 8px 2px #d9f99d, 0 0 18px 6px #84cc16, 0 0 34px 10px rgba(132, 204, 22, 0.75)',
-            border: '1px solid #f7fee7',
-            transform: `rotate(${Math.atan2(projectile.velocityY, projectile.velocityX) * (180 / Math.PI)}deg)`,
-          };
-        }
         return {
-          backgroundColor: '#84cc16', // lime-500 yellow-green
+          backgroundColor: projectile.isSwapMissile ? '#22d3ee' : '#84cc16', // Cyan when boosted, lime otherwise
           borderRadius: '2px', // Square
-          boxShadow: '0 0 8px #84cc16',
+          boxShadow: `0 0 8px ${projectile.isSwapMissile ? '#22d3ee' : '#84cc16'}`,
           border: '1px solid #fff',
         };
       default:
