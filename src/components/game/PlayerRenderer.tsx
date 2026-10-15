@@ -44,8 +44,10 @@ const PlayerRenderer = ({ player, character, attack, visualTime = 0 }: PlayerRen
         <>
           {trailPositions.map((trailPos, index) => {
             const age = now - trailPos.timestamp;
-            const opacity = Math.max(0, 1 - age / 1000); // Fade out over 1 second
-            const scale = 0.3 + (age / 1000) * 0.7; // Scale from 0.3 to 1.0
+            const lifetime = 600;
+            const progress = Math.min(1, age / lifetime);
+            const opacity = (1 - progress) * 0.34;
+            const scale = 2.2 * (1.04 + progress * 0.08);
 
             return (
               <div
@@ -56,11 +58,12 @@ const PlayerRenderer = ({ player, character, attack, visualTime = 0 }: PlayerRen
                   top: trailPos.y - PLAYER_SIZE / 2,
                   width: PLAYER_SIZE,
                   height: PLAYER_SIZE,
-                  opacity: opacity * 0.4,
-                  transform: `scale(${scale * 2.2})`,
-                  background: 'radial-gradient(circle, #475569 0%, #0f172a 100%)',
-                  border: '2px solid #64748b',
-                  boxShadow: `0 0 ${40 * scale}px #4b5563`,
+                  opacity,
+                  transform: `scale(${scale})`,
+                  background: 'radial-gradient(circle, #94a3b8 0%, #475569 48%, #0f172a 100%)',
+                  border: '1px solid rgba(203, 213, 225, 0.8)',
+                  boxShadow: `0 0 ${22 * (1 - progress * 0.45)}px rgba(148, 163, 184, 0.8)`,
+                  filter: `blur(${0.4 + progress * 1.1}px)`,
                   zIndex: 1,
                 }}
               />
