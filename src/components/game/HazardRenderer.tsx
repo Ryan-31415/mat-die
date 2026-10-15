@@ -92,6 +92,7 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
         return {
           background: 'radial-gradient(circle, rgba(200, 230, 255, 0.4) 0%, rgba(100, 180, 255, 0.2) 60%, transparent 100%)',
           borderRadius: '50%',
+          boxSizing: 'border-box',
           boxShadow: '0 0 20px rgba(135, 206, 235, 0.3)',
           border: '1px solid rgba(255, 255, 255, 0.3)',
         };

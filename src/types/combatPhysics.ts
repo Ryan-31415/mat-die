@@ -52,6 +52,15 @@ export const playerOverlapsRect = (point: { x: number; y: number }, rect: { x: n
   point.x + PLAYER_SIZE + margin > rect.x && point.x - margin < rect.x + rect.width &&
   point.y + PLAYER_SIZE + margin > rect.y && point.y - margin < rect.y + rect.height;
 
+export function circleIntersectsRect(circle: { x: number; y: number; width: number; height: number }, rect: { x: number; y: number; width: number; height: number }): boolean {
+  const radius = Math.min(circle.width, circle.height) / 2;
+  const centerX = circle.x + circle.width / 2;
+  const centerY = circle.y + circle.height / 2;
+  const nearestX = Math.max(rect.x, Math.min(centerX, rect.x + rect.width));
+  const nearestY = Math.max(rect.y, Math.min(centerY, rect.y + rect.height));
+  return (centerX - nearestX) ** 2 + (centerY - nearestY) ** 2 <= radius ** 2;
+}
+
 type CombatRect = { x: number; y: number; width: number; height: number };
 type CoilContactZone = Pick<HazardZone, 'id' | 'type' | 'ownerId' | 'x' | 'y' | 'width' | 'height'>;
 const overlapsCombatRect = (a: CombatRect, b: CombatRect) =>
@@ -360,7 +369,7 @@ export function stepPlayerCrowdControl(next: Player, opponent: Player, zones: re
       // Ice Mage Blizzard: Increased freeze duration
       const inBlizzard = zones.some(z =>
         z.type === 'blizzard' &&
-        playerOverlapsRect(next, z)
+        circleIntersectsRect(z, { x: next.x, y: next.y, width: PLAYER_SIZE, height: PLAYER_SIZE })
       );
       if (inBlizzard) {
         freezeDur *= 1.5;

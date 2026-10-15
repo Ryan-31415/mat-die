@@ -17,7 +17,7 @@ import { createDifficultyRuntime, createDifficultySession, stepDifficulty } from
 import type { AISettings } from '@/types/ai';
 import { createTickRandom, createEngineEntities, createEngineEvaluationState, type EngineEvaluationState, type EngineRuntimeOptions } from '@/types/engineRuntime';
 import { createAIRoundState, resetAILearningObservations, type AILearningSession, type AIRoundState } from './ai/state';
-import { advanceProjectile, basicMeleeGeometry, BAT_RETURN_FRACTION, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, stepPlayerForces, stepPlayerMovement, stepPlayerSlowAndRoot, stepPlayerCrowdControl, stepPlayerMobilityBuffs, stepCoilMotion, coilExplosionGeometry, fireRingOverlapsPlayer, playerOverlapsRect, reaperContactGeometry, findProjectileCoilContact, findMeleeCoilContact, sandstormImpulse, shieldFacesX, VINE_FADE_MS, HOMING_ROCKET_SPEED, NAPALM_DURATION_MS, NAPALM_POOL_DURATION_MS, isRocket } from '@/types/combatPhysics';
+import { advanceProjectile, basicMeleeGeometry, BAT_RETURN_FRACTION, circleIntersectsRect, LIGHTNING_RADIUS, LIGHTNING_WARNING_MS, NINJA_DASH_DISTANCE, stepPlayerForces, stepPlayerMovement, stepPlayerSlowAndRoot, stepPlayerCrowdControl, stepPlayerMobilityBuffs, stepCoilMotion, coilExplosionGeometry, fireRingOverlapsPlayer, playerOverlapsRect, reaperContactGeometry, findProjectileCoilContact, findMeleeCoilContact, sandstormImpulse, shieldFacesX, VINE_FADE_MS, HOMING_ROCKET_SPEED, NAPALM_DURATION_MS, NAPALM_POOL_DURATION_MS, isRocket } from '@/types/combatPhysics';
 
 const TICK_RATE = 1000 / 60; // 60 FPS
 const ARCHER_BURST_COUNT = 8;
@@ -491,7 +491,7 @@ export const useGameEngine = (
     const inBlizzard = hazardZones.some(z =>
       z.type === 'blizzard' &&
       z.ownerId !== updatedPlayer.id &&
-      checkCollision(updatedPlayer.x, updatedPlayer.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
+      circleIntersectsRect(z, { x: updatedPlayer.x, y: updatedPlayer.y, width: PLAYER_SIZE, height: PLAYER_SIZE })
     );
     stepPlayerMovement(updatedPlayer, { left: effectiveMoveLeft, right: effectiveMoveRight, jump: effectiveJump, down: effectiveMoveDown }, platforms, inBlizzard, now, deltaTime);
     // Movement can enter a zone on the same tick that the skill key is released.
@@ -1280,15 +1280,15 @@ export const useGameEngine = (
         hazardZones.push(zone);
         if (impact.type === 'blizzard') {
           for (const player of players) {
-            if (player.id !== proj.ownerId && checkCollision(zone.x, zone.y, zone.width, zone.height,
-              player.x, player.y, PLAYER_SIZE, PLAYER_SIZE)) {
+            if (player.id !== proj.ownerId && circleIntersectsRect(zone,
+              { x: player.x, y: player.y, width: PLAYER_SIZE, height: PLAYER_SIZE })) {
               player.isFrozen = true;
               player.frozenDuration = 750;
             }
           }
           nextClones.forEach((clone, index) => {
-            if (clone.id !== proj.ownerId && checkCollision(zone.x, zone.y, zone.width, zone.height,
-              clone.x, clone.y, PLAYER_SIZE, PLAYER_SIZE)) {
+            if (clone.id !== proj.ownerId && circleIntersectsRect(zone,
+              { x: clone.x, y: clone.y, width: PLAYER_SIZE, height: PLAYER_SIZE })) {
               nextClones[index].isFrozen = true;
               nextClones[index].frozenDuration = 750;
             }
@@ -1553,8 +1553,7 @@ export const useGameEngine = (
               const impactY = previousPosition.y + (proj.y - previousPosition.y) * impactTime + proj.height / 2;
               createImpactZone(proj, impactX, impactY);
               if (proj.type === 'blizzard-stone' && hazardZones.at(-1)?.type === 'blizzard' &&
-                checkCollision(hazardZones.at(-1)!.x, hazardZones.at(-1)!.y, hazardZones.at(-1)!.width, hazardZones.at(-1)!.height,
-                currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE)) {
+                circleIntersectsRect(hazardZones.at(-1)!, { x: currentTarget.x, y: currentTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE })) {
                 currentTarget.isFrozen = true;
                 currentTarget.frozenDuration = 750;
               }
@@ -1721,7 +1720,7 @@ export const useGameEngine = (
                 // Ice Mage Blizzard: Increased slow amount
                 const inBlizzard = hazardZones.some(z =>
                   z.type === 'blizzard' &&
-                  checkCollision(currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
+                  circleIntersectsRect(z, { x: currentTarget.x, y: currentTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE })
                 );
                 if (inBlizzard) {
                   slowAmt *= 1.5;
@@ -1742,7 +1741,7 @@ export const useGameEngine = (
                 // Ice Mage Blizzard: Increased knockback
                 const inBlizzard = hazardZones.some(z =>
                   z.type === 'blizzard' &&
-                  checkCollision(currentTarget.x, currentTarget.y, PLAYER_SIZE, PLAYER_SIZE, z.x, z.y, z.width, z.height)
+                  circleIntersectsRect(z, { x: currentTarget.x, y: currentTarget.y, width: PLAYER_SIZE, height: PLAYER_SIZE })
                 );
                 if (inBlizzard) {
                   kbForce *= 1.5;
@@ -2058,10 +2057,7 @@ export const useGameEngine = (
             const targetIndex = zoneCopy.ownerId === 1 ? 1 : 0;
             const target = players[targetIndex];
 
-            if (checkCollision(
-              zoneCopy.x, zoneCopy.y, zoneCopy.width, zoneCopy.height,
-              target.x, target.y, PLAYER_SIZE, PLAYER_SIZE
-            )) {
+            if (circleIntersectsRect(zoneCopy, { x: target.x, y: target.y, width: PLAYER_SIZE, height: PLAYER_SIZE })) {
               // Apply damage
               const damageRes = applyDamage(target, zoneCopy.damage, true, entityDamageSource(diagnostics, zoneCopy, 'zone'));
               players[targetIndex] = damageRes.player;
