@@ -97,12 +97,6 @@ export default function WeaponVisual({ player, attack, visualTime = 0 }: {
   const hideScientistFlask = id === 'scientist' && (player.isChargingSkill || (pose.attacking && elapsed! >= 25 && elapsed! < 140));
   const handX = d.hand.x + pose.offsetX;
   const handY = d.hand.y + pose.offsetY + (id === 'scientist' && player.isChargingSkill ? -6 : 0);
-  const radians = pose.angle * Math.PI / 180;
-  const support = d.supportGrip && {
-    x: handX + (d.supportGrip.x - d.grip.x) * Math.cos(radians) - (d.supportGrip.y - d.grip.y) * Math.sin(radians),
-    y: handY + (d.supportGrip.x - d.grip.x) * Math.sin(radians) + (d.supportGrip.y - d.grip.y) * Math.cos(radians),
-  };
-  const ranged = !['gladiator', 'ninja', 'reaper'].includes(id);
   return <>
     {attack?.melee && pose.trailOpacity > 0 && <svg aria-hidden="true" focusable="false" className="absolute pointer-events-none"
       width={attack.melee.width} height={attack.melee.height} viewBox={`0 0 ${attack.melee.width} ${attack.melee.height}`}
@@ -115,15 +109,6 @@ export default function WeaponVisual({ player, attack, visualTime = 0 }: {
     <div aria-hidden="true" className="absolute pointer-events-none" data-weapon={id}
       data-attack-sequence={pose.attacking ? attack?.attackSequence : undefined}
       style={{ left: player.x, top: player.y, width: 40, height: 40, transform: `scaleX(${facingRight ? 1 : -1})`, opacity, zIndex: 4 }}>
-      {/* Forearms connect the body to each actual grip, including recoil and release. */}
-      {ranged && <svg width="80" height="64" viewBox="0 0 80 64" className="absolute" style={{ overflow: 'visible' }}>
-        {[{ x: handX, y: handY }, ...(support ? [support] : [])].map((hand, index) => (
-          <g key={index} strokeLinecap="round">
-            <path d={`M28 ${index ? 32 : 29} L${hand.x} ${hand.y}`} stroke={outline} strokeWidth="6" />
-            <path d={`M28 ${index ? 32 : 29} L${hand.x} ${hand.y}`} stroke={player.character!.color} strokeWidth="3.5" />
-          </g>
-        ))}
-      </svg>}
       {id === 'scientist' && player.isChargingSkill && <svg width="32" height="18" viewBox="0 0 32 18" style={{ position: 'absolute', left: 25, top: 30 }}>
         <path d="M2 5 H23 V12 H14 L12 17 H7 V12 H2 Z" fill="#536779" stroke={outline} strokeWidth="1.5" /><path d="M20 7 H30 V10 H20" fill="#7dd3fc" stroke={outline} /><circle cx="10" cy="8" r="2" fill="#fde047" />
       </svg>}
@@ -133,7 +118,6 @@ export default function WeaponVisual({ player, attack, visualTime = 0 }: {
           <g stroke={outline} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round">
             {!hideScientistFlask && <WeaponArtwork id={id} poison={poison} released={released} napalm={napalm} />}
           </g>
-          {d.supportGrip && <circle cx={d.supportGrip.x} cy={d.supportGrip.y} r="3" fill="#ccb198" stroke={outline} strokeWidth="1.5" />}
           {id === 'gladiator' && player.buffDuration > 0 && <path d="M25 9 H66" stroke="#fb923c" strokeWidth="1" />}
           {pose.flash > 0 && d.muzzle && id !== 'scientist' && id !== 'archer' && <g opacity={pose.flash} transform={`translate(${d.muzzle.x} ${d.muzzle.y})`}>
             <path d="M-4 0 L0 -5 L2 -2 L7 0 L2 2 L0 5 Z" fill={color} />
@@ -141,7 +125,6 @@ export default function WeaponVisual({ player, attack, visualTime = 0 }: {
           </g>}
           {id === 'rocketeer' && pose.flash > 0 && <path d="M2 7 L-5 11 L2 15" fill="#fb923c" opacity={pose.flash * 0.6} />}
         </svg>
-        <span className="absolute rounded-full" style={{ left: -3, top: -3, width: 6, height: 6, background: '#ccb198', border: `1.5px solid ${outline}` }} />
       </div>
     </div>
   </>;
