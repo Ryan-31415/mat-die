@@ -17,8 +17,6 @@ import { meleeOpportunityAt } from './meleeOpportunity';
 import { scientistChargeMotion } from './charge';
 import { coilExposure, singleCoilSurvivalContext, type CoilClearOutcome } from './coilClear';
 import { archerShotOutcome, type ArcherShotOutcome } from './archerShot';
-import { rangedLandingPenalty } from './rangedEnvironment';
-import { createRangedShots } from './rangedShots';
 
 export type Action = { direction: Direction; jump: boolean; drop: boolean };
 export const emptyAIKeys = (): KeyboardState => ({
@@ -44,6 +42,7 @@ export interface PositionDecision {
   /** Final controller intent before difficulty input precision and delay are applied. */
   executed: { action: Action; attack: boolean; skill: boolean; risk: number };
   movementCandidates: { action: Action; risk: number; benefit: number; score: number }[];
+  /** Historical stage-three sidecars only; the restored policy does not emit this field. */
   rangedWork?: { movementEvaluations: number; scatterCalls: number; rocketCalls: number };
 }
 
@@ -69,12 +68,6 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   if (player.isStunned || player.isFrozen) { memory.movement = undefined; return { keys, memory, risk: 0 }; }
   const id = player.character.id;
   const archerTactics = id === 'archer' && parameters.character >= 50;
-  // Preserve the complete old basic/net survival policy in its existing context.
-  const rangedTactics = (id === 'hunter' || id === 'rocketeer') && parameters.character >= 50 &&
-    !(id === 'hunter' && singleCoilSurvivalContext(frame, player));
-  // Hunter keeps the accurate shot policy, with the pre-stage-three movement
-  // policy. Rocket movement continues to value its next launch position.
-  const rangedMovementTactics = rangedTactics && id === 'rocketeer';
   const toward: Direction = opponent.x >= player.x ? 1 : -1;
   const speed = playerMoveSpeed(player, now);
   const lowHealth = player.health < player.maxHealth * 0.35;
@@ -94,7 +87,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
   const targetCache = new Map<number, ReturnType<typeof predictOpponent>>();
   const targetAt = (time: number) => {
     if (forecast) {
-      const cached = archerTactics || rangedTactics ? targetCache.get(time) : undefined;
+      const cached = archerTactics ? targetCache.get(time) : undefined;
       if (cached) return cached;
       const sample = forecastTime(forecast, error, Math.min(time, forecastHorizon));
       const index = Math.min(enemyFuture.length - 1, Math.floor(sample * 60));
@@ -104,7 +97,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       const from = enemyFuture[index], to = enemyFuture[next];
       const point = forecastPoint({ x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio, confidence: from.confidence }, forecast, error, Math.min(time, forecastHorizon));
       const result = { ...point, x: opponent.x + (point.x - opponent.x) * prediction, y: opponent.y + (point.y - opponent.y) * prediction };
-      if (archerTactics || rangedTactics) targetCache.set(time, result);
+      if (archerTactics) targetCache.set(time, result);
       return result;
     }
     const tick = Math.round(time * 60);
@@ -126,10 +119,8 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     const error = frame.environmentErrors.get(id);
     return environment && error ? forecastTime(environment, error, elapsed) : elapsed;
   };
-  let movementEvaluations = 0;
   function evaluate(action: Readonly<Action>, skill = player.isShielding || player.isChargingSkill, sampleNoise = true,
     clear?: CoilClearOutcome, track = false) {
-    if (diagnosePosition) movementEvaluations++;
     const input = { left: action.direction < 0, right: action.direction > 0, jump: action.jump, down: action.drop };
     const raw = player.isHacked ? { left: input.right, right: input.left, jump: input.down, down: input.jump } : input;
     const start = predictActionStart(world, player, raw, skill);
@@ -198,7 +189,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       }
       if (environmentInRange && world.sandstormActive && environmentTime('wind', elapsed) * 1000 < world.sandstormTimer) kx += sandstormImpulse(now + elapsed * 1000, dt, world.sandstormDirection);
       trajectory?.push({ ...point });
-      if ((archerTactics || rangedMovementTactics) && !firePoint && fireAtMs <= (id === 'rocketeer' ? 1200 : world.deltaTime * 2) && elapsed * 1000 >= Math.max(0, fireAtMs)) {
+      if (archerTactics && !firePoint && fireAtMs <= world.deltaTime * 2 && elapsed * 1000 >= Math.max(0, fireAtMs)) {
         firePoint = { x: point.x, y: point.y, facingRight: step === 1 ? start.facingRight
           : action.direction ? action.direction > 0 : start.facingRight, leadMs: Math.max(0, elapsed * 1000 - world.deltaTime) };
       }
@@ -321,10 +312,9 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
           nextMeleeAt = next;
           benefit += player.character!.attackDamage * 1.3 * traits.aggression;
         }
-      } else if (!rangedMovementTactics && opponentInRange && !opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - targets[step].y) < 30 && Math.abs(point.x - targets[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * (player.napalmDuration > elapsed * 1000 ? 2.5 : 1.3) * traits.aggression / frame.steps;
+      } else if (opponentInRange && !opponent.isInvulnerable && !opponent.isEvading && !shieldFront && player.attackCooldownRemaining <= elapsed * 1000 && Math.abs(point.y - targets[step].y) < 30 && Math.abs(point.x - targets[step].x) < (id === 'hunter' ? 275 : player.character!.attackRange)) benefit += player.character!.attackDamage * (player.napalmDuration > elapsed * 1000 ? 2.5 : 1.3) * traits.aggression / frame.steps;
       if (mapId === 'graveyard') risk += Math.max(0, FLOOR_Y - point.y) / 4000 / frame.steps;
     }
-    if (rangedMovementTactics && !player.isFlying) risk += rangedLandingPenalty(frame, point, vy);
     if (mapId === 'volcano' && !player.isFlying && vy > 0 && !platforms.some(p => p.id !== 'ground' && p.y >= point.y + PLAYER_SIZE && point.x + PLAYER_SIZE > p.x && point.x < p.x + p.width)) risk += 130;
     const noise = sampleNoise && parameters.noise > 0 && options ? gaussian(options.random) * parameters.noise : 0;
     return { action, risk, benefit, noise, trajectory, firePoint, score: risk * (lowHealth ? 1.4 : 1) * traits.defense + travelCost * (strategy === 'escape' || strategy === 'flank' ? 0.28 : 0.16) - benefit + (action.jump ? 7 : 0) + (action.drop ? 3 : 0) + (action.direction ? 0.5 : 0) + noise };
@@ -352,31 +342,6 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     if (retained && retained.score <= best.score + 1 && retained.risk <= best.risk && retained.benefit >= best.benefit) best = retained;
   }
   let selectedArcherShot: ArcherShotOutcome | undefined;
-  const rangedShots = rangedTactics ? createRangedShots(frame, player, opponent, targetAt) : undefined;
-  if (rangedMovementTactics && rangedShots && strategy !== 'escape' && !opponent.isInvulnerable && !opponent.isEvading) {
-    const original = best;
-    const alternatives = [...new Set([best,
-      evaluated.find(c => c.action.direction === 0 && c.action.jump === best.action.jump && c.action.drop === best.action.drop),
-      evaluated.find(c => c.action.direction === toward && c.action.jump === best.action.jump && c.action.drop === best.action.drop)])];
-    let selectedScore = Infinity;
-    for (const candidate of alternatives) {
-      if (!candidate?.firePoint || candidate.risk > original.risk + 1 ||
-        (mapId === 'volcano' && candidate.firePoint.y >= FLOOR_Y - 1)) continue;
-      const point = candidate.firePoint;
-      const enemyAtFire = targetAt((point.leadMs + world.deltaTime) / 1000);
-      // Combat cannot admit a shot facing away from this target. Keep the
-      // movement candidate, but do not simulate an attack it cannot execute.
-      const aims = point.facingRight === (enemyAtFire.x >= point.x);
-      const rocket = aims ? rangedShots.rocket(point, false, point.leadMs) : undefined;
-      const damage = rocket === 'target' ? player.character.attackDamage : 0;
-      // Clearing opens a route but never earns the value of a fighter hit.
-      const clear = rocket === 'vine' ? 1 : 0;
-      const score = candidate.score - (damage * 1.3 + clear * 3) * traits.aggression * parameters.character / 100 /
-        (1 + point.leadMs / player.character.attackCooldown);
-      if (score < selectedScore) { selectedScore = score; best = candidate; }
-      if (candidate === original && damage > 0) break;
-    }
-  }
   const archerShots = new Map<string, ArcherShotOutcome>();
   if (archerTactics && strategy !== 'escape' && !opponent.isInvulnerable && !opponent.isEvading) {
     const alternatives = [best,
@@ -413,7 +378,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
     }
   }
   let combat = chooseCombat(frame, player, opponent, model, chosen, facingTarget, threatened, strategy, targetAt, allowLongRange, options,
-    selectedArcherShot, rangedShots);
+    selectedArcherShot);
   let coupledRisk: number | undefined;
   let coilDecision: AIDecision['coilDecision'];
   const coilId = id === 'hunter' ? singleCoilSurvivalContext(frame, player) : undefined;
@@ -517,7 +482,6 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
       executed: { action: { ...finalAction }, attack: combat.attack, skill: combat.skill, risk: finalRisk },
       movementCandidates: evaluated.map(candidate => ({ action: { ...candidate.action }, risk: candidate.risk,
         benefit: candidate.benefit, score: candidate.score })),
-      ...(rangedShots ? { rangedWork: { movementEvaluations, ...rangedShots.work() } } : {}),
     });
   }
   return coilDecision ? { keys, memory, risk: finalRisk, coilDecision } : { keys, memory, risk: finalRisk };

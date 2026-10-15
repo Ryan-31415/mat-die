@@ -1,7 +1,14 @@
 import type { Player } from '@/types/game';
 import type { AIFrame } from './world';
 import type { Point } from './navigation';
-import type { RangedShotPolicy } from './combat';
+import type { ScatterOpportunity } from './hunter';
+
+/** Retained for historical evaluation tools; not called by the live controller. */
+export interface RangedShotPolicy {
+  scatter: (origin: Pick<Player, 'x' | 'y' | 'facingRight'> & { leadMs?: number }) => ScatterOpportunity;
+  rocket: (origin: Pick<Player, 'x' | 'y' | 'facingRight'>, homing: boolean, leadMs?: number) => ReturnType<typeof rocketeerShot>;
+  work: () => { scatterCalls: number; rocketCalls: number };
+}
 import { hunterScatter } from './hunter';
 import { rocketeerShot } from './rocketeer';
 
