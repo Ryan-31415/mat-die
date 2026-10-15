@@ -2107,22 +2107,22 @@ export const useGameEngine = (
           if (!players[i].trailPositions) {
             players[i].trailPositions = [];
           }
-          // Add current position to trail every 50ms
+          // Leave enough space between echoes so the afterimage reads as a streak.
           const lastTrailTime = players[i].trailPositions[players[i].trailPositions.length - 1]?.timestamp || 0;
-          if (now - lastTrailTime >= 50) {
+          if (now - lastTrailTime >= 80) {
             players[i].trailPositions.push({
               x: players[i].x + PLAYER_SIZE / 2,
               y: players[i].y + PLAYER_SIZE / 2,
               timestamp: now,
             });
-            // Keep only last 20 trail positions (1 second at 50ms intervals)
-            if (players[i].trailPositions.length > 20) {
+            // Keep only the echoes that can still be seen during their 600ms fade.
+            if (players[i].trailPositions.length > 8) {
               players[i].trailPositions.shift();
             }
           }
-          // Remove old trail positions (older than 1 second)
+          // Remove old trail positions after their fade completes.
           players[i].trailPositions = players[i].trailPositions.filter(
-            pos => now - pos.timestamp < 1000
+            pos => now - pos.timestamp < 600
           );
         }
       }
