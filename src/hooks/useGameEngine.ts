@@ -1455,7 +1455,13 @@ export const useGameEngine = (
             const target = contact.target;
             if (target.isShielding && shieldFacesX(target, previousPosition.x + proj.width / 2)) {
               recordBlocked(diagnostics, target, proj.damage);
-              return false;
+              proj.x = previousPosition.x + (proj.x - previousPosition.x) * contact.time;
+              proj.y = previousPosition.y + (proj.y - previousPosition.y) * contact.time;
+              proj.returnPhase = 'returning';
+              // A blocked bat cannot damage the defender again during its return.
+              proj.hasHitReturn = true;
+              Object.assign(proj, advanceProjectile(proj, players[proj.ownerId - 1], now, 0));
+              return true;
             }
             const damageRes = applyDamage(target, proj.damage, false, entityDamageSource(diagnostics, proj, 'direct'));
             recordHit(diagnostics, proj.id, proj.ownerId, damageRes.dealt);

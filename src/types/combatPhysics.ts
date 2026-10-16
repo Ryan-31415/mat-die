@@ -294,7 +294,7 @@ export function stepProjectileMotion(next: Projectile, owner: Pick<Player, 'x' |
     const bounds = age > 50 && (nextX < ARENA.padding || nextX > ARENA.width - ARENA.padding - next.width ||
       nextY < ARENA.padding || nextY > ARENA.height - ARENA.padding - next.height);
     const startingReturn = next.type === 'bat' && next.returnPhase !== 'returning' && (age > next.lifetime * BAT_RETURN_FRACTION || bounds);
-    if (startingReturn || (next.type !== 'bat' && age > next.lifetime * BAT_RETURN_FRACTION)) {
+    if (startingReturn || (next.type === 'bat' ? next.returnPhase === 'returning' : age > next.lifetime * BAT_RETURN_FRACTION)) {
       const dx = owner.x + PLAYER_SIZE / 2 - next.x - next.width / 2;
       const dy = owner.y + PLAYER_SIZE / 2 - next.y - next.height / 2;
       const distance = Math.hypot(dx, dy);
