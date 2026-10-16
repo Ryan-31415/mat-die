@@ -17,17 +17,17 @@ export function scientistOrbLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight
 /** Net's center starts at the owner's top edge, unlike a centered basic shot. */
 export function hunterNetLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, baseDamage: number): ProjectileSpawn {
   return { type: 'net', x: player.x + PLAYER_SIZE / 2, y: player.y,
-    velocityX: (player.facingRight ? 1 : -1) * 750, velocityY: -105, damage: baseDamage * 0.2 };
+    velocityX: (player.facingRight ? 1 : -1) * 760, velocityY: -95, damage: baseDamage * 0.2 };
 }
 const BASIC_PROJECTILE_RULES: Record<CharacterType, Readonly<{
   type: ProjectileType; speed: number; velocityY: number; damageMultiplier: number;
 }> | null> = {
   gladiator: null, ninja: null, reaper: null, hunter: null,
-  archer: { type: 'arrow', speed: 1000, velocityY: -80, damageMultiplier: 1 },
-  mage: { type: 'fireball', speed: 780, velocityY: 0, damageMultiplier: 1 },
-  scientist: { type: 'flask', speed: 640, velocityY: -105, damageMultiplier: 0.5 },
-  'ice-mage': { type: 'snowball', speed: 700, velocityY: 0, damageMultiplier: 1 },
-  hacker: { type: 'hacker-missile', speed: 800, velocityY: 0, damageMultiplier: 1 },
+  archer: { type: 'arrow', speed: 950, velocityY: -80, damageMultiplier: 1 },
+  mage: { type: 'fireball', speed: 800, velocityY: 0, damageMultiplier: 1 },
+  scientist: { type: 'flask', speed: 675, velocityY: -105, damageMultiplier: 0.5 },
+  'ice-mage': { type: 'snowball', speed: 725, velocityY: 0, damageMultiplier: 1 },
+  hacker: { type: 'hacker-missile', speed: 840, velocityY: 0, damageMultiplier: 1 },
   rocketeer: { type: 'rocket', speed: ROCKET_SPEED, velocityY: 0, damageMultiplier: 1 },
 };
 /** Pure launch rules; the caller supplies damage after buffs and attaches runtime effects/IDs. */
@@ -246,8 +246,8 @@ export type ProjectileProperties = Omit<Projectile,
 const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties>> = {
   rocket: { width: ROCKET_WIDTH, height: ROCKET_HEIGHT, isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS },
   'homing-rocket': { width: ROCKET_WIDTH, height: ROCKET_HEIGHT, isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS },
-  arrow: { width: 56, height: 12, hasGravity: true, gravity: 190 },
-  'poison-arrow': { width: 56, height: 12, hasGravity: true, gravity: 190, isPoisonous: true, poisonDuration: 5000, slowAmount: 0.25, slowDuration: 5000 },
+  arrow: { width: 56, height: 12, hasGravity: true, gravity: 180 },
+  'poison-arrow': { width: 56, height: 12, hasGravity: true, gravity: 180, isPoisonous: true, poisonDuration: 5000, slowAmount: 0.25, slowDuration: 5000 },
   fireball: { width: 24, height: 24, isExplosive: true, explosionRadius: 50, canBeDeflected: true },
   'large-fireball': { width: 42, height: 42, isExplosive: true, explosionRadius: 200, createsFirePool: true, firePoolDuration: 4000, canBeDeflected: false },
   meteor: { width: 20, height: 20, hasGravity: false, isExplosive: true, explosionRadius: 40, canBeDeflected: false },
@@ -255,11 +255,11 @@ const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties
   'electric-orb': { width: 33, height: 33, isExplosive: true, explosionRadius: 125, knockback: 160, slowAmount: 0.4, slowDuration: 4000, stunDuration: 1000, canBeDeflected: false },
   bullet: { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 10 },
   'super-bullet': { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 15 },
-  bat: { width: 75, height: 75, lifetime: 3600, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasLeftForwardTarget: false, hasHitReturn: false },
+  bat: { width: 75, height: 75, lifetime: 4000, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasLeftForwardTarget: false, hasHitReturn: false },
   snowball: { width: 24, height: 24, canBeDeflected: true },
-  'large-snowball': { width: 33, height: 33, knockback: 150, lifetime: 1400, canBeDeflected: true },
+  'large-snowball': { width: 40, height: 40, knockback: 150, lifetime: 1400, canBeDeflected: true },
   'blizzard-stone': { width: 45, height: 45, hasGravity: true, gravity: 600 }, // Heavy gravity for arcing.
-  net: { width: 45, height: 45, hasGravity: true, gravity: 325, lifetime: 3500, canBeDeflected: false },
+  net: { width: 45, height: 45, hasGravity: true, gravity: 315, lifetime: 3500, canBeDeflected: false },
   'hacker-missile': { width: 24, height: 24, canBeDeflected: true },
   hacking: { width: 1, height: 1, canBeDeflected: false, lifetime: 100 },
 };
