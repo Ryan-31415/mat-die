@@ -676,7 +676,7 @@ export const useGameEngine = (
                   const delayedRandom = createTickRandom(runtime?.random, `avalanche:${player.id}:${now}:${i}`, delayedNow);
                   const { createProjectile } = createEngineEntities(
                     runtime?.random ? { now: delayedNow, random: () => delayedRandom('id') } : undefined);
-                  const projGap = 33;
+                  const projGap = 40;
                   const currentPlayer = prev.players[player.id - 1];
                   if (!currentPlayer) return prev;
                   const newProj = createProjectile(
@@ -686,7 +686,7 @@ export const useGameEngine = (
                     currentPlayer.y + PLAYER_SIZE / 2 + (i - 1) * projGap - projGap * 0.5, // Offset each snowball vertically
                     (currentPlayer.facingRight ? 1 : -1) * 920,
                     0,
-                    baseDamage * 0.15 // can does multy-hit. so damage is low.
+                    baseDamage * 0.1 // can does multy-hit. so damage is low.
                   );
                   const delayedDiagnostics = nextCombatDiagnostics(prev.diagnostics, false);
                   recordEntityAction(delayedDiagnostics, newProj, 'skill', playerKey + ':' + now + ':skill', player.isClone);
