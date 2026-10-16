@@ -1,5 +1,5 @@
 import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
-import { basicProjectileLaunches, getProjectileCollisionTime, projectileProperties, type Projectile } from '@/types/projectile';
+import { archerBurstLaunch, ARCHER_BURST_SPREAD, ARCHER_DISTANCE_BONUS_MS, basicProjectileLaunches, getProjectileCollisionTime, projectileProperties, type Projectile } from '@/types/projectile';
 import { findProjectileCoilContact, shieldFacesX, stepProjectileMotion } from '@/types/combatPhysics';
 import { AI_DT, type AIFrame } from './world';
 import type { Point } from './navigation';
@@ -19,9 +19,9 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
     return { kind: 'miss', timeMs: leadMs, damage: 0 };
   const launch = basicProjectileLaunches({ ...owner, facingRight: origin.facingRight }, owner.character!.attackDamage)[0];
   if (!launch) return { kind: 'uncertain', timeMs: leadMs, damage: 0 };
-  const angle = Math.atan2(-80, 1000);
-  const velocityX = burst ? (origin.facingRight ? 1 : -1) * Math.hypot(1000, 80) * Math.cos(angle) : launch.velocityX;
-  const velocityY = burst ? Math.hypot(1000, 80) * Math.sin(angle) : launch.velocityY;
+  const burstLaunch = archerBurstLaunch(origin.facingRight, launch.damage);
+  const velocityX = burst ? burstLaunch.velocityX : launch.velocityX;
+  const velocityY = burst ? burstLaunch.velocityY : launch.velocityY;
   const properties = projectileProperties(launch.type, velocityX, velocityY);
   const shot: Projectile = { ...properties, ...launch, velocityX, velocityY,
     id: 'prospective-archer-arrow', ownerId: owner.id,
@@ -42,7 +42,7 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
     stepProjectileMotion(shot, owner, frame.world.now + leadMs + time * 1000, dt);
     const timeMs = leadMs + time * 1000;
     const result = (kind: ArcherShotOutcome['kind']): ArcherShotOutcome => ({ kind, timeMs,
-      damage: kind === 'enemy' ? launch.damage * (time * 1000 > 360 ? 1.15 : 1) : 0 });
+      damage: kind === 'enemy' ? launch.damage * (time * 1000 > ARCHER_DISTANCE_BONUS_MS ? 1.15 : 1) : 0 });
     // The engine resolves a gravity projectile against platforms before fighters.
     if (frame.world.platforms.some(platform => getProjectileCollisionTime(shot, previous, platform) !== null)) return result('surface');
     const target = { ...targetAt(time + leadMs / 1000), width: PLAYER_SIZE, height: PLAYER_SIZE };
@@ -63,7 +63,7 @@ export function archerShotOutcome(frame: AIFrame, owner: Player, opponent: Playe
         facingRight: opponent.facingRight, isShielding: opponent.isShielding }, previous.x + shot.width / 2)) return result('shield');
       // Burst angles vary by five degrees. Credit only shots whose vertical
       // overlap survives both edges of that cone; never sample future RNG.
-      const spread = burst ? Math.abs(shot.x - spawnX) * Math.tan(5 * Math.PI / 180) : 0;
+      const spread = burst ? Math.abs(shot.x - spawnX) * Math.tan(ARCHER_BURST_SPREAD / 2) : 0;
       return result(shot.y + shot.height - spread >= target.y && shot.y + spread <= target.y + PLAYER_SIZE
         ? 'enemy' : 'uncertain');
     }

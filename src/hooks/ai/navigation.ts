@@ -1,7 +1,7 @@
 import { ARENA, PLAYER_SIZE, type CharacterType, type Player } from '@/types/game';
 import { GRAVITY, JUMP_FORCE, type Platform } from '@/types/platform';
-import type { HazardZone } from '@/types/projectile';
-import { basicMeleeGeometry, clampPlayerX, FLOOR_Y, playerMoveSpeed, shieldFacesX } from '@/types/combatPhysics';
+import { hazardProperties, type HazardZone } from '@/types/projectile';
+import { BAT_RETURN_FRACTION, basicMeleeGeometry, clampPlayerX, FLOOR_Y, playerMoveSpeed, shieldFacesX } from '@/types/combatPhysics';
 import { overlapsPlayer, type AIFrame } from './world';
 import { createAIMemory, type AIMemory, type Strategy } from './state';
 import { matchupTactics } from './matchup';
@@ -14,8 +14,9 @@ export const support = (point: Point, platforms: readonly Platform[]) => platfor
 export function hazardRisk(point: Point, zone: HazardZone) {
   if (zone.type === 'tesla-coil') {
     const distance = Math.hypot(point.x + PLAYER_SIZE / 2 - zone.x - zone.width / 2, point.y + PLAYER_SIZE / 2 - zone.y - zone.height / 2);
-    const nearExplosion = (zone.health ?? 240) < (zone.maxHealth ?? 240) * 0.08;
-    return distance < (nearExplosion ? 165 : zone.attackRange ?? 225) + 12 ? nearExplosion ? 320 : 180 : 0;
+    const defaults = hazardProperties('tesla-coil');
+    const nearExplosion = (zone.health ?? defaults.health) < (zone.maxHealth ?? defaults.maxHealth) * 0.08;
+    return distance < (nearExplosion ? 165 : zone.attackRange ?? defaults.attackRange) + 12 ? nearExplosion ? 320 : 180 : 0;
   }
   if (!overlapsPlayer(point, zone, 8)) return 0;
   return zone.isNapalm ? Math.max(120, zone.damage * 1000 / zone.tickRate * 12) : zone.type === 'packet-block-zone' ? 65 : zone.type === 'bear-trap' ? 180 : zone.type === 'blizzard' ? 160 : 120;
@@ -158,7 +159,7 @@ export function selectGoal(player: Player, opponent: Player, frame: AIFrame, pre
   }
   if (characterWeight >= 0.5 && character.id === 'reaper' && !player.isFlying) {
     const bat = frame.paths.find(p => p.projectile.ownerId === player.id && p.projectile.type === 'bat');
-    if (bat && (bat.projectile.returnPhase === 'returning' || now - bat.projectile.createdAt > bat.projectile.lifetime * 0.25)) {
+    if (bat && (bat.projectile.returnPhase === 'returning' || now - bat.projectile.createdAt > bat.projectile.lifetime * BAT_RETURN_FRACTION)) {
       if (bat.projectile.returnPhase === 'returning' && (bat.projectile.damageAccumulated > 0 || bat.projectile.hasHitReturn)) {
         const step = Math.min(bat.endStep, 18);
         const catchPoint = { x: clampPlayerX(bat.x[step] + bat.projectile.width / 2 - PLAYER_SIZE / 2), y: Math.min(FLOOR_Y, bat.y[step] + bat.projectile.height / 2 - PLAYER_SIZE / 2) };

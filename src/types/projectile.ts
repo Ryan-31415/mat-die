@@ -6,11 +6,44 @@ export type ProjectileType = 'arrow' | 'poison-arrow' | 'fireball' | 'large-fire
 
 export interface ProjectileLaunch { type: ProjectileType; velocityX: number; velocityY: number; damage: number }
 export interface ProjectileSpawn extends ProjectileLaunch { x: number; y: number }
+export const SCIENTIST_FULL_CHARGE_MS = 1500;
+export const SCIENTIST_OVERCHARGE_MS = SCIENTIST_FULL_CHARGE_MS + 2000;
+export const SCIENTIST_OVERCHARGE_STUN_MS = 1750;
+export const SCIENTIST_OVERCHARGE_SLOW = 0.4;
+export const ARCHER_BURST_INTERVAL_MS = 80;
+export const ARCHER_BURST_SPREAD = 10 * Math.PI / 180;
+export const ARCHER_DISTANCE_BONUS_MS = 360;
+
+/** Burst arrows have their own speed; a zero spread sample is a pure AI preview. */
+export function archerBurstLaunch(facingRight: boolean, damage: number, spreadSample = 0.5): ProjectileLaunch {
+  const angle = Math.atan2(-80, 1000) + (spreadSample - 0.5) * ARCHER_BURST_SPREAD;
+  const speed = Math.hypot(1000, 80);
+  return { type: 'arrow', velocityX: (facingRight ? 1 : -1) * Math.cos(angle) * speed,
+    velocityY: Math.sin(angle) * speed, damage };
+}
+export function mageFireballLaunch(target: Pick<Player, 'x'>, damage: number): ProjectileSpawn {
+  return { type: 'large-fireball', x: target.x + PLAYER_SIZE / 2, y: 0, velocityX: 0, velocityY: 800, damage: damage * 1.75 };
+}
+export function reaperBatLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, damage: number): ProjectileSpawn {
+  const direction = player.facingRight ? 1 : -1;
+  return { type: 'bat', x: player.x + PLAYER_SIZE / 2 + direction * (PLAYER_SIZE / 2 + 20),
+    y: player.y + PLAYER_SIZE / 2, velocityX: direction * 550, velocityY: 0, damage: damage * 0.75 };
+}
+export function iceMageAvalancheLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, damage: number, index: number): ProjectileSpawn {
+  const gap = projectileProperties('large-snowball').height;
+  return { type: 'large-snowball', x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 + (index - 1.5) * gap,
+    velocityX: (player.facingRight ? 1 : -1) * 900, velocityY: 0, damage: damage * 0.1 };
+}
+export function blizzardStoneLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, damage: number): ProjectileSpawn {
+  return { type: 'blizzard-stone', x: player.x, y: player.y,
+    velocityX: (player.facingRight ? 1 : -1) * 600, velocityY: -100, damage: damage * 0.02 };
+}
+
 export function scientistOrbLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, chargeDuration: number, baseDamage: number) {
-  const chargeLevel = Math.min(1, chargeDuration / 1500);
+  const chargeLevel = Math.min(1, chargeDuration / SCIENTIST_FULL_CHARGE_MS);
   return { type: 'electric-orb' as const, x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2,
     velocityX: (player.facingRight ? 1 : -1) * 850, velocityY: 0,
-    damage: baseDamage * (1.25 + 1.25 * chargeLevel), width: 33 + 17 * chargeLevel, height: 33 + 17 * chargeLevel,
+    damage: baseDamage * (1.25 + 1.25 * chargeLevel), width: projectileProperties('electric-orb').width + 17 * chargeLevel, height: projectileProperties('electric-orb').height + 17 * chargeLevel,
     knockback: 80 + 140 * chargeLevel, slowAmount: chargeLevel >= 0.5 ? 0.3 : 0.2,
     slowDuration: chargeLevel >= 0.5 ? 5000 : 4000, stunDuration: chargeLevel >= 1 ? 1500 : 0, chargeLevel };
 }

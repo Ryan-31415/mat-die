@@ -1,6 +1,6 @@
-import { PLAYER_SIZE, type Player } from '@/types/game';
-import { checkProjectileCollision, getProjectileCollisionTime, hunterNetLaunch, scientistOrbLaunch, projectileProperties, type ProjectileSpawn } from '@/types/projectile';
-import { basicMeleeGeometry, clampPlayerX, DEFAULT_PROJECTILE_LIFETIME_MS, FLOOR_Y, HUNTER_BULLET_LIFETIME_MS, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, playerOverlapsRect, shieldFacesX, stepPlayerMobilityBuffs } from '@/types/combatPhysics';
+import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
+import { checkProjectileCollision, getProjectileCollisionTime, hunterNetLaunch, scientistOrbLaunch, projectileProperties, hazardProperties, basicProjectileLaunches, archerBurstLaunch, mageFireballLaunch, reaperBatLaunch, iceMageAvalancheLaunch, blizzardStoneLaunch, SCIENTIST_FULL_CHARGE_MS, SCIENTIST_OVERCHARGE_MS, type Projectile, type ProjectileLaunch, type ProjectileSpawn } from '@/types/projectile';
+import { basicMeleeGeometry, circleIntersectsRect, findProjectileCoilContact, clampPlayerX, FLOOR_Y, LIGHTNING_WARNING_MS, stepProjectileMotion, NINJA_DASH_DISTANCE, NINJA_PARRY_MS, playerOverlapsRect, shieldFacesX, stepPlayerMobilityBuffs } from '@/types/combatPhysics';
 import { AI_DT, overlapsPlayer, type AIFrame } from './world';
 import { hazardRisk, isMelee, type Point } from './navigation';
 import type { Direction, OpponentModel } from './learning';
@@ -35,38 +35,53 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   const launchFacing: Direction = launch.facingRight ? 1 : -1;
   const lowHealth = player.health < player.maxHealth * 0.35;
   const zones = frame.zones.filter(z => z.ownerId !== player.id);
-  const warnings = frame.world.lightningStrikes.filter(s => !s.struck && now - s.warningStart <= 1500);
+  const warnings = frame.world.lightningStrikes.filter(s => !s.struck && now - s.warningStart <= LIGHTNING_WARNING_MS);
   const targetVulnerable = !opponent.isInvulnerable && !opponent.isEvading;
   const shieldFacingUs = shieldFacesX(opponent, player.x + PLAYER_SIZE / 2);
-  let castingPreference = 1;
-  const canHit = (speed: number, vertical = 0, gravity = 0, tolerance = 30, range = character.attackRange, breakVine = false, reflectable = true, lifetime = DEFAULT_PROJECTILE_LIFETIME_MS, firstShot?: ProjectileSpawn & { width?: number; height?: number }, from = launch) => {
-    if (firstShot) {
-      if (!allowLongRange && Math.abs(opponent.x - from.x) > range + PLAYER_SIZE / 2) return false;
-      return directShotOutcome(frame, from, opponent, firstShot, targetAt).kind === 'enemy';
+  const basicShot = basicProjectileLaunches(launch, character.attackDamage);
+  const centered = (shot: ProjectileLaunch): ProjectileSpawn => ({ ...shot, x: launch.x + PLAYER_SIZE / 2, y: launch.y + PLAYER_SIZE / 2 });
+  const canHit = (spawn: ProjectileSpawn & Partial<Pick<Projectile, 'width' | 'height'>>, range = character.attackRange,
+    breakVine = false, from = launch) => {
+    if (!allowLongRange && Math.abs(opponent.x - from.x) > range + PLAYER_SIZE / 2) return false;
+    if (spawn.type === 'net' || spawn.type === 'electric-orb')
+      return directShotOutcome(frame, from, opponent, spawn, targetAt).kind === 'enemy';
+    const properties = projectileProperties(spawn.type, spawn.velocityX, spawn.velocityY);
+    const shot: Projectile = { ...properties, ...spawn, id: 'prospective-combat-shot', ownerId: player.id,
+      x: spawn.x - (spawn.width ?? properties.width) / 2, y: spawn.y - (spawn.height ?? properties.height) / 2,
+      createdAt: now, lastHitTime: {} };
+    if (shot.type === 'bat') {
+      shot.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - shot.width, shot.x));
+      shot.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - shot.height, shot.y));
     }
-    const shotFacing = from.facingRight ? 1 : -1;
-    const origin = { x: from.x + PLAYER_SIZE / 2, y: from.y + PLAYER_SIZE / 2 };
-    let time = Math.max(0, Math.abs(opponent.x - from.x) - PLAYER_SIZE / 2) / speed;
-    let target = targetAt(time);
-    time = Math.max(0, Math.abs(target.x - from.x) - PLAYER_SIZE / 2) / speed;
-    target = targetAt(time);
-    if (time * 1000 > lifetime) return false;
-    const effectiveRange = allowLongRange && !isMelee(id) ? Infinity : range;
-    if (Math.abs(target.x - from.x) > effectiveRange + PLAYER_SIZE / 2 || Math.sign(target.x - from.x) !== shotFacing) return false;
-    const shotY = origin.y + vertical * time + gravity * time * time / 2;
-    if (Math.abs(shotY - target.y - PLAYER_SIZE / 2) >= tolerance * (0.6 + 0.4 * castingPreference)) return false;
-    const width = 12, height = 12;
-    let before = { x: origin.x, y: origin.y };
-    for (let t = AI_DT; t <= time + AI_DT; t += AI_DT) {
-      const at = Math.min(t, time);
-      const after = { x: origin.x + shotFacing * speed * at, y: origin.y + vertical * at + gravity * at * at / 2, width, height };
-      if (gravity && platforms.some(p => checkProjectileCollision(after, before, p))) return false;
-      if (frame.vines.some(v => now + at * 1000 - v.createdAt <= v.duration && checkProjectileCollision(after, before, v))) return breakVine;
-      if (reflectable && frame.hitboxes.some(h => h.ownerId === opponent.id && h.canDeflectProjectiles &&
-          now + at * 1000 - h.createdAt <= h.duration && checkProjectileCollision(after, before, h))) return false;
-      before = after;
+    const firstDt = Math.max(0.001, frame.world.deltaTime / 1000);
+    const horizon = Math.min(shot.lifetime / 1000 + firstDt, (frame.forecasts?.projectiles.horizonMs ?? shot.lifetime + firstDt * 1000) / 1000);
+    for (let time = firstDt; time <= Math.max(firstDt, horizon) + 1e-9; time += AI_DT) {
+      const dt = time === firstDt ? firstDt : AI_DT;
+      const previous = { x: shot.x, y: shot.y };
+      const at = now + (time - firstDt) * 1000;
+      if (at - shot.createdAt > shot.lifetime) return false;
+      stepProjectileMotion(shot, from, at, dt);
+      const target = { ...targetAt(time), width: PLAYER_SIZE, height: PLAYER_SIZE };
+      const surface = shot.hasGravity ? platforms.find(p => checkProjectileCollision(shot, previous, p)) : undefined;
+      if (surface || shot.type === 'blizzard-stone' && shot.y + shot.height >= ARENA.height - ARENA.padding) {
+        if (shot.type !== 'blizzard-stone') return false;
+        const zone = hazardProperties('blizzard');
+        return circleIntersectsRect({ ...zone, x: shot.x + shot.width / 2 - zone.width / 2,
+          y: (surface?.y ?? ARENA.height - ARENA.padding) - zone.height / 2 }, target);
+      }
+      const body = getProjectileCollisionTime(shot, previous, target) ?? Infinity;
+      const sword = shot.canBeDeflected ? frame.hitboxes.reduce((first, h) => h.ownerId === opponent.id && h.canDeflectProjectiles && at - h.createdAt <= h.duration
+        ? Math.min(first, getProjectileCollisionTime(shot, previous, h) ?? Infinity) : first, Infinity) : Infinity;
+      const vine = mapId === 'jungle' ? frame.vines.reduce((first, v) => at - v.createdAt <= v.duration
+        ? Math.min(first, getProjectileCollisionTime(shot, previous, v) ?? Infinity) : first, Infinity) : Infinity;
+      if (vine < Math.min(body, sword)) return breakVine;
+      const coil = findProjectileCoilContact(shot, frame.coilSnapshots.get(frame.times.findIndex(t => t >= time - 1e-9)) ?? frame.zones, previous);
+      if (coil && (getProjectileCollisionTime(shot, previous, coil) ?? Infinity) < Math.min(body, sword)) return breakVine;
+      if (sword < body) return false;
+      if (body < Infinity) return true;
+      if (shot.x + shot.width < 0 || shot.x > ARENA.width || shot.y + shot.height < 0 || shot.y > ARENA.height) return false;
     }
-    return true;
+    return false;
   };
   let attack = false;
   const rocketFacing = launchFacing;
@@ -87,10 +102,10 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
       if (id === 'rocketeer') attack = normalRocket !== null;
       else if (id === 'archer') attack = archerShot && (options?.parameters.character ?? 100) >= 50
         ? (archerShot.kind === 'enemy' || archerShot.kind === 'vine') && Math.abs(opponent.x - launch.x) <= range + PLAYER_SIZE / 2
-        : canHit(1000, -80, 190, 30, range, true);
+        : !!basicShot[0] && canHit(centered(basicShot[0]), range, true);
       else if (id === 'scientist') attack = scientistFlask(frame, launch, opponent, targetAt, allowLongRange) !== null;
-      else if (id === 'hunter') attack = canHit(player.hunterFocusedDuration ? 1562.5 : 1250, 0, 0, 35, allowLongRange ? Infinity : player.hunterFocusedDuration ? 350 : 275, true, true, HUNTER_BULLET_LIFETIME_MS);
-      else attack = canHit(id === 'mage' ? 780 : id === 'hacker' ? 800 : 700, 0, 0, 30, range, true);
+      else if (id === 'hunter') attack = basicShot.some(shot => canHit(centered(shot), Infinity, true));
+      else attack = !!basicShot[0] && canHit(centered(basicShot[0]), range, true);
     }
   }
   const findParryDirection = (candidate: Readonly<Action>): Direction | undefined => {
@@ -122,7 +137,7 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
     if (parryTurn !== undefined) attack = true;
   }
   if (id === 'hacker' && attack && frame.zones.some(z => z.ownerId === player.id && z.type === 'packet-block-zone' && overlapsPlayer(player, z))) {
-    const arrival = targetAt(Math.abs(dx) / 800);
+    const arrival = targetAt(Math.abs(dx) / Math.abs(basicShot[0]!.velocityX));
     const selfRisk = zones.reduce((sum, z) => sum + hazardRisk(arrival, z), 0) * (lowHealth ? 1.8 : 1);
     const enemyRisk = frame.zones.reduce((sum, z) => sum + (z.ownerId === player.id ? hazardRisk(player, z) : 0), 0);
     const silenceValue = !opponent.isSilenced && opponent.mana >= opponent.character!.skill.manaCost ? 45 : 0;
@@ -132,26 +147,24 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   let selectedCoilClear: CoilClearOutcome | undefined;
   let coilCasts: { action: Readonly<Action>; outcome: CoilClearOutcome }[] = [];
   const canCast = !player.isSilenced && !player.isClone;
-  castingPreference = traits.ultimate;
   if (canCast && traits.ultimate > 0 && player.mana >= character.ultimate.manaCost && !player.isChargingSkill && targetVulnerable) {
     const eagerDistance = distance / Math.max(0.25, traits.ultimate);
     switch (id) {
       case 'rocketeer': ultimate = player.napalmDuration <= 0 && eagerDistance < 600 &&
         ((normalRocket === 'target' && player.attackCooldownRemaining < 300) || (guidedRocket && player.skillCooldownRemaining < 1200)); break;
       case 'gladiator': ultimate = player.buffDuration <= 0 && (eagerDistance < 240 || (lowHealth && threatened)); break;
-      case 'archer': ultimate = !(player.archerBurstRemaining > 0) && facingTarget && !shieldFacingUs && canHit(1000, -80, 190, 65, 650); break;
+      case 'archer': ultimate = !(player.archerBurstRemaining > 0) && facingTarget && !shieldFacingUs && canHit(centered(archerBurstLaunch(launch.facingRight, character.attackDamage)), 650); break;
       case 'mage': ultimate = player.mageUltimateDuration <= 0 && eagerDistance < 420; break;
       case 'ninja': ultimate = !player.isInvisible && (eagerDistance < 350 || threatened); break;
       case 'scientist': ultimate = eagerDistance < 200 && !frame.zones.some(z => z.ownerId === player.id && z.type === 'tesla-coil'); break;
       case 'hunter': ultimate = (player.hunterFocusedDuration ?? 0) <= 0 && Math.abs(dy) < 65 && eagerDistance < 340; break;
       case 'reaper': ultimate = !player.isFlying && (eagerDistance < 300 || (lowHealth && threatened)); break;
-      case 'ice-mage': ultimate = facingTarget && !shieldFacingUs && canHit(600, -100, 600, 100, 450); break;
+      case 'ice-mage': ultimate = facingTarget && !shieldFacingUs && canHit(blizzardStoneLaunch(launch, character.attackDamage), 450); break;
       case 'hacker': ultimate = !opponent.isHacked && eagerDistance < 600; break;
     }
   }
   if (ultimate && options && options.random() > Math.min(1, traits.ultimate * (0.5 + understanding * 0.5))) ultimate = false;
   const reservedMana = character.skill.manaCost * Math.max(1, traits.recovery / Math.max(0.25, traits.skill));
-  castingPreference = traits.skill;
   if (canCast && !ultimate && (traits.skill > 0 || player.isChargingSkill) && player.mana >= reservedMana && player.skillCooldownRemaining <= 0) {
     switch (id) {
       case 'rocketeer': skill = guidedRocket; break;
@@ -170,11 +183,14 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
         skill = traits.defense > 0 && player.mana >= 5 && facingTarget && (threatened || (isMelee(opponent.character!.id) && distance < 140 * traits.defense && (opponent.attackCooldownRemaining < 180 || learnedAttackSoon)));
         break;
       }
-      case 'archer': skill = player.poisonArrowsRemaining === 0 && targetVulnerable && canHit(1000, -80, 190, 50, 650); break;
+      case 'archer': skill = player.poisonArrowsRemaining === 0 && targetVulnerable && !!basicShot[0] && canHit(centered({ ...basicShot[0], type: 'poison-arrow' }), 650); break;
       case 'mage': {
-        const fallTime = Math.max(0, opponent.y - 21) / 750;
+        const fireball = mageFireballLaunch(opponent, character.attackDamage);
+        const halfWidth = projectileProperties(fireball.type).width / 2;
+        const halfHeight = projectileProperties(fireball.type).height / 2;
+        const fallTime = Math.max(0, opponent.y - halfHeight) / fireball.velocityY;
         const landing = targetAt(fallTime);
-        const blocked = frame.vines.some(v => v.x < opponent.x + PLAYER_SIZE / 2 + 21 && v.x + v.width > opponent.x + PLAYER_SIZE / 2 - 21 && v.y < landing.y && now + fallTime * 1000 - v.createdAt <= v.duration);
+        const blocked = frame.vines.some(v => v.x < opponent.x + PLAYER_SIZE / 2 + halfWidth && v.x + v.width > opponent.x + PLAYER_SIZE / 2 - halfWidth && v.y < landing.y && now + fallTime * 1000 - v.createdAt <= v.duration);
         skill = targetVulnerable && !blocked && Math.abs(landing.x - opponent.x) < (opponent.isFrozen || opponent.rootDuration > 0 ? 80 : 48) * (0.5 + 0.5 * traits.skill);
         break;
       }
@@ -191,11 +207,10 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
       }
       case 'scientist': {
         const charge = now - (player.skillChargeStartTime ?? now);
-        const orb = scientistOrbLaunch(launch, player.isChargingSkill ? charge : 1500, character.attackDamage);
-        const shot = facingTarget && targetVulnerable && !shieldFacingUs && canHit(850, 0, 0, 40, 650, false, false,
-          projectileProperties('electric-orb').lifetime, orb);
+        const orb = scientistOrbLaunch(launch, player.isChargingSkill ? charge : SCIENTIST_FULL_CHARGE_MS, character.attackDamage);
+        const shot = facingTarget && targetVulnerable && !shieldFacingUs && canHit(orb, 650);
         const stable = !chosen.jump && !chosen.drop && (mapId !== 'volcano' || player.isGrounded);
-        skill = player.isChargingSkill ? stable && charge < 3500 && !(shot && charge >= 1500) && !threatened : stable && shot && !threatened;
+        skill = player.isChargingSkill ? stable && charge < SCIENTIST_OVERCHARGE_MS && !(shot && charge >= SCIENTIST_FULL_CHARGE_MS) && !threatened : stable && shot && !threatened;
         break;
       }
       case 'hunter': {
@@ -221,8 +236,8 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
         }
         break;
       }
-      case 'reaper': skill = facingTarget && targetVulnerable && !shieldFacingUs && !frame.paths.some(p => p.projectile.ownerId === player.id && p.projectile.type === 'bat') && canHit(550, 0, 0, 55, 550, false, false); break;
-      case 'ice-mage': skill = facingTarget && targetVulnerable && !shieldFacingUs && canHit(920, 0, 0, 65, 600); break;
+      case 'reaper': skill = facingTarget && targetVulnerable && !shieldFacingUs && !frame.paths.some(p => p.projectile.ownerId === player.id && p.projectile.type === 'bat') && canHit(reaperBatLaunch(launch, character.attackDamage), 550); break;
+      case 'ice-mage': skill = facingTarget && targetVulnerable && !shieldFacingUs && Array.from({ length: 4 }, (_, i) => iceMageAvalancheLaunch(launch, character.attackDamage, i)).some(shot => canHit(shot, 600)); break;
       case 'hacker': skill = Math.abs(dy) < 130 && Math.abs(dx) < 430 * (0.5 + 0.5 * traits.skill) && !frame.zones.some(z => z.ownerId === player.id && z.type === 'packet-block-zone') && facingTarget; break;
     }
   }
@@ -269,9 +284,9 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
   }
   if (id === 'scientist' && player.isChargingSkill && canCast && player.mana >= character.skill.manaCost) {
     const charge = now - (player.skillChargeStartTime ?? now);
-    if (skill && charge + frame.times[frame.steps] * 1000 > 3500)
+    if (skill && charge + frame.times[frame.steps] * 1000 > SCIENTIST_OVERCHARGE_MS)
       alternatives.push({ action, attack, skill: false, castValue: 0 });
-    if (!skill && charge < 3500) alternatives.push({ action, attack, skill: true, castValue: 0 });
+    if (!skill && charge < SCIENTIST_OVERCHARGE_MS) alternatives.push({ action, attack, skill: true, castValue: 0 });
     for (const direction of [-1, 0, 1] as const) {
       const variant: Readonly<Action> = { ...chosen, direction };
       const input = { left: direction < 0, right: direction > 0, jump: variant.jump, down: variant.drop };
@@ -279,11 +294,11 @@ export function chooseCombat(frame: AIFrame, player: Player, opponent: Player, m
       const from = { ...player, ...predictActionStart(frame.world, player, raw, false) };
       const orb = scientistOrbLaunch(from, charge, character.attackDamage);
       const hits = targetVulnerable && !shieldFacesX(opponent, from.x + PLAYER_SIZE / 2) &&
-        canHit(850, 0, 0, 40, 650, false, false, projectileProperties('electric-orb').lifetime, orb, from);
+        canHit(orb, 650, false, from);
       const basic = attackIntent && scientistFlask(frame, from, opponent, targetAt, allowLongRange) !== null;
       // Preserve the existing full-charge preference; partial release remains
       // available when the original decision already needs to stop holding.
-      if (hits && (charge >= 1500 || !skill)) {
+      if (hits && (charge >= SCIENTIST_FULL_CHARGE_MS || !skill)) {
         const castValue = orb.damage * 1.3 * traits.skill;
         const released = alternatives.find(proposal => !proposal.skill && proposal.action.direction === direction);
         if (released) released.castValue = castValue;

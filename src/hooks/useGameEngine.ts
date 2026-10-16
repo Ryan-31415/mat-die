@@ -1,3 +1,4 @@
+import { archerBurstLaunch, ARCHER_BURST_INTERVAL_MS, ARCHER_DISTANCE_BONUS_MS, mageFireballLaunch, reaperBatLaunch, iceMageAvalancheLaunch, blizzardStoneLaunch, SCIENTIST_OVERCHARGE_MS, SCIENTIST_OVERCHARGE_STUN_MS, SCIENTIST_OVERCHARGE_SLOW } from '@/types/projectile';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { captureBasicAttack, createCombatVisualState, visualActorId, type CombatVisualState } from '@/types/combatVisual';
 import { advanceCombatVisual } from '@/components/game/weapons/weaponPose';
@@ -21,8 +22,6 @@ import { advanceProjectile, basicMeleeGeometry, BAT_RETURN_FRACTION, circleInter
 
 const TICK_RATE = 1000 / 60; // 60 FPS
 const ARCHER_BURST_COUNT = 8;
-const ARCHER_BURST_INTERVAL = 80;
-const ARCHER_BURST_SPREAD = 10 * Math.PI / 180;
 
 interface GameEngineState {
   combatVisual: CombatVisualState;
@@ -610,15 +609,8 @@ export const useGameEngine = (
             break;
           case 'mage':
             {
-            const largeFireball = createProjectile(
-              'large-fireball',
-              player.id,
-              otherPlayer.x + PLAYER_SIZE / 2,
-              0,
-              0,
-              800,
-              baseDamage * 1.75
-            );
+            const shot = mageFireballLaunch(otherPlayer, baseDamage);
+            const largeFireball = createProjectile(shot.type, player.id, shot.x, shot.y, shot.velocityX, shot.velocityY, shot.damage);
             newProjectiles.push(largeFireball);
             break;
           }
@@ -646,16 +638,8 @@ export const useGameEngine = (
           case 'reaper':
             // Spawn bat slightly in front of the player to avoid initial overlap
             {
-            const batSpawnX = updatedPlayer.x + PLAYER_SIZE / 2 + (attackDirection * (PLAYER_SIZE / 2 + 20));
-            const bat = createProjectile(
-              'bat',
-              player.id,
-              batSpawnX,
-              updatedPlayer.y + PLAYER_SIZE / 2, // Center vertically
-              attackDirection * 550,
-              0,
-              baseDamage * 0.75,
-            );
+            const shot = reaperBatLaunch(updatedPlayer, baseDamage);
+            const bat = createProjectile(shot.type, player.id, shot.x, shot.y, shot.velocityX, shot.velocityY, shot.damage);
             // Clamp bat top-left inside arena so it doesn't immediately trigger bounds
             bat.x = Math.max(ARENA.padding, Math.min(ARENA.width - ARENA.padding - bat.width, bat.x));
             bat.y = Math.max(ARENA.padding, Math.min(ARENA.height - ARENA.padding - bat.height, bat.y));
@@ -676,18 +660,10 @@ export const useGameEngine = (
                   const delayedRandom = createTickRandom(runtime?.random, `avalanche:${player.id}:${now}:${i}`, delayedNow);
                   const { createProjectile } = createEngineEntities(
                     runtime?.random ? { now: delayedNow, random: () => delayedRandom('id') } : undefined);
-                  const projGap = 40;
                   const currentPlayer = prev.players[player.id - 1];
                   if (!currentPlayer) return prev;
-                  const newProj = createProjectile(
-                    'large-snowball',
-                    player.id,
-                    currentPlayer.x + PLAYER_SIZE / 2,
-                    currentPlayer.y + PLAYER_SIZE / 2 + (i - 1) * projGap - projGap * 0.5, // Offset each snowball vertically
-                    (currentPlayer.facingRight ? 1 : -1) * 900,
-                    0,
-                    baseDamage * 0.1 // can does multy-hit. so damage is low.
-                  );
+                  const shot = iceMageAvalancheLaunch(currentPlayer, baseDamage, i);
+                  const newProj = createProjectile(shot.type, player.id, shot.x, shot.y, shot.velocityX, shot.velocityY, shot.damage);
                   const delayedDiagnostics = nextCombatDiagnostics(prev.diagnostics, false);
                   recordEntityAction(delayedDiagnostics, newProj, 'skill', playerKey + ':' + now + ':skill', player.isClone);
                   return {
@@ -749,8 +725,7 @@ export const useGameEngine = (
           updatedPlayer.skillChargeStartTime = undefined;
         } else {
           const chargeDuration = now - (updatedPlayer.skillChargeStartTime || now);
-          const fullChargeTime = 1500;
-          const overchargeTime = fullChargeTime + 2000; // 2 seconds after full charge
+          const overchargeTime = SCIENTIST_OVERCHARGE_MS; // 2 seconds after full charge
 
           // Overcharge Self-Destruct
           if (chargeDuration > overchargeTime) {
@@ -769,10 +744,10 @@ export const useGameEngine = (
             // If survived, apply status effects
             if (updatedPlayer.health > 0) {
               updatedPlayer.isStunned = true;
-              updatedPlayer.stunDuration = 1750;
+              updatedPlayer.stunDuration = SCIENTIST_OVERCHARGE_STUN_MS;
 
               updatedPlayer.isSlowed = true;
-              updatedPlayer.slowAmount = 0.4;
+              updatedPlayer.slowAmount = SCIENTIST_OVERCHARGE_SLOW;
               updatedPlayer.slowDuration = 6000;
 
               // Knockback backwards
@@ -941,15 +916,8 @@ export const useGameEngine = (
         case 'ice-mage':
           // Throw blizzard stone
           {
-          const blizzardStone = createProjectile(
-            'blizzard-stone',
-            player.id,
-            updatedPlayer.x,
-            updatedPlayer.y,
-            attackDirection * 600, // Throw forward
-            -100, // High arc
-            baseDamage * 0.02
-          );
+          const shot = blizzardStoneLaunch(updatedPlayer, baseDamage);
+          const blizzardStone = createProjectile(shot.type, player.id, shot.x, shot.y, shot.velocityX, shot.velocityY, shot.damage);
           newProjectiles.push(blizzardStone);
           break;
         }
@@ -987,21 +955,19 @@ export const useGameEngine = (
     if (character.id === 'archer') {
       while ((updatedPlayer.archerBurstRemaining ?? 0) > 0 && (updatedPlayer.archerBurstCooldown ?? 0) <= 0) {
         // Follow the archer's current facing while keeping each shot within a total ten-degree cone.
-        const direction = updatedPlayer.facingRight ? 1 : -1;
-        const angle = Math.atan2(-80, 1000) + (random('combat') - 0.5) * ARCHER_BURST_SPREAD;
-        const speed = Math.hypot(1000, 80);
+        const burst = archerBurstLaunch(updatedPlayer.facingRight, 0, random('combat'));
         const damageMultiplier = gameState.isOvertime ? 2 : 1;
         const damageBoost = updatedPlayer.damageBoost - (updatedPlayer.isHacked ? 0.20 : 0);
         newProjectiles.push(createProjectile(
           'arrow', player.id,
           updatedPlayer.x + PLAYER_SIZE / 2,
           updatedPlayer.y + PLAYER_SIZE / 2,
-          direction * Math.cos(angle) * speed,
-          Math.sin(angle) * speed,
+          burst.velocityX,
+          burst.velocityY,
           character.attackDamage * (1 + damageBoost) * damageMultiplier
         ));
         updatedPlayer.archerBurstRemaining = (updatedPlayer.archerBurstRemaining ?? 0) - 1;
-        updatedPlayer.archerBurstCooldown = (updatedPlayer.archerBurstCooldown ?? 0) + ARCHER_BURST_INTERVAL;
+        updatedPlayer.archerBurstCooldown = (updatedPlayer.archerBurstCooldown ?? 0) + ARCHER_BURST_INTERVAL_MS;
       }
       if (!updatedPlayer.archerBurstRemaining) updatedPlayer.archerBurstCooldown = 0;
     }
@@ -1558,8 +1524,8 @@ export const useGameEngine = (
                 currentTarget.frozenDuration = 750;
               }
 
-              // Archer Passive: Long range shot (> 325ms) deals 15% bonus damage
-              if (players[proj.ownerId - 1].character?.id === 'archer' && now - proj.createdAt > 360) {
+              // Archer Passive: Long range shots deal 15% bonus damage
+              if (players[proj.ownerId - 1].character?.id === 'archer' && now - proj.createdAt > ARCHER_DISTANCE_BONUS_MS) {
                 // Check if it's an arrow
                 if (proj.type === 'arrow' || proj.type === 'poison-arrow') {
                   const bonusDamage = proj.damage * 0.15;

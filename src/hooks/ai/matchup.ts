@@ -1,3 +1,4 @@
+import { ARCHER_BURST_INTERVAL_MS, SCIENTIST_FULL_CHARGE_MS } from '@/types/projectile';
 import { PLAYER_SIZE, type Player } from '@/types/game';
 import { clampPlayerX, shieldFacesX } from '@/types/combatPhysics';
 import type { AIFrame } from './world';
@@ -45,7 +46,7 @@ export function opponentLineRisk(opponent: Player, point: { x: number; y: number
       Math.abs(point.y - enemyPoint.y) < 32 && Math.abs(point.x - enemyPoint.x) < 600 &&
       opponent.attackCooldownRemaining <= elapsed * 1000) return 35;
   if (!inFront || Math.abs(point.y - enemyPoint.y) > 32) return 0;
-  if (opponent.character!.id === 'archer' && opponent.archerBurstRemaining > 0 && elapsed < opponent.archerBurstRemaining * 0.08) return 90;
-  if (opponent.character!.id === 'scientist' && opponent.isChargingSkill && now - opponent.skillChargeStartTime + elapsed * 1000 > 1200) return 45;
+  if (opponent.character!.id === 'archer' && opponent.archerBurstRemaining > 0 && elapsed < opponent.archerBurstRemaining * ARCHER_BURST_INTERVAL_MS / 1000) return 90;
+  if (opponent.character!.id === 'scientist' && opponent.isChargingSkill && now - opponent.skillChargeStartTime + elapsed * 1000 > SCIENTIST_FULL_CHARGE_MS * 0.8) return 45;
   return 0;
 }

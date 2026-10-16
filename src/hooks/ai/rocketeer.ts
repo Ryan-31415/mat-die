@@ -1,6 +1,6 @@
 import { ARENA, PLAYER_SIZE, type Player } from '@/types/game';
-import { getProjectileCollisionTime, type Projectile } from '@/types/projectile';
-import { HOMING_ROCKET_SPEED, ROCKET_SPEED, ROCKET_WIDTH, ROCKET_HEIGHT, ROCKET_EXPLOSION_RADIUS, stepProjectileMotion, shieldFacesX, findProjectileCoilContact } from '@/types/combatPhysics';
+import { getProjectileCollisionTime, projectileProperties, type Projectile } from '@/types/projectile';
+import { HOMING_ROCKET_SPEED, ROCKET_SPEED, stepProjectileMotion, shieldFacesX, findProjectileCoilContact } from '@/types/combatPhysics';
 import { AI_DT, type AIFrame } from './world';
 import type { Point } from './navigation';
 import { advanceCoilForecast } from './coil';
@@ -10,16 +10,13 @@ export function rocketeerShot(frame: AIFrame, player: Player, opponent: Player, 
   homing: boolean, facing: number, allowLongRange = false, leadMs?: number): 'target' | 'vine' | 'coil' | null {
   if (opponent.isInvisible || (!allowLongRange && Math.hypot(opponent.x - player.x, opponent.y - player.y) > player.character!.attackRange)) return null;
   const speed = homing ? HOMING_ROCKET_SPEED : ROCKET_SPEED;
-  const shot: Projectile = {
-    id: 'predicted-rocket', type: homing ? 'homing-rocket' : 'rocket', ownerId: player.id,
-    x: player.x + PLAYER_SIZE / 2 - ROCKET_WIDTH / 2, y: player.y + PLAYER_SIZE / 2 - ROCKET_HEIGHT / 2,
-    width: ROCKET_WIDTH, height: ROCKET_HEIGHT, velocityX: facing * speed, velocityY: 0,
-    damage: player.character!.attackDamage, initialSpeed: speed, flightTimeMs: 0,
-    hasGravity: false, gravity: 0, isExplosive: true, explosionRadius: ROCKET_EXPLOSION_RADIUS,
-    createdAt: frame.world.now, lifetime: 3000, isPoisonous: false, poisonDuration: 0,
-    slowAmount: 0, slowDuration: 0, stunDuration: 0, knockback: 0,
-    createsFirePool: false, firePoolDuration: 0, canBeDeflected: true,
-    isReturning: false, damageAccumulated: 0, lastHitTime: {},
+  const type = homing ? 'homing-rocket' : 'rocket';
+  const properties = projectileProperties(type, facing * speed, 0);
+  const shot: Projectile = { ...properties,
+    id: 'predicted-rocket', type, ownerId: player.id,
+    x: player.x + PLAYER_SIZE / 2 - properties.width / 2, y: player.y + PLAYER_SIZE / 2 - properties.height / 2,
+    velocityX: facing * speed, velocityY: 0, damage: player.character!.attackDamage,
+    createdAt: frame.world.now, lastHitTime: {},
   };
   let coils = frame.world.hazardZones.filter(zone => zone.type === 'tesla-coil').map(zone => ({ ...zone }));
   const firstDt = Math.max(0.001, frame.world.deltaTime / 1000);
