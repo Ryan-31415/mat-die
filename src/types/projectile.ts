@@ -257,7 +257,7 @@ const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties
   'super-bullet': { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 15 },
   bat: { width: 75, height: 75, lifetime: 3600, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasLeftForwardTarget: false, hasHitReturn: false },
   snowball: { width: 24, height: 24, canBeDeflected: true },
-  'large-snowball': { width: 33, height: 33, knockback: 150, lifetime: 1400, canBeDeflected: true },
+  'large-snowball': { width: 40, height: 40, knockback: 150, lifetime: 1400, canBeDeflected: true },
   'blizzard-stone': { width: 45, height: 45, hasGravity: true, gravity: 600 }, // Heavy gravity for arcing.
   net: { width: 45, height: 45, hasGravity: true, gravity: 325, lifetime: 3500, canBeDeflected: false },
   'hacker-missile': { width: 24, height: 24, canBeDeflected: true },
