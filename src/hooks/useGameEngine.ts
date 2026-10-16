@@ -616,7 +616,7 @@ export const useGameEngine = (
               otherPlayer.x + PLAYER_SIZE / 2,
               0,
               0,
-              750,
+              800,
               baseDamage * 1.75
             );
             newProjectiles.push(largeFireball);
@@ -1669,15 +1669,15 @@ export const useGameEngine = (
                 }
                 // Spawn 5 meteors at hit location with random offsets
                 for (let i = 0; i < 5; i++) {
-                  const xOffset = 0 + (i - 2) * 40;
+                  const xOffset = 0 + (i - 2) * 42;
                   const meteorProj = createProjectile(
                     'meteor',
                     proj.ownerId,
                     proj.x + proj.width / 2 + xOffset,
                     0, // Start from top
                     0,
-                    750,
-                    proj.damage * 0.3 // Adjusted damage for 5 meteors
+                    800,
+                    proj.damage * 0.33 // Adjusted damage for 5 meteors
                   );
                   newlySpawnedProjectiles.push(meteorProj);
                 }
