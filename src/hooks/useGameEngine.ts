@@ -568,6 +568,7 @@ export const useGameEngine = (
             const projectile = createProjectile(launch.type, player.id, updatedPlayer.x + PLAYER_SIZE / 2,
               updatedPlayer.y + PLAYER_SIZE / 2, launch.velocityX, launch.velocityY, launch.damage);
             if (character.id === 'hacker') projectile.isSwapMissile = inOwnPacketBlock;
+            if (character.id === 'mage') projectile.isMageUltimateEnhanced = updatedPlayer.mageUltimateDuration > 0;
             newProjectiles.push(projectile);
           }
         }
@@ -611,6 +612,7 @@ export const useGameEngine = (
             {
             const shot = mageFireballLaunch(otherPlayer, baseDamage);
             const largeFireball = createProjectile(shot.type, player.id, shot.x, shot.y, shot.velocityX, shot.velocityY, shot.damage);
+            largeFireball.isMageUltimateEnhanced = updatedPlayer.mageUltimateDuration > 0;
             newProjectiles.push(largeFireball);
             break;
           }
@@ -1645,6 +1647,7 @@ export const useGameEngine = (
                     800,
                     proj.damage * 0.33 // Adjusted damage for 5 meteors
                   );
+                  meteorProj.isMageUltimateEnhanced = proj.isMageUltimateEnhanced;
                   newlySpawnedProjectiles.push(meteorProj);
                 }
               }

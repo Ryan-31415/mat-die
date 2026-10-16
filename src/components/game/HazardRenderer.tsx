@@ -100,8 +100,8 @@ const HazardRenderer = ({ zone }: HazardRendererProps) => {
         return {
           background: 'transparent',
           borderRadius: '50%',
-          border: '6px solid rgba(255, 100, 0, 0.8)',
-          boxShadow: '0 0 30px rgba(255, 102, 0, 0.8), inset 0 0 30px rgba(255, 0, 0, 0.4)',
+          border: '6px solid rgba(167, 139, 250, 0.9)',
+          boxShadow: '0 0 30px rgba(124, 58, 237, 0.9), inset 0 0 30px rgba(91, 33, 182, 0.55)',
           animation: 'pulse 0.3s infinite',
         };
       case 'packet-block-zone':

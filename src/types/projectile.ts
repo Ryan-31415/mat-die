@@ -116,6 +116,7 @@ export interface Projectile {
   returnPhase?: 'outbound' | 'returning';
   isSwapMissile?: boolean;
   isHackUltimate?: boolean;
+  isMageUltimateEnhanced?: boolean;
   damageAccumulated: number;
   hasHitForward?: boolean; // Track if projectile has hit on forward path
   hasLeftForwardTarget?: boolean; // Require separation before a second hit on return

@@ -85,18 +85,39 @@ const ProjectileRenderer = ({ projectile }: ProjectileRendererProps) => {
   const getProjectileStyle = () => {
     switch (projectile.type) {
       case 'fireball':
+        if (projectile.isMageUltimateEnhanced) {
+          return {
+            background: 'radial-gradient(circle, #ffffff, #c4b5fd, #7c3aed)',
+            borderRadius: '50%',
+            boxShadow: '0 0 25px #a78bfa, 0 0 45px #7c3aed, inset 0 0 10px #ffffff',
+          };
+        }
         return {
           background: 'radial-gradient(circle, #ffff99, #ff9900, #ff3300)',
           borderRadius: '50%',
           boxShadow: '0 0 25px #ff6600, 0 0 45px #ff0000, inset 0 0 10px #ffff99',
         };
       case 'large-fireball':
+        if (projectile.isMageUltimateEnhanced) {
+          return {
+            background: 'radial-gradient(circle, #ffffff, #c4b5fd, #8b5cf6, #5b21b6)',
+            borderRadius: '50%',
+            boxShadow: '0 0 40px #a78bfa, 0 0 60px #7c3aed, inset 0 0 20px #ffffff',
+          };
+        }
         return {
           background: 'radial-gradient(circle, #ffff00, #ffcc00, #ff6600, #ff0000)',
           borderRadius: '50%',
           boxShadow: '0 0 40px #ff6600, 0 0 60px #ff0000, inset 0 0 20px #ffff00',
         };
       case 'meteor':
+        if (projectile.isMageUltimateEnhanced) {
+          return {
+            background: 'radial-gradient(circle, #ffffff, #c4b5fd, #8b5cf6, #5b21b6)',
+            borderRadius: '50%',
+            boxShadow: '0 0 35px #a78bfa, 0 0 55px #7c3aed, inset 0 0 15px #ffffff',
+          };
+        }
         return {
           background: 'radial-gradient(circle, #ffff99, #ffcc00, #ff6600, #ff3300)',
           borderRadius: '50%',
