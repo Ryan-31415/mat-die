@@ -208,6 +208,7 @@ export const checkProjectileCollision = (
 export interface ExplosionEffect {
   id: string;
   type: ProjectileType;
+  isMageUltimateEnhanced?: boolean;
   x: number;
   y: number;
   radius: number;
@@ -223,6 +224,7 @@ export const createExplosionEffect = (
 ): ExplosionEffect => ({
   id: `explosion-${projectile.id}-${now}`,
   type: projectile.type,
+  isMageUltimateEnhanced: projectile.isMageUltimateEnhanced,
   x,
   y,
   radius: Math.max(projectile.explosionRadius, projectile.width / 2, projectile.height / 2),

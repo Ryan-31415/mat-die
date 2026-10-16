@@ -6,11 +6,13 @@ interface ExplosionRendererProps {
 }
 
 const ExplosionRenderer = ({ effect, isPaused }: ExplosionRendererProps) => {
-  const color = effect.type === 'electric-orb'
-    ? 'hsl(190 100% 60%)'
-    : effect.type === 'flask'
-      ? 'hsl(150 100% 55%)'
-      : 'hsl(25 100% 55%)';
+  const color = effect.isMageUltimateEnhanced
+    ? 'hsl(270 100% 70%)'
+    : effect.type === 'electric-orb'
+      ? 'hsl(190 100% 60%)'
+      : effect.type === 'flask'
+        ? 'hsl(150 100% 55%)'
+        : 'hsl(25 100% 55%)';
   const animationStyle = {
     animationDuration: `${effect.duration}ms`,
     animationPlayState: isPaused ? 'paused' as const : 'running' as const,
