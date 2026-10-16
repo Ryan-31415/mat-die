@@ -684,7 +684,7 @@ export const useGameEngine = (
                     player.id,
                     currentPlayer.x + PLAYER_SIZE / 2,
                     currentPlayer.y + PLAYER_SIZE / 2 + (i - 1) * projGap - projGap * 0.5, // Offset each snowball vertically
-                    (currentPlayer.facingRight ? 1 : -1) * 920,
+                    (currentPlayer.facingRight ? 1 : -1) * 900,
                     0,
                     baseDamage * 0.1 // can does multy-hit. so damage is low.
                   );
