@@ -27,12 +27,12 @@ export function mageFireballLaunch(target: Pick<Player, 'x'>, damage: number): P
 export function reaperBatLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, damage: number): ProjectileSpawn {
   const direction = player.facingRight ? 1 : -1;
   return { type: 'bat', x: player.x + PLAYER_SIZE / 2 + direction * (PLAYER_SIZE / 2 + 20),
-    y: player.y + PLAYER_SIZE / 2, velocityX: direction * 550, velocityY: 0, damage: damage * 0.75 };
+    y: player.y + PLAYER_SIZE / 2, velocityX: direction * 700, velocityY: 0, damage: damage * 0.75 };
 }
 export function iceMageAvalancheLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, damage: number, index: number): ProjectileSpawn {
   const gap = projectileProperties('large-snowball').height;
   return { type: 'large-snowball', x: player.x + PLAYER_SIZE / 2, y: player.y + PLAYER_SIZE / 2 + (index - 1.5) * gap,
-    velocityX: (player.facingRight ? 1 : -1) * 900, velocityY: 0, damage: damage * 0.1 };
+    velocityX: (player.facingRight ? 1 : -1) * 900, velocityY: 0, damage: damage * 0.05 };
 }
 export function blizzardStoneLaunch(player: Pick<Player, 'x' | 'y' | 'facingRight'>, damage: number): ProjectileSpawn {
   return { type: 'blizzard-stone', x: player.x, y: player.y,
@@ -291,7 +291,7 @@ const PROJECTILE_PROPERTIES: Record<ProjectileType, Partial<ProjectileProperties
   'super-bullet': { width: 10, height: 8, lifetime: HUNTER_BULLET_LIFETIME_MS, knockback: 15 },
   bat: { width: 75, height: 75, lifetime: 4000, canBeDeflected: false, isReturning: true, returnPhase: 'outbound', hasHitForward: false, hasLeftForwardTarget: false, hasHitReturn: false },
   snowball: { width: 24, height: 24, canBeDeflected: true },
-  'large-snowball': { width: 40, height: 40, knockback: 150, lifetime: 1400, canBeDeflected: true },
+  'large-snowball': { width: 40, height: 40, knockback: 125, lifetime: 1400, canBeDeflected: true },
   'blizzard-stone': { width: 45, height: 45, hasGravity: true, gravity: 600 }, // Heavy gravity for arcing.
   net: { width: 45, height: 45, hasGravity: true, gravity: 315, lifetime: 3500, canBeDeflected: false },
   'hacker-missile': { width: 24, height: 24, canBeDeflected: true },
