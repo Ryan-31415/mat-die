@@ -1,7 +1,7 @@
 import type { Player } from '@/types/game';
 import { playerOverlapsRect, stepPlayerCrowdControl, stepPlayerForces, stepPlayerMobilityBuffs, stepPlayerMovement, stepPlayerSlowAndRoot,
   type PlayerMovementInput } from '@/types/combatPhysics';
-import type { AIWorld } from './world';
+import { hazardOverlapsPlayer, type AIWorld } from './world';
 
 export type ActionStart = Pick<Player, 'x' | 'y' | 'facingRight' | 'velocityX' | 'velocityY' |
   'knockbackVelocityX' | 'knockbackVelocityY' | 'isGrounded' | 'isJumping' | 'lastGroundedTime' | 'isStunned' | 'isFrozen' | 'isShielding'>;
@@ -29,7 +29,7 @@ export function predictActionStart(world: AIWorld, player: Player, input: Readon
     next.isShielding = skill && Math.min(next.maxMana, next.mana + regen) >= 5;
   }
   stepPlayerForces(next, dt);
-  const inBlizzard = world.hazardZones.some(z => z.type === 'blizzard' && z.ownerId !== next.id && playerOverlapsRect(next, z));
+  const inBlizzard = world.hazardZones.some(z => z.type === 'blizzard' && z.ownerId !== next.id && hazardOverlapsPlayer(next, z));
   stepPlayerMovement(next, effective, world.platforms, !next.isStunned && !next.isFrozen && inBlizzard, now, dt);
   const { x, y, facingRight, velocityX, velocityY, knockbackVelocityX, knockbackVelocityY,
     isGrounded, isJumping, lastGroundedTime, isStunned, isFrozen, isShielding } = next;

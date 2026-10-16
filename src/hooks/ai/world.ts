@@ -4,7 +4,7 @@ import { forecastPoint, forecastTime, sampleForecastError, type ForecastError } 
 import type { MapId } from '@/types/map';
 import type { Platform } from '@/types/platform';
 import { checkProjectileCollision, getProjectileCollisionTime, projectileImpactZone, projectilePierces, type AttackHitbox, type HazardZone, type Projectile } from '@/types/projectile';
-import { stepProjectileMotion, stepCoilMotion, playerOverlapsRect, POOL_SIZE, findProjectileCoilContact } from '@/types/combatPhysics';
+import { stepProjectileMotion, stepCoilMotion, playerOverlapsRect, circleIntersectsRect, POOL_SIZE, findProjectileCoilContact } from '@/types/combatPhysics';
 import { advanceCoilForecast } from './coil';
 
 export interface LightningWarning { x: number; warningStart: number; struck: boolean }
@@ -39,7 +39,7 @@ export interface ProjectilePath {
   coilContacts: { coilId: string; step: number; rawDamage: number }[];
   forecastError?: ForecastError;
 }
-export interface PredictedPool { ownerId: 1 | 2; x: number; y: number; width: number; height: number; impactTime: number; damage?: number; duration?: number; sourceProjectileId?: string }
+export interface PredictedPool { ownerId: 1 | 2; x: number; y: number; width: number; height: number; type?: HazardZone['type']; impactTime: number; damage?: number; duration?: number; sourceProjectileId?: string }
 export interface AIFrame {
   world: AIWorld;
   paths: ProjectilePath[];
@@ -59,6 +59,15 @@ export interface AIFrame {
 }
 export const activeVine = (v: VineShield, now: number) => v.hp > 0 && v.destroyedAt === undefined && now - v.createdAt <= v.duration;
 export const overlapsPlayer = playerOverlapsRect;
+
+/** Blizzard uses the engine's body/circle contact, including tangency. Other
+ * hazards retain their existing rectangular safety margin. */
+export function hazardOverlapsPlayer(point: { x: number; y: number },
+  zone: { x: number; y: number; width: number; height: number; type?: HazardZone['type'] }, margin = 0) {
+  return zone.type === 'blizzard'
+    ? circleIntersectsRect(zone, { x: point.x, y: point.y, width: PLAYER_SIZE, height: PLAYER_SIZE })
+    : playerOverlapsRect(point, zone, margin);
+}
 
 /** Compile each trajectory once, shared by every action and controller in this tick. */
 export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecasts; random: () => number }): AIFrame {
@@ -173,7 +182,7 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
               : POOL_SIZE[impact.type];
           let x = impactX - size / 2;
           if (surface && impact.type === 'toxic-pool') x = Math.max(surface.x, Math.min(x, surface.x + surface.width - size));
-          pools.push({ ownerId: p.ownerId, x, y: impactY - size / 2, width: size, height: size,
+          pools.push({ ownerId: p.ownerId, type: impact.type, x, y: impactY - size / 2, width: size, height: size,
             impactTime: t, damage: impact.damage, duration: impact.duration, sourceProjectileId: p.id });
         }
         if (terminal) continue;
@@ -194,7 +203,7 @@ export function prepareAIFrame(world: AIWorld, options?: { forecasts: AIForecast
           const contact = getProjectileCollisionTime(projected, previous, coil) ?? 1;
           const impactX = previous.x + (projected.x - previous.x) * contact + p.width / 2;
           const impactY = previous.y + (projected.y - previous.y) * contact + p.height / 2;
-          pools.push({ ownerId: p.ownerId,
+          pools.push({ ownerId: p.ownerId, type: impact.type,
             x: impactX - size / 2,
             y: impactY - size / 2,
             width: size, height: size, impactTime: t,

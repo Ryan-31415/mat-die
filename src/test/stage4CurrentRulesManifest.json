@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "baseGitSha": "9237d8ecef3925abe103ac35a553762532851620",
+  "branch": "work/stage4-a-latest-rules",
+  "committed": false,
+  "history": {
+    "previousBase": "9f6250520616c1a97a785b05e9805d5b0710a760",
+    "historical4aBundle": "30b916c75a08dbfd060d4532d1f3590f8a40442fbae520981ae89dc08ae303e3",
+    "upstreamCommitCount": 12,
+    "originalWorktreeSourcesPreserved": true
+  },
+  "beforeBundleSha256": "35e66a613356e381737a5bb6c3bb605ca21474f395e600471cd2ebdc726e4334",
+  "baselineBundleSha256": "b67d0d2d49f44c391a0838751508f556adc0e53017eb96d4f61cbdeed17867e4",
+  "runtimeSourceFingerprint": "1bf3f0fb7bae98854edd234efefa5de62bd1fbd35b0a99280fd4a21d6f23adf2",
+  "changedRuntimeSources": [
+    "src/hooks/ai/actionStart.ts",
+    "src/hooks/ai/controller.ts",
+    "src/hooks/ai/navigation.ts",
+    "src/hooks/ai/world.ts"
+  ],
+  "engineRuleSources": {
+    "src/hooks/useGameEngine.ts": "e4fd9ea9a5fc8e8d02c60e26ee7d789bfc9353e7e9b6013d749a1a4077650ac1",
+    "src/types/ai.ts": "14395d39e020c678791722d78f54f4f18b034322fd062610a55d17e50883dbe1",
+    "src/types/combatPhysics.ts": "f834f8309724eb76aed5ce2212b12144b5482c5a5fbfed922228979f1b86faff",
+    "src/types/combatVisual.ts": "d84d8ed36fa4fb65c5b9f22997322957b90ca6b5c43c88cc30691007f22dd783",
+    "src/types/engineRuntime.ts": "beb3e71bdf1e55f491fcffd02fb0239abca9756c2bd5df10b407f5e3d1bb9b55",
+    "src/types/game.ts": "72282c8c58a6f4705534b099c0db855e765b7b7f6ecc5373bbaab5f2c5a9eefc",
+    "src/types/map.ts": "7f4c54ee1f638719d040872f765f0f1a98f3df0511dc837286997274abbd86fe",
+    "src/types/platform.ts": "be8b6caa4350b2ba35ac9747f382e4cb0e658e78d9c536b509fefcf52994b449",
+    "src/types/projectile.ts": "3de19ac10e362713d4986ce5626705e986295cdb6cb0ebc5de1d4f07f50171c6"
+  },
+  "aiSources": {
+    "src/hooks/ai/actionStart.ts": "fed58092f00bf0595d16040391e028d4ec83a7b5b9cc412068957d7e46b1f440",
+    "src/hooks/ai/archerShot.ts": "8526bfdfa1e68f664f9bc2d4d6f05bf2223e81bcbc42e0c1ef328155c74c49d9",
+    "src/hooks/ai/charge.ts": "0760ebab2e4e930fff4a5815d771e38142b000ffad62306aa14ee0f65cf03ce6",
+    "src/hooks/ai/coil.ts": "9569f554fff242f4195d7d4284ac2fbd27a808115509d9dfbdb36919b33a3558",
+    "src/hooks/ai/coilClear.ts": "ff86eec18de73936748c3ba370c48061d763da2777a44e4151e1897d5357f068",
+    "src/hooks/ai/combat.ts": "10a55d37447da776942a399e3617289edefe3967d68e2bc3da3874ac761e4eed",
+    "src/hooks/ai/controller.ts": "a4464cf831d33f9c927aed72c03121493ea44d34f1bef3fbe86017dd364e2da3",
+    "src/hooks/ai/diagnostics.ts": "efbab9419b5a6524a4796fa2495de6dac75407a4a0699e0f18ce8ff3bc03afe3",
+    "src/hooks/ai/difficulty.ts": "561ce1188759b872d21a2522aa03ccb2e4088510e931b36d0aacaaaad429a613",
+    "src/hooks/ai/directShot.ts": "73b781b63d1211947118b6ac75056e09fdc85241000bc600956ea35dd074d78c",
+    "src/hooks/ai/estimation.ts": "ba971126af81615b8a0525b3991d7a64af1043de35d69b5e10e4325b5bd11b87",
+    "src/hooks/ai/forecast.ts": "14ac088183c45a040c470aaea233beb4f7582e10f440e0d06f2432a20af0be7c",
+    "src/hooks/ai/hunter.ts": "578fc5355446e239323d6b98bf6ca67394f39051e6409d5e10e120477a95e838",
+    "src/hooks/ai/learning.ts": "b2c8435bc75ec6a1d878a7cc83afef01f1b2c85b1774ee2f1ae2dc55a2f1312e",
+    "src/hooks/ai/matchup.ts": "64b82c472ae5161b312f75794086e145fef28927d7aea1484eb1a134f67ef2c2",
+    "src/hooks/ai/meleeOpportunity.ts": "32967577b7c86513adb66d50efe75a0de660b011bcc470726eda037e220cb3ea",
+    "src/hooks/ai/navigation.ts": "28987a45243480d3936ef59ce6b332e24c8d21f5db4e3a721a4c253f7964177e",
+    "src/hooks/ai/perception.ts": "e4a5c0f621382ad27e4e432ae117c238f026d27336668867e4d1275a7d7cf6d1",
+    "src/hooks/ai/random.ts": "79364ea99c81c5205e9e4a1a99dd021da66c16afdd8a6ae585d4631cd8fc88ad",
+    "src/hooks/ai/rangedEnvironment.ts": "c969b2a7d9ee73b8a3b650d2d9c7f04c7844c6e08f4fc72f3f37c45950801926",
+    "src/hooks/ai/rangedShots.ts": "93ea92881f9bceea77b3f86cfb70d9e02e7d619aa96948f4c3ddd2462be85f4b",
+    "src/hooks/ai/rocketeer.ts": "3a4bd2ac9b5353e86781db23a4a43e7d472425035157db57e7839a9ff3b87ef3",
+    "src/hooks/ai/scientist.ts": "a8b13dba229930a24e9cb6cd73bb9cceb69aa10bd1bac7555ca04b7b5398dac4",
+    "src/hooks/ai/state.ts": "c59815d852b42387b0ee11d53fd95fee0866d5787196ad77a616759ccdd7f1d6",
+    "src/hooks/ai/world.ts": "214901944df032a9828dea174b7428131670d3b10bd6c2ff69b2d9e254b0c368"
+  },
+  "validation": {
+    "beforePassed": 397,
+    "beforeFailed": 8,
+    "afterPassed": 420,
+    "afterFailed": 8,
+    "exactSameFailureMessages": true,
+    "failures": [
+      "action-start self motion against the current engine rules dt16/P1/'shield below threshold'",
+      "action-start self motion against the current engine rules dt16/P2/'shield below threshold'",
+      "action-start self motion against the current engine rules dt33/P1/'shield below threshold'",
+      "action-start self motion against the current engine rules dt33/P2/'shield below threshold'",
+      "action-start self motion against the current engine rules dt100/P1/'shield below threshold'",
+      "action-start self motion against the current engine rules dt100/P2/'shield below threshold'",
+      "current public rules at the restricted perception boundary starts an observed rocket at public speed 600 without reading hidden magnitude/age",
+      "current-rule stage-three correctness without combat simulations uses the current top-edge net, -105 velocity, 325 gravity and 45px coil contact"
+    ],
+    "runtimeEquivalenceTransitions": 1500,
+    "newFixedTests": 22,
+    "testBudgetSeconds": 300,
+    "testExecutionSeconds": 102.82130297851563,
+    "testRuns": 2,
+    "engineTests": 77,
+    "lint": "passed",
+    "build": "passed",
+    "typecheck": "same existing HazardRenderer.tsx:128 TS2322",
+    "typeDiagnosticsEqual": true
+  },
+  "evaluation": {
+    "games": 0,
+    "officialCpuBenchmarks": 0,
+    "cpuStatus": "unconfirmed",
+    "maximumFutureGames": 160,
+    "proposedSeeds": {
+      "development": 3142590471,
+      "holdout": 1006938817
+    },
+    "seedUseStatus": "Previously proposed but no games executed; metadata re-audit recorded separately",
+    "seedMetadataFilesChecked": 229,
+    "seedOversizedFilesSkipped": 4,
+    "seedMatches": [],
+    "previousPreparationGames": 0
+  }
+}
