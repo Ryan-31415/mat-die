@@ -2,7 +2,7 @@ import { ARENA, PLAYER_SIZE, type CharacterType, type Player } from '@/types/gam
 import { GRAVITY, JUMP_FORCE, type Platform } from '@/types/platform';
 import { hazardProperties, type HazardZone } from '@/types/projectile';
 import { BAT_RETURN_FRACTION, basicMeleeGeometry, clampPlayerX, FLOOR_Y, playerMoveSpeed, shieldFacesX } from '@/types/combatPhysics';
-import { overlapsPlayer, type AIFrame } from './world';
+import { overlapsPlayer, hazardOverlapsPlayer, type AIFrame } from './world';
 import { createAIMemory, type AIMemory, type Strategy } from './state';
 import { matchupTactics } from './matchup';
 import { NEUTRAL_AI_TRAITS, type AITraits } from '@/types/ai';
@@ -18,7 +18,7 @@ export function hazardRisk(point: Point, zone: HazardZone) {
     const nearExplosion = (zone.health ?? defaults.health) < (zone.maxHealth ?? defaults.maxHealth) * 0.08;
     return distance < (nearExplosion ? 165 : zone.attackRange ?? defaults.attackRange) + 12 ? nearExplosion ? 320 : 180 : 0;
   }
-  if (!overlapsPlayer(point, zone, 8)) return 0;
+  if (!hazardOverlapsPlayer(point, zone, 8)) return 0;
   return zone.isNapalm ? Math.max(120, zone.damage * 1000 / zone.tickRate * 12) : zone.type === 'packet-block-zone' ? 65 : zone.type === 'bear-trap' ? 180 : zone.type === 'blizzard' ? 160 : 120;
 }
 

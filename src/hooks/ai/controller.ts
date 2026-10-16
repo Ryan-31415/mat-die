@@ -7,7 +7,7 @@ import type { KeyboardState } from '../useKeyboard';
 import { createOpponentModel, predictOpponent, type Direction, type OpponentModel } from './learning';
 import { createAIMemory, type AIMemory } from './state';
 import { hazardRisk, isMelee, selectGoal, support } from './navigation';
-import { AI_DT, AI_STEPS, overlapsPlayer, type AIFrame } from './world';
+import { AI_DT, AI_STEPS, overlapsPlayer, hazardOverlapsPlayer, type AIFrame } from './world';
 import { chooseCombat, type CombatProposal } from './combat';
 import { AI_PRESETS, NEUTRAL_AI_TRAITS, type AIDecisionOptions } from '@/types/ai';
 import { gaussian } from './random';
@@ -175,7 +175,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
         kx = Math.abs(kx) > 10 ? kx * decay : 0; ky = Math.abs(ky) > 10 ? ky * decay : 0;
         const motionSpeed = chargeMotion?.speedAt(elapsed * 1000, dt * 1000) ?? speed;
         let movement = direction * motionSpeed * dt / (flying && (action.jump || action.drop) ? Math.SQRT2 : 1);
-        const ice = zones.some(z => z.type === 'blizzard' && now + elapsed * 1000 - z.createdAt <= z.duration && overlapsPlayer(point, z));
+        const ice = zones.some(z => z.type === 'blizzard' && now + elapsed * 1000 - z.createdAt <= z.duration && hazardOverlapsPlayer(point, z));
         if (ice) { vx = (vx + direction * motionSpeed / 75 * 100 * dt) * Math.pow(0.99, dt * 1000 / 16); movement = vx * dt; }
         else vx = 0;
         point.x = clampPlayerX(point.x + (approaches && !flying && !ice && direction * (goal.x - point.x) <= Math.abs(movement) ? goal.x - point.x : movement) + kx * dt);
@@ -208,7 +208,7 @@ export function decideAI(frame: AIFrame, player: Player, model: OpponentModel = 
           if (strikeTime >= strikeIn && previousStrikeTime < strikeIn && Math.abs(point.x + PLAYER_SIZE / 2 - strikePoint.x) < LIGHTNING_RADIUS + 8) risk += 240;
         }
         if (projectileInRange && environmentInRange) for (const pool of pools) if (elapsed >= pool.impactTime &&
-          (!pool.duration || (elapsed - pool.impactTime) * 1000 <= pool.duration) && overlapsPlayer(point, pool, 8))
+          (!pool.duration || (elapsed - pool.impactTime) * 1000 <= pool.duration) && hazardOverlapsPlayer(point, pool, 8))
           risk += (pool.damage === undefined ? 160 : Math.max(160, pool.damage * 120)) / frame.steps;
         for (const pool of candidatePools) if (elapsed >= pool.impactTime && overlapsPlayer(point, pool, 8)) risk += Math.max(160, pool.damage * 120) / frame.steps;
         if (opponentInRange) for (const hitbox of hitboxes) if (now + elapsed * 1000 - hitbox.createdAt <= hitbox.duration && overlapsPlayer(point, hitbox) &&

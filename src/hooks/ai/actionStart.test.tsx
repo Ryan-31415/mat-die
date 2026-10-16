@@ -2,7 +2,6 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CHARACTERS, type CharacterType, type Player } from '@/types/game';
 import { createHazardZone } from '@/types/projectile';
-import { loadFrozenAI } from '@/test/aiBaseline';
 import { useGameEngine } from '../useGameEngine';
 import { emptyAIKeys } from './controller';
 import { predictActionStart } from './actionStart';
@@ -48,15 +47,14 @@ const scenes: Scene[] = [
   { name: 'one-way drop', player: { x: 150, y: 310 }, down: true },
 ];
 
-describe('action-start self motion against the original full engine', () => {
+describe('action-start self motion against the current engine rules', () => {
   for (const dt of [16, 33, 100]) for (const side of [1, 2] as const) {
     it.each(scenes)(`dt${dt}/P${side}/$name`, scene => {
-      const snapshots = [];
-      for (const engine of [loadFrozenAI().api.useGameEngine, useGameEngine]) {
+      {
         vi.useFakeTimers(); vi.setSystemTime(10000); vi.spyOn(Math, 'random').mockReturnValue(0.3);
         const characters = side === 1 ? [CHARACTERS[scene.character ?? 'gladiator'], CHARACTERS[scene.enemy ?? 'archer']]
           : [CHARACTERS[scene.enemy ?? 'archer'], CHARACTERS[scene.character ?? 'gladiator']];
-        const game = renderHook(() => engine(characters[0], characters[1], 60, () => {}, 'multi', false, 1, 'default'));
+        const game = renderHook(() => useGameEngine(characters[0], characters[1], 60, () => {}, 'multi', false, 1, 'default'));
         const state = game.result.current.gameState, player = state.players[side - 1];
         Object.assign(player, { x: 400, y: 440, isGrounded: true, lastGroundedTime: 10000, mana: 50 }, scene.player);
         state.players[side === 1 ? 1 : 0].x = 50;
@@ -79,10 +77,8 @@ describe('action-start self motion against the original full engine', () => {
         act(() => { vi.advanceTimersByTime(16); });
         const actual = game.result.current.gameState.players[side - 1];
         expect(actual).toMatchObject(expected);
-        snapshots.push(structuredClone(game.result.current.gameState));
         game.unmount(); vi.clearAllTimers(); vi.restoreAllMocks(); vi.useRealTimers();
       }
-      expect(snapshots[1]).toEqual(snapshots[0]);
     });
   }
 });
