@@ -139,9 +139,9 @@ function visibleProjectile(p: Projectile, world: AIWorld, previous: AIWorld | un
   const old = previous?.projectiles.find(s => s.id === p.id);
   const dt = previous ? (world.now - previous.now) / 1000 : 0;
   const speeds: Record<Projectile['type'], number> = {
-    arrow: 1000, 'poison-arrow': 1000, fireball: 780, 'large-fireball': 750, flask: 640, 'electric-orb': 850,
-    meteor: 750, bullet: 1250, 'super-bullet': 1562.5, bat: 550, snowball: 700, 'large-snowball': 920,
-    'blizzard-stone': 600, net: 750, 'hacker-missile': 800, hacking: 0, rocket: ROCKET_SPEED, 'homing-rocket': HOMING_ROCKET_SPEED,
+    arrow: 950, 'poison-arrow': 950, fireball: 800, 'large-fireball': 800, flask: 675, 'electric-orb': 850,
+    meteor: 800, bullet: 1250, 'super-bullet': 1562.5, bat: 550, snowball: 700, 'large-snowball': 920,
+    'blizzard-stone': 600, net: 760, 'hacker-missile': 840, hacking: 0, rocket: ROCKET_SPEED, 'homing-rocket': HOMING_ROCKET_SPEED,
   };
   const estimate = parameters.estimation.properties.mode === 'estimated';
   // Rendered orientation supplies angle only. Otherwise facing is an uncertain first-sighting estimate;
